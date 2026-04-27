@@ -4,18 +4,18 @@ import { createServerClient } from '@/lib/supabase-server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult, PaymentOutgoing } from '@/types'
 
-// ── 돈관리 대시보드 ───────────────────────────────────────────
+// ── 돈관리 대시보드 (payments 테이블 — realmyos DB 단일화 구조) ─
 
 export interface MoneyDashboard {
   due_this_week:  number
   due_this_month: number
   total_unpaid:   number
   payments:       PaymentOutgoing[]
-  is_tight:       boolean   // 이번 주 지급이 이번 달 70% 이상
+  is_tight:       boolean
 }
 
 export async function getMoneyDashboard(
-  restaurant_id: string,
+  tenant_id: string,
 ): Promise<ActionResult<MoneyDashboard>> {
   const supabase = await createServerClient()
 
@@ -24,10 +24,12 @@ export async function getMoneyDashboard(
   const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0)
     .toISOString().slice(0, 10)
 
+  // payments 테이블: payer_tenant_id = 식당, direction = 'outbound'
   const { data, error } = await supabase
-    .from('payments_outgoing')
+    .from('payments')
     .select('*')
-    .eq('restaurant_id', restaurant_id)
+    .eq('payer_tenant_id', tenant_id)
+    .eq('direction', 'outbound')
     .eq('status', 'planned')
     .order('due_date', { ascending: true })
 
@@ -47,13 +49,17 @@ export async function getMoneyDashboard(
 
 // ── 지급 완료 ────────────────────────────────────────────────
 
-export async function markPaymentPaid(payment_id: string): Promise<ActionResult> {
+export async function markPaymentPaid(
+  payment_id: string,
+  tenant_id: string,
+): Promise<ActionResult> {
   const supabase = await createServerClient()
 
   const { error } = await supabase
-    .from('payments_outgoing')
+    .from('payments')
     .update({ status: 'paid', paid_at: new Date().toISOString() })
     .eq('id', payment_id)
+    .eq('payer_tenant_id', tenant_id)
 
   if (error) return { success: false, error: error.message }
 
@@ -65,7 +71,7 @@ export async function markPaymentPaid(payment_id: string): Promise<ActionResult>
 // ── 수동 지급 추가 ───────────────────────────────────────────
 
 export interface AddManualPaymentInput {
-  restaurant_id: string
+  tenant_id:     string
   supplier_name: string
   amount:        number
   due_date:      string
@@ -81,14 +87,16 @@ export async function addManualPayment(
 
   const supabase = await createServerClient()
   const { data, error } = await supabase
-    .from('payments_outgoing')
+    .from('payments')
     .insert({
-      restaurant_id: input.restaurant_id,
-      supplier_name: input.supplier_name.trim(),
-      amount:        input.amount,
-      due_date:      input.due_date,
-      memo:          input.memo ?? null,
-      status:        'planned',
+      payer_tenant_id: input.tenant_id,
+      tenant_id:       input.tenant_id,   // RLS용
+      counterparty_name: input.supplier_name.trim(),  // payments 컬럼명
+      amount:          input.amount,
+      due_date:        input.due_date,
+      memo:            input.memo ?? null,
+      status:          'planned',
+      direction:       'outbound',
     })
     .select('id')
     .single()

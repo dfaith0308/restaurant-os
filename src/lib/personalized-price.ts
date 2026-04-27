@@ -7,7 +7,7 @@
 // ── 레이어 관계 ──
 //   evaluatePrice(name, unit, current)                                   → market 평균 기준
 //   personalizedEvaluate(current, history[])                             → 동기, 히스토리 주입형
-//   personalizedEvaluatePrice(name, unit, current, restaurant_id)        → 비동기, 서버에서 DB 조회
+//   personalizedEvaluatePrice(name, unit, current, tenant_id)            → 비동기, 서버에서 DB 조회
 //
 // aiEvaluatePrice 는 ctx.personal_history 가 있으면 personalizedEvaluate 를 쓰고,
 // 없으면 evaluatePrice 로 폴백한다 — 인터페이스 유지.
@@ -107,10 +107,10 @@ export async function personalizedEvaluatePrice(
   name:          string,
   unit:          string,
   current:       number | null,
-  restaurant_id: string,
+  tenant_id:     string,
   barcode?:      string | null,
 ): Promise<PersonalEvaluation | null> {
-  if (!current || !restaurant_id) return null
+  if (!current || !tenant_id) return null
 
   // 서버 전용 import (client bundle 오염 방지)
   const { createServerClient } = await import('@/lib/supabase-server')
@@ -120,7 +120,7 @@ export async function personalizedEvaluatePrice(
   let query = supabase
     .from('price_history')
     .select('price, unit, supplier_name, created_at, source, barcode')
-    .eq('restaurant_id', restaurant_id)
+    .eq('tenant_id', tenant_id)
 
   query = barcode
     ? query.eq('barcode', barcode)
@@ -157,7 +157,7 @@ type PriceHistoryRow = {
 }
 
 export async function fetchHistoriesForIngredients(
-  restaurant_id: string,
+  tenant_id:     string,
   refs:          HistoryRef[] | string[],      // overload — 기존 string[] 호환
   perNameLimit:  number = 10,
 ): Promise<Record<string, PricePoint[]>> {
@@ -182,7 +182,7 @@ export async function fetchHistoriesForIngredients(
     const { data: sibIngs } = await supabase
       .from('ingredients')
       .select('name, barcode, possible_duplicate_group_id')
-      .eq('restaurant_id', restaurant_id)
+      .eq('tenant_id', tenant_id)
       .eq('is_active', true)
       .in('possible_duplicate_group_id', groupIds)
 
@@ -213,7 +213,7 @@ export async function fetchHistoriesForIngredients(
       ? supabase
           .from('price_history')
           .select('id, ingredient_name, barcode, price, unit, supplier_name, created_at, source')
-          .eq('restaurant_id', restaurant_id)
+          .eq('tenant_id', tenant_id)
           .in('barcode', Array.from(allBarcodes))
           .order('created_at', { ascending: false })
           .limit(perNameLimit * Math.max(1, allBarcodes.size))
@@ -223,7 +223,7 @@ export async function fetchHistoriesForIngredients(
       ? supabase
           .from('price_history')
           .select('id, ingredient_name, barcode, price, unit, supplier_name, created_at, source')
-          .eq('restaurant_id', restaurant_id)
+          .eq('tenant_id', tenant_id)
           .in('ingredient_name', Array.from(allNames))
           .order('created_at', { ascending: false })
           .limit(perNameLimit * Math.max(1, allNames.size))

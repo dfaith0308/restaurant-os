@@ -76,7 +76,7 @@ export default function TodayImportCard({ restaurantId, emphasize = false }: Pro
     setError(null)
     startTr(async () => {
       const res = await registerSku({
-        restaurant_id: restaurantId,
+        tenant_id:     restaurantId,
         name:          skuParsed.name,
         parsed_name:   skuParsed.parsed_name,
         brand:         skuParsed.brand,
@@ -90,7 +90,7 @@ export default function TodayImportCard({ restaurantId, emphasize = false }: Pro
       const sid = getOrCreateSessionId()
       if (sid) {
         logTodayEvent({
-          restaurant_id: restaurantId, session_id: sid,
+          tenant_id:     restaurantId, session_id: sid,
           event_type: 'action_complete', action_kind: 'sku',
           time_to_action_ms: timeSinceEnter(),
         })
@@ -139,7 +139,7 @@ export default function TodayImportCard({ restaurantId, emphasize = false }: Pro
       const sid = getOrCreateSessionId()
       if (sid) {
         logTodayEvent({
-          restaurant_id: restaurantId, session_id: sid,
+          tenant_id:     restaurantId, session_id: sid,
           event_type: 'action_complete', action_kind: 'sku',
           time_to_action_ms: timeSinceEnter(),
         })

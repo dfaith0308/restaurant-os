@@ -22,7 +22,7 @@ CREATE TABLE restaurants (
 -- parsed_name/brand/barcode/manufacturer 는 OCR 또는 제품 뒷면 사진에서 추출된 SKU 정보.
 CREATE TABLE ingredients (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  restaurant_id   uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  tenant_id       uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
   name            text NOT NULL,                -- raw_name
   category        text,
   unit            text DEFAULT 'kg',
@@ -47,15 +47,15 @@ CREATE TABLE ingredients (
 -- ALTER TABLE ingredients ADD COLUMN IF NOT EXISTS group_confirmed_same_at timestamptz;
 
 CREATE INDEX idx_ingredients_barcode
-  ON ingredients(restaurant_id, barcode) WHERE barcode IS NOT NULL;
+  ON ingredients(tenant_id, barcode) WHERE barcode IS NOT NULL;
 CREATE INDEX idx_ingredients_dup_group
-  ON ingredients(restaurant_id, possible_duplicate_group_id)
+  ON ingredients(tenant_id, possible_duplicate_group_id)
   WHERE possible_duplicate_group_id IS NOT NULL;
 
 -- ── 고정비 ────────────────────────────────────────────────────
 CREATE TABLE fixed_costs (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  restaurant_id uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  tenant_id     uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
   name          text NOT NULL,         -- "월세", "인건비", "전기세"
   amount        integer NOT NULL,
   cycle         text DEFAULT 'monthly', -- monthly / weekly
@@ -65,7 +65,7 @@ CREATE TABLE fixed_costs (
 -- ── 공급업체 (거래처) ─────────────────────────────────────────
 CREATE TABLE suppliers (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  restaurant_id uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  tenant_id     uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
   name          text NOT NULL,
   contact       text,
   region        text,
@@ -78,7 +78,7 @@ CREATE TABLE suppliers (
 -- ── 발주요청 (RFQ) ─────────────────────────────────────────────
 CREATE TABLE rfq_requests (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  restaurant_id   uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  tenant_id       uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
   ingredient_id   uuid REFERENCES ingredients(id) ON DELETE SET NULL,
   product_name    text NOT NULL,
   quantity        integer NOT NULL,
@@ -112,7 +112,7 @@ CREATE TABLE rfq_bids (
 -- ── 발주 확정 ─────────────────────────────────────────────────
 CREATE TABLE orders (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  restaurant_id   uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  buyer_tenant_id uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
   rfq_id          uuid REFERENCES rfq_requests(id) ON DELETE SET NULL,
   bid_id          uuid REFERENCES rfq_bids(id) ON DELETE SET NULL,
   supplier_id     uuid REFERENCES suppliers(id) ON DELETE SET NULL,
@@ -131,7 +131,7 @@ CREATE TABLE orders (
 -- ── 지급 예정 ─────────────────────────────────────────────────
 CREATE TABLE payments_outgoing (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  restaurant_id   uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  payer_tenant_id uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
   order_id        uuid REFERENCES orders(id) ON DELETE SET NULL,
   supplier_id     uuid REFERENCES suppliers(id) ON DELETE SET NULL,
   supplier_name   text NOT NULL,
@@ -147,7 +147,7 @@ CREATE TABLE payments_outgoing (
 -- ── 알림 ──────────────────────────────────────────────────────
 CREATE TABLE notifications (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  restaurant_id   uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  tenant_id       uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
   type            text NOT NULL,       -- 'price_high', 'payment_due', 'rfq_bid'
   priority        text NOT NULL DEFAULT 'normal'
                     CHECK (priority IN ('urgent','important','normal')),
@@ -162,12 +162,12 @@ CREATE TABLE notifications (
 -- ── 누적 절약 통계 (월별) ──────────────────────────────────────
 CREATE TABLE savings_stats (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  restaurant_id   uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  tenant_id       uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
   month           text NOT NULL,       -- "2026-04"
   total_saving    integer DEFAULT 0,
   order_count     integer DEFAULT 0,
   updated_at      timestamptz DEFAULT now(),
-  UNIQUE(restaurant_id, month)
+  UNIQUE(tenant_id, month)
 );
 
 -- ── 가격 히스토리 (AI 개인화 기반 데이터) ────────────────────
@@ -175,7 +175,7 @@ CREATE TABLE savings_stats (
 -- 이후 AI가 시장 평균 대신 "이 식당의 실 구매가 히스토리"로 판단하는 재료.
 CREATE TABLE price_history (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  restaurant_id   uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  tenant_id       uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
   ingredient_name text NOT NULL,        -- raw_name fallback 조회용
   barcode         text,                 -- SKU 1순위 조회 키
   price           integer NOT NULL,
@@ -190,7 +190,7 @@ CREATE TABLE price_history (
 -- ALTER TABLE price_history ADD COLUMN IF NOT EXISTS barcode text;
 
 CREATE INDEX idx_price_history_barcode
-  ON price_history(restaurant_id, barcode, created_at DESC) WHERE barcode IS NOT NULL;
+  ON price_history(tenant_id, barcode, created_at DESC) WHERE barcode IS NOT NULL;
 
 ALTER TABLE price_history ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "auth_all" ON price_history FOR ALL USING (auth.role() = 'authenticated');
@@ -203,7 +203,7 @@ CREATE POLICY "auth_all" ON price_history FOR ALL USING (auth.role() = 'authenti
 -- time_to_action_ms / exit_without_action / sessions_per_day 는 이 세 이벤트로 다 유도 가능.
 CREATE TABLE today_events (
   id                   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  restaurant_id        uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  tenant_id            uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
   session_id           text NOT NULL,
   event_type           text NOT NULL CHECK (event_type IN ('today_enter','primary_card_click','action_complete')),
   decision_type        text CHECK (decision_type IS NULL OR decision_type IN ('SWITCH','KEEP','REVIEW')),
@@ -225,7 +225,7 @@ CREATE TABLE today_events (
 ALTER TABLE today_events ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "auth_all" ON today_events FOR ALL USING (auth.role() = 'authenticated');
 
-CREATE INDEX idx_today_events_restaurant ON today_events(restaurant_id, created_at DESC);
+CREATE INDEX idx_today_events_tenant ON today_events(tenant_id, created_at DESC);
 CREATE INDEX idx_today_events_session    ON today_events(session_id);
 
 -- 분석 쿼리 예시 (참고용):
@@ -248,7 +248,7 @@ CREATE INDEX idx_today_events_session    ON today_events(session_id);
 -- 이 데이터로 getRestaurantBehaviorProfile 이 switch_preference / auto_accept_rate / risk_tolerance 를 계산.
 CREATE TABLE ai_decision_logs (
   id               uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  restaurant_id    uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  tenant_id        uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
   ingredient_name  text NOT NULL,
   ai_decision      text NOT NULL CHECK (ai_decision IN ('KEEP','SWITCH')),
   user_action      text NOT NULL CHECK (user_action IN ('KEEP','SWITCH','CANCEL')),
@@ -261,16 +261,16 @@ CREATE POLICY "auth_all" ON ai_decision_logs FOR ALL USING (auth.role() = 'authe
 
 -- ── 인덱스 ────────────────────────────────────────────────────
 CREATE INDEX idx_price_history_lookup
-  ON price_history(restaurant_id, ingredient_name, created_at DESC);
+  ON price_history(tenant_id, ingredient_name, created_at DESC);
 
 CREATE INDEX idx_ai_decision_logs_restaurant
-  ON ai_decision_logs(restaurant_id, created_at DESC);
+  ON ai_decision_logs(tenant_id, created_at DESC);
 
-CREATE INDEX idx_rfq_requests_restaurant ON rfq_requests(restaurant_id, status);
+CREATE INDEX idx_rfq_requests_tenant ON rfq_requests(tenant_id, status);
 CREATE INDEX idx_rfq_bids_rfq_id         ON rfq_bids(rfq_id);
-CREATE INDEX idx_orders_restaurant        ON orders(restaurant_id, status);
-CREATE INDEX idx_payments_restaurant      ON payments_outgoing(restaurant_id, due_date);
-CREATE INDEX idx_notifications_restaurant ON notifications(restaurant_id, is_read, created_at DESC);
+CREATE INDEX idx_orders_buyer_tenant      ON orders(buyer_tenant_id, status);
+CREATE INDEX idx_payments_payer_tenant    ON payments_outgoing(payer_tenant_id, due_date);
+CREATE INDEX idx_notifications_tenant     ON notifications(tenant_id, is_read, created_at DESC);
 
 -- ── RLS ───────────────────────────────────────────────────────
 ALTER TABLE restaurants        ENABLE ROW LEVEL SECURITY;
@@ -284,7 +284,7 @@ ALTER TABLE payments_outgoing  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notifications      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE savings_stats      ENABLE ROW LEVEL SECURITY;
 
--- 개발 단계: 인증된 사용자 전체 허용 (추후 restaurant_id 기반으로 강화)
+-- 개발 단계: 인증된 사용자 전체 허용 (추후 tenant_id 기반으로 강화)
 CREATE POLICY "auth_all" ON restaurants       FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "auth_all" ON ingredients       FOR ALL USING (auth.role() = 'authenticated');
 CREATE POLICY "auth_all" ON fixed_costs       FOR ALL USING (auth.role() = 'authenticated');
@@ -318,15 +318,15 @@ CREATE POLICY "auth_all" ON order_items FOR ALL USING (auth.role() = 'authentica
 
 -- upsert_savings_stat RPC (절약 통계 누적)
 CREATE OR REPLACE FUNCTION upsert_savings_stat(
-  p_restaurant_id uuid,
+  p_tenant_id uuid,
   p_month         text,
   p_saving        integer
 )
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
-  INSERT INTO savings_stats (restaurant_id, month, total_saving, order_count)
-  VALUES (p_restaurant_id, p_month, p_saving, 1)
-  ON CONFLICT (restaurant_id, month)
+  INSERT INTO savings_stats (tenant_id, month, total_saving, order_count)
+  VALUES (p_tenant_id, p_month, p_saving, 1)
+  ON CONFLICT (tenant_id, month)
   DO UPDATE SET
     total_saving = savings_stats.total_saving + EXCLUDED.total_saving,
     order_count  = savings_stats.order_count  + 1,

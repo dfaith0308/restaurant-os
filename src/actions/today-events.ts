@@ -16,7 +16,7 @@ export type SkuPrecisionStr = 'exact' | 'grouped' | 'branded' | 'name_only'
 export type PersonalizationType = 'loss_pref' | 'time_pref' | 'dampened' | 'simple' | 'none'
 
 export interface TodayEventInput {
-  restaurant_id:        string
+  tenant_id:            string
   session_id:           string
   event_type:           TodayEventType
   decision_type?:       DecisionType | null
@@ -31,11 +31,11 @@ export interface TodayEventInput {
 }
 
 export async function logTodayEvent(input: TodayEventInput): Promise<void> {
-  if (!input.restaurant_id || !input.session_id || !input.event_type) return
+  if (!input.tenant_id || !input.session_id || !input.event_type) return
   try {
     const supabase = await createServerClient()
     await supabase.from('today_events').insert({
-      restaurant_id:       input.restaurant_id,
+      tenant_id:           input.tenant_id,
       session_id:          input.session_id,
       event_type:          input.event_type,
       decision_type:       input.decision_type       ?? null,

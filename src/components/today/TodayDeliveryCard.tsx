@@ -54,7 +54,7 @@ export default function TodayDeliveryCard({ restaurantId, order, otherCount }: P
     const sid = getOrCreateSessionId()
     if (sid && restaurantId) {
       logTodayEvent({
-        restaurant_id:       restaurantId,
+        tenant_id:           restaurantId,
         session_id:          sid,
         event_type:          'primary_card_click',
         shown_pressure_type: 'none',
@@ -71,7 +71,7 @@ export default function TodayDeliveryCard({ restaurantId, order, otherCount }: P
         const ms = timeSinceEnter()
         if (sid && restaurantId) {
           logTodayEvent({
-            restaurant_id:     restaurantId,
+            tenant_id:         restaurantId,
             session_id:        sid,
             event_type:        'action_complete',
             action_kind:       'delivery',

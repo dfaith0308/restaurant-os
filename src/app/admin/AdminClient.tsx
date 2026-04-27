@@ -9,11 +9,11 @@ interface Restaurant {
   is_approved: boolean; created_at: string
 }
 interface Rfq {
-  id: string; restaurant_id: string; product_name: string
+  id: string; tenant_id: string; product_name: string
   status: string; created_at: string
 }
 interface Order {
-  id: string; restaurant_id: string; product_name: string
+  id: string; buyer_tenant_id: string; product_name: string
   supplier_name: string; status: string; total_amount: number; created_at: string
 }
 
@@ -34,7 +34,7 @@ export default function AdminClient({ restaurants: initRest, rfqs, orders }: {
     startTr(async () => {
       const supabase = createBrowserSupabase()
       const { error } = await supabase
-        .from('restaurants')
+        .from('tenants')
         .update({ is_approved: !current })
         .eq('id', id)
       if (error) {

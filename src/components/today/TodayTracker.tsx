@@ -42,7 +42,7 @@ export default function TodayTracker({
     if (!sid) return
 
     logTodayEvent({
-      restaurant_id:           restaurantId,
+      tenant_id:               restaurantId,
       session_id:              sid,
       event_type:              'today_enter',
       decision_type:           decisionType ?? null,

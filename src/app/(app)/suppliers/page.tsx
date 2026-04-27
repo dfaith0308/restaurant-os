@@ -1,11 +1,11 @@
-import { getRestaurantId } from '@/lib/get-restaurant'
+import { getTenantId } from '@/lib/get-restaurant'
 import { getSuppliers } from '@/actions/suppliers'
 import Link from 'next/link'
 import { formatKRW } from '@/lib/utils'
 
 export default async function SuppliersPage() {
-  const restaurantId = await getRestaurantId()
-  const result = await getSuppliers(restaurantId)
+  const tenantId = await getTenantId()
+  const result = await getSuppliers(tenantId)
   const suppliers = result.data ?? []
 
   return (

@@ -1,12 +1,11 @@
-'use client'
-
-import { useState } from 'react'
 import Link from 'next/link'
 import type { RfqRequest } from '@/types'
 import { formatKRW } from '@/lib/utils'
 
 interface Props {
-  rfqs: RfqRequest[]
+  rfqs:         RfqRequest[]
+  allRfqs:      RfqRequest[]
+  activeStatus: 'all' | 'open' | 'ordered' | 'closed'
 }
 
 const STATUS_CFG = {
@@ -22,14 +21,11 @@ const FILTER_TABS = [
   { key: 'open',    label: '진행중'  },
   { key: 'ordered', label: '납품 대기' },
   { key: 'closed',  label: '종료'    },
-]
+ ] as const
 
-export default function RfqListClient({ rfqs }: Props) {
-  const [tab, setTab] = useState<string>('all')
-
-  const filtered    = tab === 'all' ? rfqs : rfqs.filter(r => r.status === tab)
-  const openCount   = rfqs.filter(r => r.status === 'open').length
-  const orderedCount = rfqs.filter(r => r.status === 'ordered').length
+export default function RfqListClient({ rfqs, allRfqs, activeStatus }: Props) {
+  const openCount    = allRfqs.filter(r => r.status === 'open').length
+  const orderedCount = allRfqs.filter(r => r.status === 'ordered').length
 
   return (
     <div>
@@ -58,42 +54,52 @@ export default function RfqListClient({ rfqs }: Props) {
 
       {/* 탭 필터 */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, overflowX: 'auto', paddingBottom: 2 }}>
-        {FILTER_TABS.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            style={{
-              padding: '6px 14px', borderRadius: 20, border: 'none',
-              background: tab === t.key ? '#111827' : '#fff',
-              color:      tab === t.key ? '#fff' : '#6b7280',
-              fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
-              boxShadow: tab === t.key ? 'none' : '0 0 0 1px #e5e7eb',
-            }}>
-            {t.label}
-            {t.key === 'open' && openCount > 0 && (
-              <span style={{
-                marginLeft: 5, background: '#EF4444', color: '#fff',
-                borderRadius: 10, padding: '1px 6px', fontSize: 10,
-              }}>
-                {openCount}
-              </span>
-            )}
-            {t.key === 'ordered' && orderedCount > 0 && (
-              <span style={{
-                marginLeft: 5, background: '#7C3AED', color: '#fff',
-                borderRadius: 10, padding: '1px 6px', fontSize: 10,
-              }}>
-                {orderedCount}
-              </span>
-            )}
-          </button>
-        ))}
+        {FILTER_TABS.map(t => {
+          const active = activeStatus === t.key
+          const href = t.key === 'all' ? '/rfq' : `/rfq?status=${t.key}`
+          return (
+            <Link
+              key={t.key}
+              href={href}
+              style={{
+                padding: '6px 14px', borderRadius: 20,
+                background: active ? '#111827' : '#fff',
+                color:      active ? '#fff' : '#6b7280',
+                fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
+                boxShadow: active ? 'none' : '0 0 0 1px #e5e7eb',
+                textDecoration: 'none',
+                display: 'inline-flex',
+                alignItems: 'center',
+              }}
+            >
+              {t.label}
+              {t.key === 'open' && openCount > 0 && (
+                <span style={{
+                  marginLeft: 5, background: '#EF4444', color: '#fff',
+                  borderRadius: 10, padding: '1px 6px', fontSize: 10,
+                }}>
+                  {openCount}
+                </span>
+              )}
+              {t.key === 'ordered' && orderedCount > 0 && (
+                <span style={{
+                  marginLeft: 5, background: '#7C3AED', color: '#fff',
+                  borderRadius: 10, padding: '1px 6px', fontSize: 10,
+                }}>
+                  {orderedCount}
+                </span>
+              )}
+            </Link>
+          )
+        })}
       </div>
 
       {/* 목록 */}
-      {filtered.length === 0 ? (
+      {rfqs.length === 0 ? (
         <EmptyState />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {filtered.map(rfq => <RfqCard key={rfq.id} rfq={rfq} />)}
+          {rfqs.map(rfq => <RfqCard key={rfq.id} rfq={rfq} />)}
         </div>
       )}
     </div>

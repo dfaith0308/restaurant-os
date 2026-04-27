@@ -53,14 +53,23 @@ export default function LoginPage() {
         return
       }
 
-      // 2. restaurant 생성 (is_approved: false)
-      const { error: restErr } = await supabase.from('restaurants').insert({
-        name:        storeName.trim(),
-        owner_id:    data.user.id,
-        is_approved: false,
-      })
-      if (restErr) {
-        setError('매장 등록 실패: ' + restErr.message)
+      // 2. tenants 생성 (realmyos DB 단일화 구조)
+      const { data: tenant, error: tErr } = await supabase
+        .from('tenants')
+        .insert({ name: storeName.trim(), role: 'restaurant', is_approved: false })
+        .select('id').single()
+      if (tErr || !tenant) {
+        setError('매장 등록 실패: ' + tErr?.message)
+        setLoading(false)
+        return
+      }
+
+      // 3. users에 tenant 연결
+      const { error: uErr } = await supabase
+        .from('users')
+        .insert({ id: data.user.id, tenant_id: tenant.id, role: 'restaurant' })
+      if (uErr) {
+        setError('계정 연결 실패: ' + uErr.message)
         setLoading(false)
         return
       }
@@ -81,16 +90,18 @@ export default function LoginPage() {
       return
     }
 
-    // 승인 체크
-    const { data: rest } = await supabase
-      .from('restaurants')
-      .select('is_approved')
-      .eq('owner_id', data.user.id)
+    // 승인 체크 (users → tenants 조인)
+    const { data: userData } = await supabase
+      .from('users')
+      .select('tenant_id, tenants(is_approved)')
+      .eq('id', data.user.id)
       .maybeSingle()
 
-    if (!rest) {
+    const rawTenant = userData?.tenants
+    const tenant = (Array.isArray(rawTenant) ? rawTenant[0] : rawTenant) as { is_approved: boolean } | null
+    if (!userData?.tenant_id) {
       router.replace('/onboarding')
-    } else if (!rest.is_approved) {
+    } else if (!tenant?.is_approved) {
       router.replace('/pending')
     } else {
       router.replace('/today')

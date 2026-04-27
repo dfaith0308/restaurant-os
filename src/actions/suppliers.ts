@@ -18,14 +18,14 @@ export interface SupplierListItem {
 }
 
 export async function getSuppliers(
-  restaurant_id: string,
+  tenant_id: string,
 ): Promise<ActionResult<SupplierListItem[]>> {
   const supabase = await createServerClient()
 
   const { data: suppliers, error } = await supabase
     .from('suppliers')
     .select('id, name, contact, region')
-    .eq('restaurant_id', restaurant_id)
+    .eq('tenant_id', tenant_id)
     .eq('is_active', true)
     .order('created_at', { ascending: false })
 
@@ -38,7 +38,7 @@ export async function getSuppliers(
   const { data: orders } = await supabase
     .from('orders')
     .select('supplier_name, product_name, total_amount, created_at')
-    .eq('restaurant_id', restaurant_id)
+    .eq('buyer_tenant_id', tenant_id)
     .in('supplier_name', names)
     .order('created_at', { ascending: false })
 
@@ -67,7 +67,7 @@ export async function getSuppliers(
 // ── 거래처 생성 ───────────────────────────────────────────────
 
 export interface CreateSupplierInput {
-  restaurant_id: string
+  tenant_id:     string
   name:          string
   contact?:      string
   region?:       string
@@ -83,7 +83,7 @@ export async function createSupplier(
   const { data, error } = await supabase
     .from('suppliers')
     .insert({
-      restaurant_id: input.restaurant_id,
+      tenant_id:     input.tenant_id,
       name:          input.name.trim(),
       contact:       input.contact ?? null,
       region:        input.region ?? null,
@@ -123,7 +123,7 @@ export async function getSupplierDetail(
 
   const { data: supplier, error } = await supabase
     .from('suppliers')
-    .select('id, name, contact, region, memo, restaurant_id')
+    .select('id, name, contact, region, memo, tenant_id')
     .eq('id', id)
     .single()
 
@@ -132,7 +132,7 @@ export async function getSupplierDetail(
   const { data: orders } = await supabase
     .from('orders')
     .select('product_name, total_amount, created_at')
-    .eq('restaurant_id', supplier.restaurant_id)
+    .eq('buyer_tenant_id', supplier.tenant_id)
     .eq('supplier_name', supplier.name)
     .order('created_at', { ascending: false })
 

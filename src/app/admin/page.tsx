@@ -23,17 +23,18 @@ export default async function AdminPage() {
     { data: orders },
   ] = await Promise.all([
     supabase
-      .from('restaurants')
+      .from('tenants')
       .select('id, name, region, is_approved, created_at')
+      .eq('role', 'restaurant')
       .order('created_at', { ascending: false }),
     supabase
       .from('rfq_requests')
-      .select('id, restaurant_id, product_name, status, created_at')
+      .select('id, tenant_id, product_name, status, created_at')
       .order('created_at', { ascending: false })
       .limit(50),
     supabase
       .from('orders')
-      .select('id, restaurant_id, product_name, supplier_name, status, total_amount, created_at')
+      .select('id, buyer_tenant_id, product_name, supplier_name, status, total_amount, created_at')
       .order('created_at', { ascending: false })
       .limit(50),
   ])

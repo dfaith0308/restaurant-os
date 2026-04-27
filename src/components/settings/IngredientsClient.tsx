@@ -24,7 +24,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId }: P
     if (!name.trim()) return
     const priceNum = parseInt(price.replace(/,/g, ''), 10) || null
     startTr(async () => {
-      const res = await upsertIngredient({ restaurant_id: restaurantId, name: name.trim(), unit, current_price: priceNum, supplier_name: supplier || null })
+      const res = await upsertIngredient({ tenant_id: restaurantId, name: name.trim(), unit, current_price: priceNum, supplier_name: supplier || null })
       if (res.success) {
         setList(prev => [...prev, { id: Date.now().toString(), name: name.trim(), unit, current_price: priceNum, supplier_name: supplier || null }])
         setName(''); setPrice(''); setSupplier(''); setShowForm(false)

@@ -4,7 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { createSupplier } from '@/actions/suppliers'
 
-const RESTAURANT_ID = process.env.NEXT_PUBLIC_RESTAURANT_ID ?? ''
+const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? ''
 
 export default function SupplierNewPage() {
   const router = useRouter()
@@ -18,7 +18,7 @@ export default function SupplierNewPage() {
   function handleSave() {
     if (!name.trim()) { setError('거래처명을 입력해주세요'); return }
     startTr(async () => {
-      const res = await createSupplier({ restaurant_id: RESTAURANT_ID, name: name.trim(), contact: contact || undefined, region: region || undefined, memo: memo || undefined })
+      const res = await createSupplier({ tenant_id: TENANT_ID, name: name.trim(), contact: contact || undefined, region: region || undefined, memo: memo || undefined })
       if (!res.success) { setError(res.error ?? '오류 발생'); return }
       router.push('/suppliers')
     })

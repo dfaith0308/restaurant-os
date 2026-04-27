@@ -116,7 +116,7 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
     const price = parseInt(menuPrice.replace(/,/g, ''), 10)
     if (!name || !price) return
     startMenuTr(async () => {
-      const res = await createMenu({ restaurant_id: restaurant.id, name, price })
+      const res = await createMenu({ tenant_id: restaurant.id, name, price })
       if (res.success && res.data) {
         setMenuList(prev => [{ id: res.data!.id, name, price, is_featured: false }, ...prev])
         setMenuName('')

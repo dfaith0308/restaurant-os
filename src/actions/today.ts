@@ -11,7 +11,7 @@ import { getPendingDeliveries, type PendingDelivery } from '@/actions/orders'
 // ── 오늘운영 대시보드 데이터 ──────────────────────────────────
 
 export async function getTodayDashboard(
-  restaurant_id: string,
+  tenant_id: string,
 ): Promise<ActionResult<TodayDashboard>> {
   const supabase = await createServerClient()
 
@@ -29,57 +29,59 @@ export async function getTodayDashboard(
     { data: openRfqIngredientIds },
     { count: fixedCostCount },
   ] = await Promise.all([
-    supabase.from('payments_outgoing')
+    supabase.from('payments')
       .select('*')
-      .eq('restaurant_id', restaurant_id)
+      .eq('payer_tenant_id', tenant_id)
+      .eq('direction', 'outbound')
       .eq('status', 'planned')
       .lte('due_date', in3days)
       .order('due_date', { ascending: true }),
 
-    supabase.from('payments_outgoing')
+    supabase.from('payments')
       .select('amount')
-      .eq('restaurant_id', restaurant_id)
+      .eq('payer_tenant_id', tenant_id)
+      .eq('direction', 'outbound')
       .eq('status', 'planned')
       .gte('due_date', `${month}-01`),
 
     supabase.from('notifications')
       .select('*')
-      .eq('restaurant_id', restaurant_id)
+      .eq('tenant_id', tenant_id)
       .eq('is_read', false)
       .order('created_at', { ascending: false })
       .limit(5),
 
     supabase.from('rfq_requests')
       .select('id', { count: 'exact', head: true })
-      .eq('restaurant_id', restaurant_id)
+      .eq('tenant_id', tenant_id)
       .eq('status', 'open'),
 
     supabase.from('rfq_requests')
       .select('id', { count: 'exact', head: true })
-      .eq('restaurant_id', restaurant_id),
+      .eq('tenant_id', tenant_id),
 
     supabase.from('savings_stats')
       .select('total_saving')
-      .eq('restaurant_id', restaurant_id)
+      .eq('tenant_id', tenant_id)
       .eq('month', month)
       .maybeSingle(),
 
     supabase.from('ingredients')
       .select('id, name, unit, current_price, supplier_name, created_at, barcode, brand, parsed_name, possible_duplicate_group_id, group_confirmed_same_at')
-      .eq('restaurant_id', restaurant_id)
+      .eq('tenant_id', tenant_id)
       .eq('is_active', true)
       .order('created_at', { ascending: false }),
 
     // 이미 open RFQ가 있는 식자재는 절약 제안에서 제외
     supabase.from('rfq_requests')
       .select('ingredient_id')
-      .eq('restaurant_id', restaurant_id)
+      .eq('tenant_id', tenant_id)
       .eq('status', 'open')
       .not('ingredient_id', 'is', null),
 
     supabase.from('fixed_costs')
       .select('id', { count: 'exact', head: true })
-      .eq('restaurant_id', restaurant_id),
+      .eq('tenant_id', tenant_id),
   ])
 
   const activeRfqIds = new Set(
@@ -96,7 +98,7 @@ export async function getTodayDashboard(
   const { data: todayDecided } = await supabase
     .from('ai_decision_logs')
     .select('ingredient_name')
-    .eq('restaurant_id', restaurant_id)
+    .eq('tenant_id', tenant_id)
     .gte('created_at', todayStart.toISOString())
   const decidedNames = new Set((todayDecided ?? []).map(r => r.ingredient_name))
 
@@ -108,7 +110,7 @@ export async function getTodayDashboard(
   //   history 조회는 3단 fallback: barcode → possible_duplicate_group_id(siblings) → raw_name
   const [historyByName, behavior_profile] = await Promise.all([
     fetchHistoriesForIngredients(
-      restaurant_id,
+      tenant_id,
       savingCandidates.map(i => ({
         name:     i.name,
         barcode:  i.barcode ?? null,
@@ -116,7 +118,7 @@ export async function getTodayDashboard(
       })),
       10,
     ),
-    getRestaurantBehaviorProfile(restaurant_id),
+    getRestaurantBehaviorProfile(tenant_id),
   ])
 
   // 그룹별 메타 집계 — barcode 셋 / 대표 / 충돌 / 사용자 확정 여부
@@ -196,14 +198,14 @@ export async function getTodayDashboard(
   const paymentTotal    = (allPayments ?? []).reduce((s, p) => s + p.amount, 0)
 
   // 납품 대기 주문 (confirmed 상태) — 별도 조회
-  const pendingDeliveriesResult = await getPendingDeliveries(restaurant_id)
+  const pendingDeliveriesResult = await getPendingDeliveries(tenant_id)
   const pending_deliveries: PendingDelivery[] = pendingDeliveriesResult.data ?? []
 
   // 전체 누적 절약액 + 완료 횟수 (savings_stats 전월 합산)
   const { data: allStats } = await supabase
     .from('savings_stats')
     .select('total_saving, order_count')
-    .eq('restaurant_id', restaurant_id)
+    .eq('tenant_id', tenant_id)
   const total_saving_ever  = (allStats ?? []).reduce((s, r) => s + r.total_saving, 0)
   const total_orders_ever  = (allStats ?? []).reduce((s, r) => s + r.order_count, 0)
 
@@ -235,7 +237,7 @@ export async function markPaymentPaid(payment_id: string): Promise<ActionResult>
   const supabase = await createServerClient()
 
   const { error } = await supabase
-    .from('payments_outgoing')
+    .from('payments')
     .update({ status: 'paid', paid_at: new Date().toISOString() })
     .eq('id', payment_id)
 
@@ -249,7 +251,7 @@ export async function markPaymentPaid(payment_id: string): Promise<ActionResult>
 // ── 오늘 식자재 빠른 추가 (인라인 온보딩) ───────────────────────
 
 export interface QuickAddIngredientInput {
-  restaurant_id: string
+  tenant_id:     string
   name:          string
   unit:          string
   current_price: number | null
@@ -264,7 +266,7 @@ export async function quickAddIngredient(
   const { data, error } = await supabase
     .from('ingredients')
     .insert({
-      restaurant_id: input.restaurant_id,
+      tenant_id:     input.tenant_id,
       name:          input.name.trim(),
       unit:          input.unit,
       current_price: input.current_price,

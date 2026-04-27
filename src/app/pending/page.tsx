@@ -8,13 +8,15 @@ export default async function PendingPage() {
   if (!user) redirect('/login')
 
   const { data } = await supabase
-    .from('restaurants')
-    .select('is_approved')
-    .eq('owner_id', user.id)
+    .from('users')
+    .select('tenant_id, tenants(is_approved)')
+    .eq('id', user.id)
     .maybeSingle()
 
-  if (data?.is_approved) redirect('/today')
-  if (!data) redirect('/onboarding')
+  const rawTenant = data?.tenants
+  const tenant = (Array.isArray(rawTenant) ? rawTenant[0] : rawTenant) as { is_approved: boolean } | null
+  if (tenant?.is_approved) redirect('/today')
+  if (!data?.tenant_id) redirect('/onboarding')
 
   return <PendingClient />
 }

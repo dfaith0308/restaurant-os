@@ -98,7 +98,7 @@ export default function TodayLoopCard({
     setError(null)
     startTr(async () => {
       const res = await quickAddIngredient({
-        restaurant_id: restaurantId,
+        tenant_id:     restaurantId,
         name:          name.trim(),
         unit,
         current_price: priceNum || null,
@@ -118,7 +118,7 @@ export default function TodayLoopCard({
     startTr(async () => {
       const res = await upsertIngredient({
         id:            ing.id,
-        restaurant_id: restaurantId,
+        tenant_id:     restaurantId,
         name:          ing.name,
         unit:          ing.unit,
         current_price: priceNum,
@@ -137,7 +137,7 @@ export default function TodayLoopCard({
     setError(null)
     startTr(async () => {
       const res = await createRfqRequest({
-        restaurant_id: restaurantId,
+        tenant_id:     restaurantId,
         product_name:  ing.name,
         quantity:      qtyNum,
         unit:          ing.unit,
@@ -164,7 +164,7 @@ export default function TodayLoopCard({
         // REVIEW 케이스는 SWITCH 로 매핑 (스키마 KEEP | SWITCH 만 허용)
         const loggedDecision = ai.decision === 'KEEP' ? 'KEEP' : 'SWITCH'
         logAiDecision({
-          restaurant_id:   restaurantId,
+          tenant_id:       restaurantId,
           ingredient_name: ing.name,
           ai_decision:     loggedDecision,
           user_action:     'SWITCH',
@@ -175,7 +175,7 @@ export default function TodayLoopCard({
         const sid = getOrCreateSessionId()
         if (sid) {
           logTodayEvent({
-            restaurant_id:       restaurantId,
+            tenant_id:           restaurantId,
             session_id:          sid,
             event_type:          'action_complete',
             action_kind:         'rfq',
@@ -213,7 +213,7 @@ export default function TodayLoopCard({
         group_confirmed_same: ing.group_confirmed_same ?? false,
       })
       logAiDecision({
-        restaurant_id:   restaurantId,
+        tenant_id:       restaurantId,
         ingredient_name: ing.name,
         ai_decision:     'SWITCH',  // auto_ready 는 항상 SWITCH 결정에서만 진입
         user_action:     'CANCEL',
@@ -655,7 +655,7 @@ function VerdictView({
         const sid = getOrCreateSessionId()
         if (sid) {
           logTodayEvent({
-            restaurant_id:       restaurantId,
+            tenant_id:           restaurantId,
             session_id:          sid,
             event_type:          'primary_card_click',
             decision_type:       ai.decision,
@@ -746,7 +746,7 @@ function ConflictBox({
         const sid = getOrCreateSessionId()
         if (sid) {
           logTodayEvent({
-            restaurant_id:     restaurantId,
+            tenant_id:         restaurantId,
             session_id:        sid,
             event_type:        'action_complete',
             action_kind:       'sku',
@@ -882,7 +882,7 @@ function PromotionBox({
       const sid = getOrCreateSessionId()
       if (sid) {
         logTodayEvent({
-          restaurant_id:     restaurantId,
+          tenant_id:         restaurantId,
           session_id:        sid,
           event_type:        'action_complete',
           action_kind:       'sku',
@@ -956,7 +956,7 @@ function MergeCandidateBox({
       const sid = getOrCreateSessionId()
       if (sid) {
         logTodayEvent({
-          restaurant_id:     restaurantId,
+          tenant_id:         restaurantId,
           session_id:        sid,
           event_type:        'action_complete',
           action_kind:       'sku',

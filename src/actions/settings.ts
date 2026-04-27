@@ -20,13 +20,13 @@ export interface IngredientRow {
 }
 
 export async function getIngredients(
-  restaurant_id: string,
+  tenant_id: string,
 ): Promise<ActionResult<IngredientRow[]>> {
   const supabase = await createServerClient()
   const { data, error } = await supabase
     .from('ingredients')
     .select('id, name, unit, current_price, supplier_name, parsed_name, brand, barcode, manufacturer')
-    .eq('restaurant_id', restaurant_id)
+    .eq('tenant_id', tenant_id)
     .eq('is_active', true)
     .order('created_at', { ascending: false })
 
@@ -36,7 +36,7 @@ export async function getIngredients(
 
 export interface UpsertIngredientInput {
   id?:            string
-  restaurant_id:  string
+  tenant_id:      string
   name:           string
   unit:           string
   current_price:  number | null
@@ -55,7 +55,7 @@ export async function upsertIngredient(
 
   // 기본 payload — SKU 필드는 undefined 가 아닌 경우에만 포함 (기존값 보존)
   const payload: Record<string, unknown> = {
-    restaurant_id:  input.restaurant_id,
+    tenant_id:      input.tenant_id,
     name:           input.name,
     unit:           input.unit,
     current_price:  input.current_price,
@@ -103,13 +103,13 @@ export interface FixedCostRow {
 }
 
 export async function getFixedCosts(
-  restaurant_id: string,
+  tenant_id: string,
 ): Promise<ActionResult<FixedCostRow[]>> {
   const supabase = await createServerClient()
   const { data, error } = await supabase
     .from('fixed_costs')
     .select('id, name, amount, cycle')
-    .eq('restaurant_id', restaurant_id)
+    .eq('tenant_id', tenant_id)
     .order('created_at', { ascending: false })
 
   if (error) return { success: false, error: error.message, data: [] }
@@ -118,7 +118,7 @@ export async function getFixedCosts(
 
 export interface UpsertFixedCostInput {
   id?:           string
-  restaurant_id: string
+  tenant_id:     string
   name:          string
   amount:        number
   cycle?:        string
@@ -130,7 +130,7 @@ export async function upsertFixedCost(
   const supabase = await createServerClient()
 
   const payload = {
-    restaurant_id: input.restaurant_id,
+    tenant_id:     input.tenant_id,
     name:          input.name,
     amount:        input.amount,
     cycle:         input.cycle ?? 'monthly',

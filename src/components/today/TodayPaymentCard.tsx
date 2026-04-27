@@ -24,12 +24,12 @@ export default function TodayPaymentCard({ urgentPayments, totalDue }: Props) {
     setFailed(prev => { const n = new Set(prev); n.delete(id); return n })
 
     const target = urgentPayments.find(p => p.id === id)
-    const restaurantId = target?.restaurant_id ?? ''
+    const tenantId = target?.payer_tenant_id ?? ''
     const sid = getOrCreateSessionId()
 
-    if (restaurantId && sid) {
+    if (tenantId && sid) {
       logTodayEvent({
-        restaurant_id:       restaurantId,
+        tenant_id:           tenantId,
         session_id:          sid,
         event_type:          'primary_card_click',
         shown_pressure_type: 'time',
@@ -40,9 +40,9 @@ export default function TodayPaymentCard({ urgentPayments, totalDue }: Props) {
     startTr(async () => {
       const res = await markPaymentPaid(id)
       if (res.success) {
-        if (restaurantId && sid) {
+        if (tenantId && sid) {
           logTodayEvent({
-            restaurant_id:       restaurantId,
+            tenant_id:           tenantId,
             session_id:          sid,
             event_type:          'action_complete',
             action_kind:         'payment',

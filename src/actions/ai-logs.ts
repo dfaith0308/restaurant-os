@@ -11,7 +11,7 @@ import { createServerClient } from '@/lib/supabase-server'
 import { revalidatePath } from 'next/cache'
 
 export interface LogAiDecisionInput {
-  restaurant_id:   string
+  tenant_id:       string
   ingredient_name: string
   ai_decision:     'KEEP' | 'SWITCH'          // 스키마는 두 값만 허용 — REVIEW 는 호출자가 매핑
   user_action:     'KEEP' | 'SWITCH' | 'CANCEL'
@@ -19,11 +19,11 @@ export interface LogAiDecisionInput {
 }
 
 export async function logAiDecision(input: LogAiDecisionInput): Promise<void> {
-  if (!input.restaurant_id || !input.ingredient_name) return
+  if (!input.tenant_id || !input.ingredient_name) return
   try {
     const supabase = await createServerClient()
     await supabase.from('ai_decision_logs').insert({
-      restaurant_id:   input.restaurant_id,
+      tenant_id:       input.tenant_id,
       ingredient_name: input.ingredient_name,
       ai_decision:     input.ai_decision,
       user_action:     input.user_action,

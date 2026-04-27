@@ -24,7 +24,7 @@ export default function FixedCostsClient({ costs: init, restaurantId }: Props) {
     const a = parseInt(amount.replace(/,/g, ''), 10)
     if (!n || !a) return
     startTr(async () => {
-      const res = await upsertFixedCost({ restaurant_id: restaurantId, name: n, amount: a })
+      const res = await upsertFixedCost({ tenant_id: restaurantId, name: n, amount: a })
       if (res.success) {
         setList(prev => [...prev, { id: Date.now().toString(), name: n, amount: a, cycle: 'monthly' }])
         setName(''); setAmount(''); setShowForm(false)

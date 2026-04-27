@@ -8,19 +8,21 @@ export default function PendingClient() {
   const router = useRouter()
 
   useEffect(() => {
-    // 3초마다 승인 여부 polling
+    // 3초마다 승인 여부 polling (users → tenants 조인)
     const supabase = createBrowserSupabase()
     const interval = setInterval(async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
 
       const { data } = await supabase
-        .from('restaurants')
-        .select('is_approved')
-        .eq('owner_id', user.id)
+        .from('users')
+        .select('tenant_id, tenants(is_approved)')
+        .eq('id', user.id)
         .maybeSingle()
 
-      if (data?.is_approved) {
+      const rawTenant = data?.tenants
+      const tenant = (Array.isArray(rawTenant) ? rawTenant[0] : rawTenant) as { is_approved: boolean } | null
+      if (tenant?.is_approved) {
         clearInterval(interval)
         router.replace('/today')
       }

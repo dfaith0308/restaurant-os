@@ -42,18 +42,25 @@ export default function OnboardingPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
 
-      // 1. 식당 생성
-      const { data: restaurant, error: rErr } = await supabase
-        .from('restaurants')
-        .insert({ name: restaurantName.trim(), region: region.trim() || null, owner_id: user.id, is_approved: false })
+      // 1. tenants 생성 (realmyos DB 단일화 구조)
+      const { data: tenant, error: tErr } = await supabase
+        .from('tenants')
+        .insert({ name: restaurantName.trim(), role: 'restaurant', region: region.trim() || null, is_approved: false })
         .select('id').single()
 
-      if (rErr || !restaurant) { setError('매장 등록 실패: ' + rErr?.message); return }
+      if (tErr || !tenant) { setError('매장 등록 실패: ' + tErr?.message); return }
 
-      // 2. 식자재 등록
+      // 2. users에 tenant 연결
+      const { error: uErr } = await supabase
+        .from('users')
+        .insert({ id: user.id, tenant_id: tenant.id, role: 'restaurant' })
+
+      if (uErr) { setError('계정 연결 실패: ' + uErr.message); return }
+
+      // 3. 식자재 등록
       if (ingredientName.trim()) {
         await supabase.from('ingredients').insert({
-          restaurant_id: restaurant.id,
+          tenant_id:     tenant.id,
           name: ingredientName.trim(),
           unit,
           current_price: priceNum || null,

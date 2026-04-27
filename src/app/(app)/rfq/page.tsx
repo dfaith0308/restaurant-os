@@ -1,12 +1,26 @@
 import { getRfqList } from '@/actions/rfq'
 import RfqListClient from '@/components/rfq/RfqListClient'
 import Link from 'next/link'
+import { getTenantId } from '@/lib/get-restaurant'
 
-const RESTAURANT_ID = process.env.NEXT_PUBLIC_RESTAURANT_ID ?? ''
+const ALLOWED_STATUS = new Set(['open', 'ordered', 'closed'])
 
-export default async function RfqPage() {
-  const result = await getRfqList(RESTAURANT_ID).catch(() => ({ success: true as const, data: [] }))
-  const rfqs   = result.data ?? []
+export default async function RfqPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ status?: string }>
+}) {
+  const tenant_id = await getTenantId()
+  const sp = (await searchParams) ?? {}
+  const status = sp.status && ALLOWED_STATUS.has(sp.status) ? (sp.status as 'open' | 'ordered' | 'closed') : undefined
+
+  const [allRes, filteredRes] = await Promise.all([
+    getRfqList(tenant_id).catch(() => ({ success: true as const, data: [] })),
+    getRfqList(tenant_id, status).catch(() => ({ success: true as const, data: [] })),
+  ])
+
+  const allRfqs = allRes.data ?? []
+  const rfqs    = filteredRes.data ?? []
 
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
@@ -30,7 +44,11 @@ export default async function RfqPage() {
         </Link>
       </div>
 
-      <RfqListClient rfqs={rfqs} />
+      <RfqListClient
+        rfqs={rfqs}
+        allRfqs={allRfqs}
+        activeStatus={(status ?? 'all') as 'all' | 'open' | 'ordered' | 'closed'}
+      />
     </main>
   )
 }

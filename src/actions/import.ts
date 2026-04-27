@@ -33,7 +33,7 @@ export interface ImportResult {
 }
 
 export async function importIngredients(
-  restaurant_id: string,
+  tenant_id: string,
   rows:          ImportIngredientRow[],
 ): Promise<ActionResult<ImportResult>> {
   const cleanRows = rows.filter(r => r.name.trim() && r.unit && r.current_price > 0)
@@ -51,7 +51,7 @@ export async function importIngredients(
 
   // price_history 누적용 버퍼 — 한 번에 INSERT
   const historyRows: {
-    restaurant_id:   string
+    tenant_id:       string
     ingredient_name: string
     price:           number
     unit:            string
@@ -64,7 +64,7 @@ export async function importIngredients(
   const { data: existingAll } = await supabase
     .from('ingredients')
     .select('id, name, parsed_name, brand, unit, barcode, manufacturer, possible_duplicate_group_id')
-    .eq('restaurant_id', restaurant_id)
+    .eq('tenant_id', tenant_id)
     .eq('is_active', true)
 
   const existingList = (existingAll ?? []) as Array<SkuIdentity & { id: string }>
@@ -102,7 +102,7 @@ export async function importIngredients(
       const { data: inserted, error } = await supabase
         .from('ingredients')
         .insert({
-          restaurant_id,
+          tenant_id,
           name:          row.name.trim(),
           unit:          row.unit,
           current_price: row.current_price,
@@ -127,7 +127,7 @@ export async function importIngredients(
 
     // price_history — barcode 가 있으면 같이 기록 (SKU 기준 조회용)
     historyRows.push({
-      restaurant_id,
+      tenant_id,
       ingredient_name: row.name.trim(),
       price:           row.current_price,
       unit:            row.unit,
@@ -144,7 +144,7 @@ export async function importIngredients(
 
   // ── 자동 그룹핑 패스 — 방금 건드린 항목과 유사한 다른 항목을 그룹으로 묶음 ──
   if (touchedIds.length > 0) {
-    await applyAutoGrouping(supabase, restaurant_id, touchedIds)
+    await applyAutoGrouping(supabase, tenant_id, touchedIds)
   }
 
   // 거래처도 자동 시드 (없는 경우만)
@@ -153,13 +153,13 @@ export async function importIngredients(
     const { data: existing } = await supabase
       .from('suppliers')
       .select('id')
-      .eq('restaurant_id', restaurant_id)
+      .eq('tenant_id', tenant_id)
       .eq('name', sname)
       .eq('is_active', true)
       .maybeSingle()
     if (!existing) {
       await supabase.from('suppliers').insert({
-        restaurant_id,
+        tenant_id,
         name:      sname,
         is_active: true,
       })
@@ -181,7 +181,7 @@ export async function importIngredients(
 // 사용자가 제품 뒷면 사진을 올려 OCR 로 브랜드/바코드가 뽑혔을 때 사용.
 // 같은 SKU 가 이미 있으면 SKU 메타만 보강, 없으면 current_price=null 스텁 생성.
 export interface RegisterSkuInput {
-  restaurant_id: string
+  tenant_id:     string
   name:          string
   parsed_name:   string
   brand:         string
@@ -203,7 +203,7 @@ export async function registerSku(
   const { data: existingAll } = await supabase
     .from('ingredients')
     .select('id, name, parsed_name, brand, unit, barcode, manufacturer')
-    .eq('restaurant_id', input.restaurant_id)
+    .eq('tenant_id', input.tenant_id)
     .eq('is_active', true)
 
   const existing = matchSku(
@@ -235,7 +235,7 @@ export async function registerSku(
   const { data: inserted, error } = await supabase
     .from('ingredients')
     .insert({
-      restaurant_id: input.restaurant_id,
+      tenant_id:     input.tenant_id,
       name:          input.name.trim(),
       unit:          input.unit,
       current_price: null,
@@ -252,7 +252,7 @@ export async function registerSku(
   if (error || !inserted) return { success: false, error: error?.message ?? 'SKU 등록 실패' }
 
   // 새 SKU 도 자동 그룹핑 시도
-  await applyAutoGrouping(supabase, input.restaurant_id, [inserted.id])
+  await applyAutoGrouping(supabase, input.tenant_id, [inserted.id])
 
   revalidatePath('/today')
   revalidatePath('/settings/ingredients')
@@ -267,13 +267,13 @@ type IngRow = SkuIdentity & { id: string; possible_duplicate_group_id?: string |
 async function applyAutoGrouping(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
-  restaurant_id: string,
+  tenant_id:     string,
   touchedIds:    string[],
 ): Promise<void> {
   const { data: all } = await supabase
     .from('ingredients')
     .select('id, name, parsed_name, brand, unit, barcode, possible_duplicate_group_id')
-    .eq('restaurant_id', restaurant_id)
+    .eq('tenant_id', tenant_id)
     .eq('is_active', true)
 
   const rows = (all ?? []) as IngRow[]
@@ -313,10 +313,10 @@ async function applyAutoGrouping(
 //   - 하나라도 group_id 가 있으면 그걸 재사용 (union-find 단순화)
 //   - 없으면 신규 UUID 생성
 export async function mergeIngredients(
-  restaurant_id: string,
+  tenant_id: string,
   ingredient_ids: string[],
 ): Promise<ActionResult<{ group_id: string; updated: number }>> {
-  if (!restaurant_id || ingredient_ids.length < 2) {
+  if (!tenant_id || ingredient_ids.length < 2) {
     return { success: false, error: '병합할 항목이 2개 이상 필요해요' }
   }
 
@@ -325,7 +325,7 @@ export async function mergeIngredients(
   const { data: rows } = await supabase
     .from('ingredients')
     .select('id, possible_duplicate_group_id')
-    .eq('restaurant_id', restaurant_id)
+    .eq('tenant_id', tenant_id)
     .in('id', ingredient_ids)
 
   const list = (rows ?? []) as Array<{ id: string; possible_duplicate_group_id: string | null }>
@@ -357,11 +357,11 @@ export async function mergeIngredients(
 //   - price_history 도 barcode=null AND ingredient_name IN (해당 항목들) 행을 target_barcode 로 백필
 //   - 반드시 사용자 승인 뒤에만 호출 (UI 버튼)
 export async function promoteGroupToExact(
-  restaurant_id: string,
+  tenant_id: string,
   group_id:      string,
   target_barcode: string,
 ): Promise<ActionResult<{ ingredients_updated: number; history_backfilled: boolean }>> {
-  if (!restaurant_id || !group_id || !target_barcode.trim()) {
+  if (!tenant_id || !group_id || !target_barcode.trim()) {
     return { success: false, error: '그룹 / 대표 바코드가 필요해요' }
   }
 
@@ -371,7 +371,7 @@ export async function promoteGroupToExact(
   const { data: groupIngs } = await supabase
     .from('ingredients')
     .select('id, name, barcode')
-    .eq('restaurant_id', restaurant_id)
+    .eq('tenant_id', tenant_id)
     .eq('possible_duplicate_group_id', group_id)
     .eq('is_active', true)
 
@@ -400,7 +400,7 @@ export async function promoteGroupToExact(
     const { error } = await supabase
       .from('price_history')
       .update({ barcode: target_barcode })
-      .eq('restaurant_id', restaurant_id)
+      .eq('tenant_id', tenant_id)
       .is('barcode', null)
       .in('ingredient_name', namesToBackfill)
     history_backfilled = !error
@@ -415,17 +415,17 @@ export async function promoteGroupToExact(
 //   여러 barcode 가 있지만 사용자가 "같은 상품이다" 라고 승인 → group_confirmed_same_at 세팅
 //   barcode 는 건드리지 않음. grouped 상태로 유지됨.
 export async function confirmSameProduct(
-  restaurant_id: string,
+  tenant_id: string,
   group_id:      string,
 ): Promise<ActionResult<{ updated: number }>> {
-  if (!restaurant_id || !group_id) {
+  if (!tenant_id || !group_id) {
     return { success: false, error: '그룹 ID 가 필요해요' }
   }
   const supabase = await createServerClient()
   const { data, error } = await supabase
     .from('ingredients')
     .update({ group_confirmed_same_at: new Date().toISOString() })
-    .eq('restaurant_id', restaurant_id)
+    .eq('tenant_id', tenant_id)
     .eq('possible_duplicate_group_id', group_id)
     .eq('is_active', true)
     .select('id')
@@ -440,10 +440,10 @@ export async function confirmSameProduct(
 //   지정 ingredient 를 기존 그룹에서 떼어 새 group_id 부여.
 //   분리된 항목도 group_confirmed_same_at 세팅 (이제 혼자이므로 "검토 완료" 상태).
 export async function splitFromGroup(
-  restaurant_id: string,
+  tenant_id: string,
   ingredient_id: string,
 ): Promise<ActionResult<{ new_group_id: string }>> {
-  if (!restaurant_id || !ingredient_id) {
+  if (!tenant_id || !ingredient_id) {
     return { success: false, error: 'ingredient ID 가 필요해요' }
   }
   const supabase = await createServerClient()
@@ -454,7 +454,7 @@ export async function splitFromGroup(
       possible_duplicate_group_id: new_group_id,
       group_confirmed_same_at:     new Date().toISOString(),
     })
-    .eq('restaurant_id', restaurant_id)
+    .eq('tenant_id', tenant_id)
     .eq('id', ingredient_id)
   if (error) return { success: false, error: error.message }
 

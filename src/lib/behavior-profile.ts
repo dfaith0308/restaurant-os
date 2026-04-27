@@ -65,9 +65,9 @@ const MIN_LOGS_FOR_PROFILE = 3
 // 서버 전용 — supabase-server 를 내부 import 로 가져감.
 //   두 테이블 병렬 조회: ai_decision_logs (결정 반응) + today_events (pressure 반응)
 export async function getRestaurantBehaviorProfile(
-  restaurant_id: string,
+  tenant_id: string,
 ): Promise<BehaviorProfile> {
-  if (!restaurant_id) return DEFAULT_PROFILE
+  if (!tenant_id) return DEFAULT_PROFILE
 
   const { createServerClient } = await import('@/lib/supabase-server')
   const supabase = await createServerClient()
@@ -79,13 +79,13 @@ export async function getRestaurantBehaviorProfile(
     supabase
       .from('ai_decision_logs')
       .select('ai_decision, user_action, confidence, created_at')
-      .eq('restaurant_id', restaurant_id)
+      .eq('tenant_id', tenant_id)
       .order('created_at', { ascending: false })
       .limit(50),
     supabase
       .from('today_events')
       .select('event_type, session_id, shown_pressure_type, time_to_action_ms, created_at')
-      .eq('restaurant_id', restaurant_id)
+      .eq('tenant_id', tenant_id)
       .order('created_at', { ascending: false })
       .limit(300),
   ])

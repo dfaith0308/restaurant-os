@@ -31,7 +31,7 @@ export default function MoneyClient({ data, restaurantId }: Props) {
     const amt = parseInt(newAmount.replace(/,/g, ''), 10)
     if (!newSupplier || !amt || !newDue) return
     startTr(async () => {
-      await addManualPayment({ restaurant_id: restaurantId, supplier_name: newSupplier, amount: amt, due_date: newDue, memo: newMemo || undefined })
+      await addManualPayment({ tenant_id: restaurantId, supplier_name: newSupplier, amount: amt, due_date: newDue, memo: newMemo || undefined })
       setShowAdd(false); setNewSupplier(''); setNewAmount(''); setNewDue(''); setNewMemo('')
     })
   }

@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache'
 // ── 발주요청 생성 ─────────────────────────────────────────────
 
 export interface CreateRfqInput {
-  restaurant_id:  string
+  tenant_id:      string
   product_name:   string
   quantity:       number
   unit:           string
@@ -26,7 +26,7 @@ export async function createRfqRequest(
   const { data, error } = await supabase
     .from('rfq_requests')
     .insert({
-      restaurant_id:  input.restaurant_id,
+      tenant_id:      input.tenant_id,
       product_name:   input.product_name,
       quantity:       input.quantity,
       unit:           input.unit,
@@ -58,7 +58,7 @@ export async function createRfqRequest(
       barcode = ing?.barcode ?? null
     }
     await supabase.from('price_history').insert({
-      restaurant_id:   input.restaurant_id,
+      tenant_id:       input.tenant_id,
       ingredient_name: input.product_name,
       barcode,
       price:           input.current_price,
@@ -77,7 +77,7 @@ export async function createRfqRequest(
 // ── 발주요청 목록 ─────────────────────────────────────────────
 
 export async function getRfqList(
-  restaurant_id: string,
+  tenant_id: string,
   status?: string,
 ): Promise<ActionResult<RfqRequest[]>> {
   const supabase = await createServerClient()
@@ -85,7 +85,7 @@ export async function getRfqList(
   let query = supabase
     .from('rfq_requests')
     .select('*')
-    .eq('restaurant_id', restaurant_id)
+    .eq('tenant_id', tenant_id)
     .order('created_at', { ascending: false })
 
   if (status) query = query.eq('status', status)
@@ -99,11 +99,12 @@ export async function getRfqList(
 
 export async function getRfqDetail(
   rfq_id: string,
+  tenant_id: string,
 ): Promise<ActionResult<{ rfq: RfqRequest; bids: RfqBid[] }>> {
   const supabase = await createServerClient()
 
   const [{ data: rfq, error: rfqErr }, { data: bids, error: bidErr }] = await Promise.all([
-    supabase.from('rfq_requests').select('*').eq('id', rfq_id).single(),
+    supabase.from('rfq_requests').select('*').eq('id', rfq_id).eq('tenant_id', tenant_id).single(),
     supabase.from('rfq_bids').select('*').eq('rfq_id', rfq_id)
       .order('price', { ascending: true }),
   ])
@@ -146,7 +147,7 @@ export async function createBid(
     .insert({
       rfq_id:        input.rfq_id,
       supplier_name: input.supplier_name,
-      supplier_id:   input.supplier_id ?? null,
+      supplier_tenant_id: input.supplier_id ?? null,  // rfq_bids 컬럼명
       price:         input.price,
       delivery_days: input.delivery_days ?? null,
       note:          input.note ?? null,
@@ -169,7 +170,7 @@ export async function createBid(
 export async function acceptBidAndCreateOrder(
   rfq_id: string,
   bid_id: string,
-  restaurant_id: string,
+  tenant_id: string,
   session_id?: string,
 ): Promise<ActionResult<{ order_id: string }>> {
   const supabase = await createServerClient()
@@ -191,10 +192,9 @@ export async function acceptBidAndCreateOrder(
   const { data: order, error: orderErr } = await supabase
     .from('orders')
     .insert({
-      restaurant_id: restaurant_id,
+      buyer_tenant_id: tenant_id,
       rfq_id:        rfq_id,
       bid_id:        bid_id,
-      supplier_id:   bid.supplier_id,
       supplier_name: bid.supplier_name,
       product_name:  rfq.product_name,
       quantity:      rfq.quantity,
@@ -216,14 +216,15 @@ export async function acceptBidAndCreateOrder(
   const dueDate = new Date()
   dueDate.setDate(dueDate.getDate() + 30)
 
-  await supabase.from('payments_outgoing').insert({
-    restaurant_id: restaurant_id,
-    order_id:      order.id,
-    supplier_id:   bid.supplier_id,
-    supplier_name: bid.supplier_name,
-    amount:        totalAmount,
-    due_date:      dueDate.toISOString().slice(0, 10),
-    status:        'planned',
+  await supabase.from('payments').insert({
+    payer_tenant_id: tenant_id,
+    tenant_id:       tenant_id,
+    order_id:        order.id,
+    supplier_name:   bid.supplier_name,
+    amount:          totalAmount,
+    due_date:        dueDate.toISOString().slice(0, 10),
+    status:          'planned',
+    direction:       'outbound',
   })
 
   // 4. 입찰 상태 업데이트
@@ -238,7 +239,7 @@ export async function acceptBidAndCreateOrder(
     const month = new Date().toISOString().slice(0, 7)
     try {
       await supabase.rpc('upsert_savings_stat', {
-        p_restaurant_id: restaurant_id,
+        p_tenant_id: tenant_id,
         p_month:         month,
         p_saving:        savingAmount,
       })
@@ -256,7 +257,7 @@ export async function acceptBidAndCreateOrder(
     orderBarcode = ing?.barcode ?? null
   }
   await supabase.from('price_history').insert({
-    restaurant_id,
+    tenant_id,
     ingredient_name: rfq.product_name,
     barcode:         orderBarcode,
     price:           bid.price,
@@ -274,7 +275,7 @@ export async function acceptBidAndCreateOrder(
   if (session_id) {
     const { logTodayEvent } = await import('@/actions/today-events')
     logTodayEvent({
-      restaurant_id,
+      tenant_id,
       session_id,
       event_type:  'action_complete',
       action_kind: 'order_create',

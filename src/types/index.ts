@@ -11,7 +11,7 @@ export interface Restaurant {
 
 export interface Ingredient {
   id:             string
-  restaurant_id:  string
+  tenant_id:      string
   name:           string               // raw_name — 기존 필드, 절대 삭제 금지
   category:       string | null
   unit:           string
@@ -30,7 +30,7 @@ export type RfqStatus = 'draft' | 'open' | 'closed' | 'ordered' | 'cancelled'
 
 export interface RfqRequest {
   id:             string
-  restaurant_id:  string
+  tenant_id:      string
   ingredient_id:  string | null
   product_name:   string
   quantity:       number
@@ -64,10 +64,10 @@ export interface RfqBid {
 
 export interface Order {
   id:            string
-  restaurant_id: string
+  buyer_tenant_id: string
   rfq_id:        string | null
   bid_id:        string | null
-  supplier_name: string
+  counterparty_name: string  // payments 테이블 컬럼명 (supplier_name 아님)
   product_name:  string
   quantity:      number
   unit:          string
@@ -80,9 +80,9 @@ export interface Order {
 
 export interface PaymentOutgoing {
   id:            string
-  restaurant_id: string
+  payer_tenant_id: string
   order_id:      string | null
-  supplier_name: string
+  counterparty_name: string  // payments 테이블 컬럼명 (supplier_name 아님)
   amount:        number
   due_date:      string
   status:        'planned' | 'paid'
@@ -136,7 +136,7 @@ export interface TodayDashboard {
   pending_deliveries: {
     order_id:      string
     rfq_id:        string | null
-    supplier_name: string
+    counterparty_name: string  // payments 테이블 컬럼명 (supplier_name 아님)
     product_name:  string
     quantity:      number
     unit:          string
@@ -189,7 +189,7 @@ export interface SavingOpportunity {
     id:            string
     name:          string
     brand:         string | null
-    supplier_name: string | null
+    counterparty_name: string  // payments 테이블 컬럼명 (supplier_name 아님) | null
   } | null
 }
 

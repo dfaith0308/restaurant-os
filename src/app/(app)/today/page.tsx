@@ -23,12 +23,11 @@ import {
   shouldDampenPressure,
   preferredPressureOf,
 } from '@/lib/behavior-profile'
-
-// MVP: restaurant_id를 세션/쿠키에서 가져오는 구조 (임시 상수)
-const RESTAURANT_ID = process.env.NEXT_PUBLIC_RESTAURANT_ID ?? ''
+import { getTenantId } from '@/lib/get-restaurant'
 
 export default async function TodayPage() {
-  const result = await getTodayDashboard(RESTAURANT_ID).catch(() => ({
+  const TENANT_ID = await getTenantId()
+  const result = await getTodayDashboard(TENANT_ID).catch(() => ({
     success: false as const,
     data: undefined,
   }))
@@ -79,7 +78,7 @@ function MainAndStrip({ d }: { d: TodayDashboard }) {
   return (
     <div>
       <TodayTracker
-        restaurantId={RESTAURANT_ID}
+        restaurantId={TENANT_ID}
         pressureType={tracker.pressureType}
         decisionType={tracker.decisionType}
         skuPrecision={tracker.skuPrecision}
@@ -109,7 +108,7 @@ function MainAndStrip({ d }: { d: TodayDashboard }) {
 
       {showImportPrimary && (
         <div style={{ marginTop: 12 }}>
-          <TodayImportCard restaurantId={RESTAURANT_ID} emphasize={needsSku} />
+          <TodayImportCard restaurantId={TENANT_ID} emphasize={needsSku} />
         </div>
       )}
 
@@ -117,7 +116,7 @@ function MainAndStrip({ d }: { d: TodayDashboard }) {
 
       {showImportSecondary && (
         <div style={{ marginTop: 12 }}>
-          <TodayImportCard restaurantId={RESTAURANT_ID} />
+          <TodayImportCard restaurantId={TENANT_ID} />
         </div>
       )}
     </div>
@@ -298,7 +297,7 @@ function MainCard({
     case 'pending_delivery':
       return (
         <TodayDeliveryCard
-          restaurantId={RESTAURANT_ID}
+          restaurantId={TENANT_ID}
           order={primary.delivery}
           otherCount={primary.otherCount}
         />
@@ -307,7 +306,7 @@ function MainCard({
     case 'saving_high':
       return (
         <TodayLoopCard
-          restaurantId={RESTAURANT_ID}
+          restaurantId={TENANT_ID}
           seed={{
             id:            primary.opportunity.ingredient_id,
             name:          primary.opportunity.ingredient_name,
@@ -343,7 +342,7 @@ function MainCard({
     case 'loop_input':
       return (
         <TodayLoopCard
-          restaurantId={RESTAURANT_ID}
+          restaurantId={TENANT_ID}
           seed={null}
           startPhase="input"
           behaviorProfile={behaviorProfile}
@@ -353,7 +352,7 @@ function MainCard({
     case 'loop_priced':
       return (
         <TodayLoopCard
-          restaurantId={RESTAURANT_ID}
+          restaurantId={TENANT_ID}
           seed={{
             id:            primary.ingredient.ingredient_id,
             name:          primary.ingredient.ingredient_name,
@@ -380,7 +379,7 @@ function MainCard({
     case 'loop_no_price':
       return (
         <TodayLoopCard
-          restaurantId={RESTAURANT_ID}
+          restaurantId={TENANT_ID}
           seed={{
             id:            primary.ingredient.ingredient_id,
             name:          primary.ingredient.ingredient_name,
