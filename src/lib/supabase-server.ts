@@ -5,11 +5,13 @@ import { cookies } from 'next/headers'
 
 export async function createServerClient() {
   const cookieStore = await cookies()
+  const schema = process.env.SUPABASE_DB_SCHEMA ?? 'public'
 
   return _create(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      db: { schema },
       cookies: {
         getAll() {
           return cookieStore.getAll()
