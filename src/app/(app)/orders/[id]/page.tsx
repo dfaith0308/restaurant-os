@@ -93,10 +93,6 @@ export default async function OrderDetailPage({ params }: Props) {
         {order_lines.length === 0 ? (
           <div style={{ fontSize: 13, color: '#9ca3af' }}>
             주문 품목이 없습니다.
-            <div style={{ marginTop: 6, fontSize: 12 }}>
-              {/* 스키마에 order_items는 있지만 기존 데이터가 안 쌓일 수 있음 */}
-              TODO: 주문 생성 시 `order_items`가 채워지도록 생성 로직 점검
-            </div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

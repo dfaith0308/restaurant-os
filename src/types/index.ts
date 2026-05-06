@@ -85,7 +85,7 @@ export interface PaymentOutgoing {
   counterparty_name: string  // payments 테이블 컬럼명 (supplier_name 아님)
   amount:        number
   due_date:      string
-  status:        'planned' | 'paid'
+  status:        'pending' | 'confirmed'
   paid_at:       string | null
   memo:          string | null
 }

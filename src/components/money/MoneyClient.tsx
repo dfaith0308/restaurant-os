@@ -7,10 +7,14 @@ import type { MoneyDashboard } from '@/actions/money'
 
 interface Props { data: MoneyDashboard; restaurantId: string }
 
+type MoneyFilter = '3days' | 'week' | 'month'
+
 export default function MoneyClient({ data, restaurantId }: Props) {
   const [paid, setPaid]          = useState<Set<string>>(new Set())
   const [showAdd, setShowAdd]    = useState(false)
   const [isPending, startTr]     = useTransition()
+  const [filter, setFilter]      = useState<MoneyFilter>('week')
+  const [selectedCounterparty, setSelectedCounterparty] = useState<string | null>(null)
 
   // 추가 폼 상태
   const [newSupplier, setNewSupplier] = useState('')
@@ -19,10 +23,26 @@ export default function MoneyClient({ data, restaurantId }: Props) {
   const [newMemo,     setNewMemo]     = useState('')
 
   const active = data.payments.filter(p => !paid.has(p.id))
+  const today = new Date()
+  const cutoff3Days = new Date(today.getTime() + 3 * 86400000).toISOString().slice(0, 10)
+  const cutoffWeek = new Date(today.getTime() + 7 * 86400000).toISOString().slice(0, 10)
+  const cutoffMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).toISOString().slice(0, 10)
+
+  const cutoff = filter === '3days'
+    ? cutoff3Days
+    : filter === 'week'
+      ? cutoffWeek
+      : cutoffMonth
+
+  const visible = active.filter(p => p.due_date <= cutoff)
+  const balances = data.supplier_balances ?? []
+  const drilldownPayments = selectedCounterparty
+    ? active.filter(p => p.counterparty_name === selectedCounterparty)
+    : []
 
   function handlePay(id: string) {
     startTr(async () => {
-      const res = await markPaymentPaid(id)
+      const res = await markPaymentPaid(id, restaurantId)
       if (res.success) setPaid(prev => new Set([...prev, id]))
     })
   }
@@ -43,9 +63,13 @@ export default function MoneyClient({ data, restaurantId }: Props) {
 
       {/* KPI */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
-        <KpiCard label="이번 주 나갈 돈" value={formatKRW(data.due_this_week)}
-          warn={data.is_tight} sub={data.is_tight ? '⚠️ 준비가 필요해요' : '괜찮아요 👍'} />
-        <KpiCard label="이번 달 전체" value={formatKRW(data.due_this_month)} />
+        <KpiCard label="이번 주" value={formatKRW(data.due_this_week)}
+          warn={data.is_tight} sub={`이번 주 약 ${formatKRW(data.due_this_week)} 나갈 예정이에요`} />
+        <KpiCard
+          label="이번 달"
+          value={formatKRW(data.due_this_month)}
+          sub={`이번 달 약 ${formatKRW(data.due_this_month)} 나갈 예정이에요`}
+        />
       </div>
 
       {/* 타이트 경고 */}
@@ -57,11 +81,18 @@ export default function MoneyClient({ data, restaurantId }: Props) {
 
       {/* 지급 목록 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>지급 예정 {active.length}건</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>지급 예정 {visible.length}건</span>
         <button onClick={() => setShowAdd(!showAdd)} style={{
           padding: '6px 12px', background: '#111827', color: '#fff',
           border: 'none', borderRadius: 8, fontSize: 12, cursor: 'pointer',
         }}>+ 추가</button>
+      </div>
+
+      {/* 필터 */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+        <FilterChip active={filter === '3days'} onClick={() => setFilter('3days')}>3일</FilterChip>
+        <FilterChip active={filter === 'week'} onClick={() => setFilter('week')}>이번주</FilterChip>
+        <FilterChip active={filter === 'month'} onClick={() => setFilter('month')}>이번달</FilterChip>
       </div>
 
       {/* 추가 폼 */}
@@ -89,19 +120,19 @@ export default function MoneyClient({ data, restaurantId }: Props) {
         </div>
       )}
 
-      {active.length === 0 ? (
+      {visible.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af', fontSize: 14 }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
           지급 예정이 없어요. 좋은 상황이에요 👍
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {active.map(p => {
+          {visible.map(p => {
             const day = ddayLabel(p.due_date)
             return (
               <div key={p.id} style={{ background: '#fff', borderRadius: 12, border: `1px solid ${day.urgent ? '#FCA5A5' : '#e5e7eb'}`, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{p.supplier_name}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{p.counterparty_name}</div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginTop: 2 }}>{formatKRW(p.amount)}</div>
                   <div style={{ fontSize: 11, color: day.urgent ? '#EF4444' : '#9ca3af', marginTop: 2 }}>
                     {day.text} · {p.due_date}
@@ -118,6 +149,94 @@ export default function MoneyClient({ data, restaurantId }: Props) {
         </div>
       )}
 
+      {/* 거래처 미지급금 */}
+      <div style={{ marginTop: 24, background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', padding: '14px 16px' }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: '#111827', marginBottom: 10 }}>
+          거래처 미지급금
+        </div>
+
+        {balances.length === 0 ? (
+          <div style={{ fontSize: 13, color: '#9ca3af' }}>
+            미지급 거래처가 없습니다.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {balances.map((b) => (
+              <div key={b.counterparty_name}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCounterparty(prev => (prev === b.counterparty_name ? null : b.counterparty_name))}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    border: '1px solid #f3f4f6',
+                    background: '#FAFAFA',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                    alignItems: 'center',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    textAlign: 'left',
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {b.counterparty_name}
+                      </div>
+                      <div style={{ fontSize: 11, fontWeight: 800, color: '#6b7280' }}>
+                        {selectedCounterparty === b.counterparty_name ? '닫기' : '보기'}
+                      </div>
+                    </div>
+                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+                      가장 오래된 미지급일 · {b.oldest_due_date}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 13, fontWeight: 900, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>
+                    {formatKRW(b.total_unpaid)}
+                  </div>
+                </button>
+
+                {selectedCounterparty === b.counterparty_name && (
+                  <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff' }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: '#111827', marginBottom: 8 }}>
+                      지급 예정 내역 {drilldownPayments.length}건
+                    </div>
+                    {drilldownPayments.length === 0 ? (
+                      <div style={{ fontSize: 12, color: '#9ca3af' }}>
+                        지급 예정 내역이 없습니다.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {drilldownPayments.map((p) => (
+                          <div key={p.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151' }}>
+                                {p.due_date}
+                              </div>
+                              {p.memo && (
+                                <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {p.memo}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 12, fontWeight: 900, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>
+                              {formatKRW(p.amount)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* 자금 흐름 요약 */}
       <div style={{ marginTop: 24, background: '#F9FAFB', borderRadius: 12, padding: '16px', border: '1px solid #e5e7eb' }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>자금 흐름 요약</div>
@@ -128,6 +247,35 @@ export default function MoneyClient({ data, restaurantId }: Props) {
         </div>
       </div>
     </main>
+  )
+}
+
+function FilterChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        padding: '6px 10px',
+        borderRadius: 999,
+        border: `1px solid ${active ? '#111827' : '#e5e7eb'}`,
+        background: active ? '#111827' : '#fff',
+        color: active ? '#fff' : '#374151',
+        fontSize: 12,
+        fontWeight: 700,
+        cursor: 'pointer',
+      }}
+    >
+      {children}
+    </button>
   )
 }
 

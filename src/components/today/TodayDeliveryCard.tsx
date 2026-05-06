@@ -66,7 +66,7 @@ export default function TodayDeliveryCard({ restaurantId, order, otherCount }: P
     setFailed(false)
 
     startTr(async () => {
-      const res = await markOrderDelivered(order.order_id)
+      const res = await markOrderDelivered(restaurantId, order.order_id)
       if (res.success) {
         const ms = timeSinceEnter()
         if (sid && restaurantId) {

@@ -39,8 +39,14 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
     { name: '2인 테이블', seats: 2, count: 0 },
     { name: '4인 테이블', seats: 4, count: 0 },
   ]
+
+  const initialSeating: SeatingType[] = DEFAULT_SEATING.map((r) => {
+    if (r.seats === 2) return { ...r, count: restaurant.table_2p ?? 0 }
+    if (r.seats === 4) return { ...r, count: restaurant.table_4p ?? 0 }
+    return r
+  })
   const [seating, setSeating]             = useState<SeatingType[]>(
-    restaurant.seating_config ?? DEFAULT_SEATING
+    initialSeating
   )
   const [tableExpanded, setTableExpanded] = useState(false)
   const [canUndo, setCanUndo]             = useState(false)
@@ -60,7 +66,9 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
     setCanUndo(true)
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(async () => {
-      await updateRestaurant({ id: restaurant.id, seating_config: next })
+      const table_2p = next.find(r => r.seats === 2)?.count ?? 0
+      const table_4p = next.find(r => r.seats === 4)?.count ?? 0
+      await updateRestaurant({ id: restaurant.id, table_2p, table_4p })
     }, 500)
   }
 
@@ -69,7 +77,9 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
     setSeating(prev)
     setCanUndo(false)
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
-    updateRestaurant({ id: restaurant.id, seating_config: prev })
+    const table_2p = prev.find(r => r.seats === 2)?.count ?? 0
+    const table_4p = prev.find(r => r.seats === 4)?.count ?? 0
+    updateRestaurant({ id: restaurant.id, table_2p, table_4p })
   }
 
   function addSeatingRow() {

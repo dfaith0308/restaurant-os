@@ -5,8 +5,10 @@ import { revalidatePath } from 'next/cache'
 import { fetchHistoriesForIngredients } from '@/lib/personalized-price'
 import { getRestaurantBehaviorProfile } from '@/lib/behavior-profile'
 import { isSimilarForGrouping } from '@/lib/sku'
+import { getTenantId } from '@/lib/get-restaurant'
 import type { ActionResult, TodayDashboard, SavingOpportunity } from '@/types'
 import { getPendingDeliveries, type PendingDelivery } from '@/actions/orders'
+import { markPaymentPaid as markPaymentPaidMoney } from './money'
 
 // ── 오늘운영 대시보드 데이터 ──────────────────────────────────
 
@@ -33,7 +35,7 @@ export async function getTodayDashboard(
       .select('*')
       .eq('payer_tenant_id', tenant_id)
       .eq('direction', 'outbound')
-      .eq('status', 'planned')
+      .eq('status', 'pending')
       .lte('due_date', in3days)
       .order('due_date', { ascending: true }),
 
@@ -41,7 +43,7 @@ export async function getTodayDashboard(
       .select('amount')
       .eq('payer_tenant_id', tenant_id)
       .eq('direction', 'outbound')
-      .eq('status', 'planned')
+      .eq('status', 'pending')
       .gte('due_date', `${month}-01`),
 
     supabase.from('notifications')
@@ -232,20 +234,10 @@ export async function getTodayDashboard(
 }
 
 // ── 지급 완료 처리 ────────────────────────────────────────────
-
+// 단일 구현은 actions/money.ts의 markPaymentPaid(payment_id, tenant_id)로 통일.
 export async function markPaymentPaid(payment_id: string): Promise<ActionResult> {
-  const supabase = await createServerClient()
-
-  const { error } = await supabase
-    .from('payments')
-    .update({ status: 'paid', paid_at: new Date().toISOString() })
-    .eq('id', payment_id)
-
-  if (error) return { success: false, error: error.message }
-
-  revalidatePath('/today')
-  revalidatePath('/money')
-  return { success: true }
+  const tenant_id = await getTenantId()
+  return markPaymentPaidMoney(payment_id, tenant_id)
 }
 
 // ── 오늘 식자재 빠른 추가 (인라인 온보딩) ───────────────────────

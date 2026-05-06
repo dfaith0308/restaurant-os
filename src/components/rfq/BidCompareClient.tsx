@@ -412,7 +412,7 @@ function LinkedOrderPanel({ order, rfq }: { order: LinkedOrder; rfq: RfqRequest 
 
   function handleDelivered() {
     startTr(async () => {
-      const res = await markOrderDelivered(order.id)
+      const res = await markOrderDelivered(RESTAURANT_ID, order.id)
       if (res.success) setLocalStatus('completed')
     })
   }

@@ -175,64 +175,20 @@ export async function acceptBidAndCreateOrder(
 ): Promise<ActionResult<{ order_id: string }>> {
   const supabase = await createServerClient()
 
-  // 1. 입찰 정보 조회
-  const { data: bid } = await supabase
-    .from('rfq_bids').select('*').eq('id', bid_id).single()
-  const { data: rfq } = await supabase
-    .from('rfq_requests').select('*').eq('id', rfq_id).single()
-
-  if (!bid || !rfq) return { success: false, error: '데이터 없음' }
-
-  const totalAmount   = bid.price * rfq.quantity
-  const savingAmount  = rfq.current_price
-    ? Math.max(0, (rfq.current_price - bid.price) * rfq.quantity)
-    : 0
-
-  // 2. 주문 생성
-  const { data: order, error: orderErr } = await supabase
-    .from('orders')
-    .insert({
-      buyer_tenant_id: tenant_id,
-      rfq_id:        rfq_id,
-      bid_id:        bid_id,
-      supplier_name: bid.supplier_name,
-      product_name:  rfq.product_name,
-      quantity:      rfq.quantity,
-      unit:          rfq.unit,
-      unit_price:    bid.price,
-      total_amount:  totalAmount,
-      saving_amount: savingAmount,
-      status:        'confirmed',
+  const { data: rpcData, error: rpcErr } = await supabase
+    .rpc('accept_bid_and_create_order_atomic', {
+      p_tenant_id:        tenant_id,
+      p_rfq_id:           rfq_id,
+      p_bid_id:           bid_id,
+      p_payment_due_days: 30,
     })
-    .select('id')
-    .single()
 
-  if (orderErr || !order) {
-    console.error('[acceptBid] order error:', orderErr)
-    return { success: false, error: '발주 확정 실패' }
+  if (rpcErr || !rpcData) {
+    return { success: false, error: rpcErr?.message ?? '발주 확정 실패' }
   }
 
-  // 3. 지급 예정 자동 생성 (30일 후 기본)
-  const dueDate = new Date()
-  dueDate.setDate(dueDate.getDate() + 30)
-
-  await supabase.from('payments').insert({
-    payer_tenant_id: tenant_id,
-    tenant_id:       tenant_id,
-    order_id:        order.id,
-    supplier_name:   bid.supplier_name,
-    amount:          totalAmount,
-    due_date:        dueDate.toISOString().slice(0, 10),
-    status:          'planned',
-    direction:       'outbound',
-  })
-
-  // 4. 입찰 상태 업데이트
-  await supabase.from('rfq_bids').update({ status: 'accepted' }).eq('id', bid_id)
-  await supabase.from('rfq_bids').update({ status: 'rejected' }).eq('rfq_id', rfq_id).neq('id', bid_id)
-
-  // 5. RFQ 상태 ordered로 변경
-  await supabase.from('rfq_requests').update({ status: 'ordered' }).eq('id', rfq_id)
+  const order_id = (rpcData as { order_id?: string }).order_id
+  const savingAmount = Number((rpcData as { saving_amount?: number | string }).saving_amount ?? 0)
 
   // 6. 절약 통계 업데이트 (RPC 없어도 주문은 완료)
   if (savingAmount > 0) {
@@ -245,27 +201,6 @@ export async function acceptBidAndCreateOrder(
       })
     } catch { /* noop */ }
   }
-
-  // 7. 가격 히스토리에 "성사 단가" 기록 (SKU 기준 조회용 barcode 포함)
-  let orderBarcode: string | null = null
-  if (rfq.ingredient_id) {
-    const { data: ing } = await supabase
-      .from('ingredients')
-      .select('barcode')
-      .eq('id', rfq.ingredient_id)
-      .maybeSingle()
-    orderBarcode = ing?.barcode ?? null
-  }
-  await supabase.from('price_history').insert({
-    tenant_id,
-    ingredient_name: rfq.product_name,
-    barcode:         orderBarcode,
-    price:           bid.price,
-    unit:            rfq.unit,
-    supplier_name:   bid.supplier_name,
-    source:          'order',
-    source_ref_id:   order.id,
-  })
 
   revalidatePath('/rfq')
   revalidatePath('/money')
@@ -282,7 +217,7 @@ export async function acceptBidAndCreateOrder(
     })
   }
 
-  return { success: true, data: { order_id: order.id } }
+  return { success: true, data: { order_id } }
 }
 
 // ── RFQ에 연결된 주문 조회 ─────────────────────────────────────

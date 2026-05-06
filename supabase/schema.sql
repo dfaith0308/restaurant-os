@@ -1,3 +1,8 @@
+-- [LEGACY SNAPSHOT] 이 파일은 식당OS 독립 운영 시절의 참고용 스냅샷입니다.
+-- 현재 정본(SSOT)은 realmyos Supabase 인스턴스(cqiwcyuclpuarynrreat)입니다.
+-- 이 파일 기준으로 DB 변경 금지. 코드 정합 판단 시 운영 DB 기준으로 할 것.
+-- 최초 작성: 식당OS 독립 시절 / 레거시 확정일: 2026-05-06
+
 -- ============================================================
 -- 식당OS DB 스키마 v1
 -- 완전 독립 Supabase 프로젝트
@@ -129,6 +134,10 @@ CREATE TABLE orders (
 );
 
 -- ── 지급 예정 ─────────────────────────────────────────────────
+-- [LEGACY] payments_outgoing은 레거시 테이블입니다.
+-- 현재 식당OS는 payments 단일 테이블(direction='outbound')을 사용합니다.
+-- 이 테이블 기준으로 코드 작성 금지.
+-- 확정일: 2026-05-06 (RES-PARTIAL-001 방향 확정)
 CREATE TABLE payments_outgoing (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   payer_tenant_id uuid NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,

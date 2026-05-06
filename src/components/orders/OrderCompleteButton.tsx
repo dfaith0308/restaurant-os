@@ -2,7 +2,7 @@
 
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { updateOrderStatus } from '@/actions/orders'
+import { markOrderDelivered } from '@/actions/orders'
 
 export default function OrderCompleteButton({
   tenantId,
@@ -18,7 +18,7 @@ export default function OrderCompleteButton({
 
   function handleClick() {
     startTr(async () => {
-      const res = await updateOrderStatus(tenantId, orderId, 'completed')
+      const res = await markOrderDelivered(tenantId, orderId)
       if (res.success) router.refresh()
       else {
         // TODO: 디자인된 토스트/에러 UI로 교체

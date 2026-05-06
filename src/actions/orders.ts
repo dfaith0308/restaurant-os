@@ -11,6 +11,7 @@ import type { Order } from '@/types'
 // price_history source='delivery' 기록
 
 export async function markOrderDelivered(
+  tenant_id: string,
   order_id: string,
 ): Promise<ActionResult> {
   const supabase = await createServerClient()
@@ -20,10 +21,15 @@ export async function markOrderDelivered(
     .from('orders')
     .select('*, rfq_requests(ingredient_id, product_name)')
     .eq('id', order_id)
+    .eq('buyer_tenant_id', tenant_id)
     .single()
 
   if (orderErr || !order) {
     return { success: false, error: '주문 정보를 찾을 수 없어요' }
+  }
+
+  if (order.buyer_tenant_id !== tenant_id) {
+    return { success: false, error: '권한 없음' }
   }
 
   if (order.status !== 'confirmed') {
@@ -38,6 +44,7 @@ export async function markOrderDelivered(
       delivered_at: new Date().toISOString(),
     })
     .eq('id', order_id)
+    .eq('buyer_tenant_id', tenant_id)
 
   if (updateErr) {
     return { success: false, error: '납품 처리에 실패했어요' }

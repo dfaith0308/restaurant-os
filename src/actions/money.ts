@@ -11,7 +11,38 @@ export interface MoneyDashboard {
   due_this_month: number
   total_unpaid:   number
   payments:       PaymentOutgoing[]
+  supplier_balances?: SupplierBalance[]
   is_tight:       boolean
+}
+
+export interface SupplierBalance {
+  counterparty_name: string
+  total_unpaid:      number
+  oldest_due_date:   string
+}
+
+export async function getSupplierBalances(
+  tenant_id: string,
+): Promise<SupplierBalance[]> {
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase.rpc('get_supplier_balances', {
+    p_tenant_id: tenant_id,
+  })
+
+  if (error || !data) return []
+
+  return (data as Array<{
+    counterparty_name: string | null
+    total_unpaid: number | string | null
+    oldest_due_date: string | null
+  }>)
+    .filter((r) => !!r.counterparty_name)
+    .map((r) => ({
+      counterparty_name: r.counterparty_name as string,
+      total_unpaid: Number(r.total_unpaid ?? 0),
+      oldest_due_date: r.oldest_due_date ?? '',
+    }))
 }
 
 export async function getMoneyDashboard(
@@ -25,13 +56,16 @@ export async function getMoneyDashboard(
     .toISOString().slice(0, 10)
 
   // payments 테이블: payer_tenant_id = 식당, direction = 'outbound'
-  const { data, error } = await supabase
+  const [{ data, error }, supplier_balances] = await Promise.all([
+    supabase
     .from('payments')
-    .select('*')
+    .select('id, payer_tenant_id, order_id, counterparty_name, amount, due_date, status, paid_at, memo')
     .eq('payer_tenant_id', tenant_id)
     .eq('direction', 'outbound')
-    .eq('status', 'planned')
-    .order('due_date', { ascending: true })
+    .eq('status', 'pending')
+    .order('due_date', { ascending: true }),
+    getSupplierBalances(tenant_id),
+  ])
 
   if (error) return { success: false, error: error.message }
 
@@ -43,7 +77,7 @@ export async function getMoneyDashboard(
 
   return {
     success: true,
-    data: { due_this_week, due_this_month, total_unpaid, payments: list, is_tight },
+    data: { due_this_week, due_this_month, total_unpaid, payments: list, supplier_balances, is_tight },
   }
 }
 
@@ -57,7 +91,7 @@ export async function markPaymentPaid(
 
   const { error } = await supabase
     .from('payments')
-    .update({ status: 'paid', paid_at: new Date().toISOString() })
+    .update({ status: 'confirmed', paid_at: new Date().toISOString() })
     .eq('id', payment_id)
     .eq('payer_tenant_id', tenant_id)
 
@@ -95,7 +129,7 @@ export async function addManualPayment(
       amount:          input.amount,
       due_date:        input.due_date,
       memo:            input.memo ?? null,
-      status:          'planned',
+      status:          'pending',
       direction:       'outbound',
     })
     .select('id')

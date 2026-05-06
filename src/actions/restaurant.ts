@@ -14,7 +14,12 @@ export interface RestaurantInfo {
   phone:          string | null
   table_2p:       number
   table_4p:       number
-  seating_config: SeatingType[] | null
+  seating_config: SeatingConfig | null
+}
+
+export interface SeatingConfig {
+  table_2p: number
+  table_4p: number
 }
 
 export interface SeatingType {
@@ -29,7 +34,7 @@ export async function getRestaurant(
   const supabase = await createServerClient()
   const { data, error } = await supabase
     .from('tenants')
-    .select('id, name, region, name_id, phone')
+    .select('id, name, region, name_id, phone, seating_config')
     .eq('id', tenant_id)
     .single()
 
@@ -43,9 +48,9 @@ export async function getRestaurant(
       region:         data.region ?? null,
       owner_name:     data.name_id ?? null,   // name_id → owner_name 매핑
       phone:          data.phone ?? null,
-      table_2p:       0,
-      table_4p:       0,
-      seating_config: null,
+      table_2p:       (data.seating_config as any)?.table_2p ?? 0,
+      table_4p:       (data.seating_config as any)?.table_4p ?? 0,
+      seating_config: (data.seating_config as any) ?? null,
     }
   }
 }
@@ -56,6 +61,9 @@ export interface UpdateRestaurantInput {
   region?:     string | null
   owner_name?: string | null
   phone?:      string | null
+  table_2p?:   number
+  table_4p?:   number
+  seating_config?: SeatingConfig | null
 }
 
 export async function updateRestaurant(
@@ -67,6 +75,15 @@ export async function updateRestaurant(
   if (input.region     !== undefined) payload.region  = input.region
   if (input.owner_name !== undefined) payload.name_id = input.owner_name  // owner_name → name_id
   if (input.phone      !== undefined) payload.phone   = input.phone
+
+  if (input.table_2p !== undefined || input.table_4p !== undefined) {
+    payload.seating_config = {
+      table_2p: input.table_2p ?? 0,
+      table_4p: input.table_4p ?? 0,
+    }
+  } else if (input.seating_config !== undefined) {
+    payload.seating_config = input.seating_config
+  }
 
   const { error } = await supabase
     .from('tenants')
@@ -98,7 +115,7 @@ export async function getMenus(
     .order('is_featured', { ascending: false })
     .order('created_at', { ascending: true })
 
-  if (error) return { success: true, data: [] }
+  if (error) return { success: false, error: error.message }
   return { success: true, data: data ?? [] }
 }
 

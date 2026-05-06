@@ -3,6 +3,7 @@
 import { createServerClient } from '@/lib/supabase-server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types'
+import { getTenantId } from '@/lib/get-restaurant'
 
 // ── 식자재 ────────────────────────────────────────────────────
 
@@ -68,7 +69,7 @@ export async function upsertIngredient(
   if (input.manufacturer !== undefined) payload.manufacturer = input.manufacturer
 
   const query = input.id
-    ? supabase.from('ingredients').update(payload).eq('id', input.id).select('id').single()
+    ? supabase.from('ingredients').update(payload).eq('id', input.id).eq('tenant_id', input.tenant_id).select('id').single()
     : supabase.from('ingredients').insert(payload).select('id').single()
 
   const { data, error } = await query
@@ -81,10 +82,13 @@ export async function upsertIngredient(
 
 export async function deleteIngredient(id: string): Promise<ActionResult> {
   const supabase = await createServerClient()
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id) return { success: false, error: '인증 필요' }
   const { error } = await supabase
     .from('ingredients')
     .update({ is_active: false })
     .eq('id', id)
+    .eq('tenant_id', tenant_id)
 
   if (error) return { success: false, error: error.message }
 
