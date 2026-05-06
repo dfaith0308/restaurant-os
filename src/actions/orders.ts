@@ -58,7 +58,7 @@ export async function markOrderDelivered(
       .from('ingredients')
       .update({
         current_price: order.unit_price,
-        supplier_name: order.supplier_name,
+        supplier_name: order.counterparty_name,
       })
       .eq('id', ingredientId)
   }
@@ -84,7 +84,7 @@ export async function markOrderDelivered(
     barcode,
     price:           order.unit_price,
     unit:            order.unit,
-    supplier_name:   order.supplier_name,
+    supplier_name:   order.counterparty_name,
     source:          'delivery',
     source_ref_id:   order_id,
   })
@@ -149,7 +149,7 @@ export async function cancelOrder(
 export interface PendingDelivery {
   order_id:      string
   rfq_id:        string | null
-  supplier_name: string
+  counterparty_name: string
   product_name:  string
   quantity:      number
   unit:          string
@@ -167,7 +167,7 @@ export async function getPendingDeliveries(
 
   const { data: orders, error } = await supabase
     .from('orders')
-    .select('id, rfq_id, bid_id, supplier_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, created_at')
+    .select('id, rfq_id, bid_id, counterparty_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, created_at')
     .eq('buyer_tenant_id', tenant_id)
     .eq('status', 'confirmed')
     .order('created_at', { ascending: true })  // 오래된 순 (먼저 확인해야 할 것부터)
@@ -202,7 +202,7 @@ export async function getPendingDeliveries(
     return {
       order_id:      o.id,
       rfq_id:        o.rfq_id ?? null,
-      supplier_name: o.supplier_name,
+      counterparty_name: o.counterparty_name,
       product_name:  o.product_name,
       quantity:      o.quantity,
       unit:          o.unit,
@@ -229,7 +229,7 @@ export async function getOrdersList(
 
   let query = supabase
     .from('orders')
-    .select('id, buyer_tenant_id, rfq_id, bid_id, supplier_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, status, created_at')
+    .select('id, buyer_tenant_id, rfq_id, bid_id, counterparty_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, status, created_at')
     .eq('buyer_tenant_id', tenant_id)
     .order('created_at', { ascending: false })
 
@@ -263,7 +263,7 @@ export async function getOrderDetail(
   // 1) 주문을 tenant 스코프로 먼저 검증 (다른 tenant 주문 절대 노출 금지)
   const { data: order, error: orderErr } = await supabase
     .from('orders')
-    .select('id, buyer_tenant_id, rfq_id, bid_id, supplier_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, status, created_at')
+    .select('id, buyer_tenant_id, rfq_id, bid_id, counterparty_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, status, created_at')
     .eq('id', order_id)
     .eq('buyer_tenant_id', tenant_id)
     .single()

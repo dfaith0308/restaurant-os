@@ -153,7 +153,7 @@ function OrderCard({ order }: { order: Order }) {
         </div>
 
         <div style={{ fontSize: 13, color: '#6b7280' }}>
-          {order.supplier_name} · {order.quantity}{order.unit}
+          {order.counterparty_name} · {order.quantity}{order.unit}
         </div>
         <div style={{ fontSize: 13, color: '#111827', fontWeight: 700, marginTop: 6 }}>
           {formatKRW(order.total_amount)}

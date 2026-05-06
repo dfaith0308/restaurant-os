@@ -117,7 +117,7 @@ export default function TodayPaymentCard({ urgentPayments, totalDue }: Props) {
           }}>
             <span style={{ color: '#15803D', fontSize: 16, fontWeight: 700 }}>✓</span>
             <span style={{ fontSize: 14, color: '#6b7280', textDecoration: 'line-through' }}>
-              {p.supplier_name} {formatKRW(p.amount)}
+              {p.counterparty_name} {formatKRW(p.amount)}
             </span>
           </div>
         ))}
@@ -129,7 +129,7 @@ export default function TodayPaymentCard({ urgentPayments, totalDue }: Props) {
             <div key={p.id} style={{ padding: '10px 16px' }}>
               <div style={{ marginBottom: 8 }}>
                 <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
-                  {p.supplier_name}
+                  {p.counterparty_name}
                 </div>
                 <div style={{ fontSize: 12, color: day.urgent ? '#EF4444' : '#9ca3af', marginTop: 2 }}>
                   {formatKRW(p.amount)} · {day.text}

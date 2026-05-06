@@ -494,7 +494,7 @@ function LinkedOrderPanel({ order, rfq }: { order: LinkedOrder; rfq: RfqRequest 
           {order.product_name}
         </div>
         <div style={{ fontSize: 13, color: '#374151', marginBottom: 2 }}>
-          {order.supplier_name} · {order.quantity}{order.unit} · {formatKRW(order.unit_price)}
+          {order.counterparty_name} · {order.quantity}{order.unit} · {formatKRW(order.unit_price)}
         </div>
         <div style={{ fontSize: 12, color: '#6B7280', marginTop: 4 }}>
           {daysAgo === 0 ? '오늘' : `${daysAgo}일 전`} 주문 확정

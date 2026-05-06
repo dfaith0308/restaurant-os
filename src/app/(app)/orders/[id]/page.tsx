@@ -54,7 +54,7 @@ export default async function OrderDetailPage({ params }: Props) {
           </span>
         </div>
         <div style={{ fontSize: 13, color: '#6b7280' }}>
-          {order.supplier_name} · {createdLabel}
+          {order.counterparty_name} · {createdLabel}
         </div>
       </div>
 

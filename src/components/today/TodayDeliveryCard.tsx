@@ -11,7 +11,7 @@ interface Props {
   restaurantId: string
   order: {
     order_id:      string
-    supplier_name: string
+    counterparty_name: string
     product_name:  string
     quantity:      number
     unit:          string
@@ -178,7 +178,7 @@ export default function TodayDeliveryCard({ restaurantId, order, otherCount }: P
           {order.product_name}
         </div>
         <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 2 }}>
-          {order.supplier_name} · {order.quantity}{order.unit}
+          {order.counterparty_name} · {order.quantity}{order.unit}
         </div>
         <div style={{ fontSize: 12, color: '#9ca3af' }}>
           {daysAgo === 0 ? '오늘' : `${daysAgo}일 전`} 주문

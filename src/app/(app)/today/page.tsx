@@ -26,8 +26,8 @@ import {
 import { getTenantId } from '@/lib/get-restaurant'
 
 export default async function TodayPage() {
-  const TENANT_ID = await getTenantId()
-  const result = await getTodayDashboard(TENANT_ID).catch(() => ({
+  const tenant_id = await getTenantId()
+  const result = await getTodayDashboard(tenant_id).catch(() => ({
     success: false as const,
     data: undefined,
   }))
@@ -45,14 +45,14 @@ export default async function TodayPage() {
         totalOrdersEver={d?.total_orders_ever ?? 0}
       />
 
-      {!d ? <FatalError /> : <MainAndStrip d={d} />}
+      {!d ? <FatalError /> : <MainAndStrip tenant_id={tenant_id} d={d} />}
     </main>
   )
 }
 
 // ── 메인 카드 선택 + 하단 strip ──────────────────────────────
 
-function MainAndStrip({ d }: { d: TodayDashboard }) {
+function MainAndStrip({ tenant_id, d }: { tenant_id: string; d: TodayDashboard }) {
   const primary = pickPrimaryAction(d)
   const strip   = buildStrip(d, primary.kind)
   const tracker = buildTrackerContext(primary, d)
@@ -78,7 +78,7 @@ function MainAndStrip({ d }: { d: TodayDashboard }) {
   return (
     <div>
       <TodayTracker
-        restaurantId={TENANT_ID}
+        restaurantId={tenant_id}
         pressureType={tracker.pressureType}
         decisionType={tracker.decisionType}
         skuPrecision={tracker.skuPrecision}
@@ -97,6 +97,7 @@ function MainAndStrip({ d }: { d: TodayDashboard }) {
       )}
 
       <MainCard
+        tenant_id={tenant_id}
         primary={primary}
         behaviorProfile={d.behavior_profile}
         paymentTotal={d.payment_total}
@@ -108,7 +109,7 @@ function MainAndStrip({ d }: { d: TodayDashboard }) {
 
       {showImportPrimary && (
         <div style={{ marginTop: 12 }}>
-          <TodayImportCard restaurantId={TENANT_ID} emphasize={needsSku} />
+          <TodayImportCard restaurantId={tenant_id} emphasize={needsSku} />
         </div>
       )}
 
@@ -116,7 +117,7 @@ function MainAndStrip({ d }: { d: TodayDashboard }) {
 
       {showImportSecondary && (
         <div style={{ marginTop: 12 }}>
-          <TodayImportCard restaurantId={TENANT_ID} />
+          <TodayImportCard restaurantId={tenant_id} />
         </div>
       )}
     </div>
@@ -280,8 +281,10 @@ function pickPrimaryAction(d: TodayDashboard): PrimaryAction {
 // ── 메인 카드 렌더 ───────────────────────────────────────────
 
 function MainCard({
+  tenant_id,
   primary, behaviorProfile, paymentTotal, paymentThisWeek, monthlySaving, pendingCount, openRfqs,
 }: {
+  tenant_id: string
   primary: PrimaryAction
   behaviorProfile: TodayDashboard['behavior_profile']
   paymentTotal: number
@@ -297,7 +300,7 @@ function MainCard({
     case 'pending_delivery':
       return (
         <TodayDeliveryCard
-          restaurantId={TENANT_ID}
+          restaurantId={tenant_id}
           order={primary.delivery}
           otherCount={primary.otherCount}
         />
@@ -306,7 +309,7 @@ function MainCard({
     case 'saving_high':
       return (
         <TodayLoopCard
-          restaurantId={TENANT_ID}
+          restaurantId={tenant_id}
           seed={{
             id:            primary.opportunity.ingredient_id,
             name:          primary.opportunity.ingredient_name,
@@ -342,7 +345,7 @@ function MainCard({
     case 'loop_input':
       return (
         <TodayLoopCard
-          restaurantId={TENANT_ID}
+          restaurantId={tenant_id}
           seed={null}
           startPhase="input"
           behaviorProfile={behaviorProfile}
@@ -352,7 +355,7 @@ function MainCard({
     case 'loop_priced':
       return (
         <TodayLoopCard
-          restaurantId={TENANT_ID}
+          restaurantId={tenant_id}
           seed={{
             id:            primary.ingredient.ingredient_id,
             name:          primary.ingredient.ingredient_name,
@@ -379,7 +382,7 @@ function MainCard({
     case 'loop_no_price':
       return (
         <TodayLoopCard
-          restaurantId={TENANT_ID}
+          restaurantId={tenant_id}
           seed={{
             id:            primary.ingredient.ingredient_id,
             name:          primary.ingredient.ingredient_name,

@@ -161,7 +161,7 @@ export async function getTodayDashboard(
           id:            cand.id,
           name:          cand.name,
           brand:         cand.brand ?? null,
-          supplier_name: cand.supplier_name,
+          counterparty_name: cand.supplier_name ?? '',
         }
       }
     }

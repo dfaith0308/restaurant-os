@@ -190,6 +190,10 @@ export async function acceptBidAndCreateOrder(
   const order_id = (rpcData as { order_id?: string }).order_id
   const savingAmount = Number((rpcData as { saving_amount?: number | string }).saving_amount ?? 0)
 
+  if (!order_id) {
+    return { success: false, error: '주문 생성에 실패했어요' }
+  }
+
   // 6. 절약 통계 업데이트 (RPC 없어도 주문은 완료)
   if (savingAmount > 0) {
     const month = new Date().toISOString().slice(0, 7)
@@ -226,7 +230,7 @@ export async function acceptBidAndCreateOrder(
 export interface LinkedOrder {
   id:              string
   status:          'confirmed' | 'completed' | 'cancelled'
-  supplier_name:   string
+  counterparty_name: string
   product_name:    string
   quantity:        number
   unit:            string
@@ -245,7 +249,7 @@ export async function getOrderByRfqId(
 
   const { data, error } = await supabase
     .from('orders')
-    .select('id, status, supplier_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, delivered_at, delivery_note, created_at')
+    .select('id, status, counterparty_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, delivered_at, delivery_note, created_at')
     .eq('rfq_id', rfq_id)
     .order('created_at', { ascending: false })
     .limit(1)

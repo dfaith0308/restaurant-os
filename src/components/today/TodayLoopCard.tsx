@@ -52,7 +52,7 @@ interface Seed {
     id:            string
     name:          string
     brand:         string | null
-    supplier_name: string | null
+    counterparty_name: string
   } | null
 }
 
@@ -941,7 +941,7 @@ function MergeCandidateBox({
 }: {
   restaurantId: string
   selfId:       string
-  candidate:    { id: string; name: string; brand: string | null; supplier_name: string | null }
+  candidate:    { id: string; name: string; brand: string | null; counterparty_name: string }
 }) {
   const [isPending, startTr] = useTransition()
   const [merged,    setMerged]    = useState(false)
@@ -985,7 +985,7 @@ function MergeCandidateBox({
       </div>
       <div style={{ color: '#6b7280', marginBottom: 8, lineHeight: 1.5 }}>
         {candidate.brand ? `${candidate.brand} · ` : ''}{candidate.name}
-        {candidate.supplier_name && ` (${candidate.supplier_name})`}
+        {candidate.counterparty_name ? ` (${candidate.counterparty_name})` : ''}
       </div>
       {error && (
         <div style={{ color: '#B91C1C', fontSize: 11, marginBottom: 6 }}>
