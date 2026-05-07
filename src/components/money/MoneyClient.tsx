@@ -5,11 +5,15 @@ import { markPaymentPaid, addManualPayment } from '@/actions/money'
 import { formatKRW, ddayLabel } from '@/lib/utils'
 import type { MoneyDashboard } from '@/actions/money'
 
-interface Props { data: MoneyDashboard; restaurantId: string }
+interface Props {
+  data: MoneyDashboard
+  restaurantId: string
+  view?: 'upcoming' | 'suppliers' | 'cashflow'
+}
 
 type MoneyFilter = '3days' | 'week' | 'month'
 
-export default function MoneyClient({ data, restaurantId }: Props) {
+export default function MoneyClient({ data, restaurantId, view = 'upcoming' }: Props) {
   const [paid, setPaid]          = useState<Set<string>>(new Set())
   const [showAdd, setShowAdd]    = useState(false)
   const [isPending, startTr]     = useTransition()
@@ -61,42 +65,50 @@ export default function MoneyClient({ data, restaurantId }: Props) {
       <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>돈관리</h1>
       <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 20px' }}>나갈 돈 중심으로 관리해요</p>
 
+      <MoneySubNav active={view} />
+
       {/* KPI */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
-        <KpiCard label="이번 주" value={formatKRW(data.due_this_week)}
-          warn={data.is_tight} sub={`이번 주 약 ${formatKRW(data.due_this_week)} 나갈 예정이에요`} />
-        <KpiCard
-          label="이번 달"
-          value={formatKRW(data.due_this_month)}
-          sub={`이번 달 약 ${formatKRW(data.due_this_month)} 나갈 예정이에요`}
-        />
-      </div>
+      {view === 'cashflow' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
+          <KpiCard label="이번 주" value={formatKRW(data.due_this_week)}
+            warn={data.is_tight} sub={`이번 주 약 ${formatKRW(data.due_this_week)} 나갈 예정이에요`} />
+          <KpiCard
+            label="이번 달"
+            value={formatKRW(data.due_this_month)}
+            sub={`이번 달 약 ${formatKRW(data.due_this_month)} 나갈 예정이에요`}
+          />
+        </div>
+      )}
 
       {/* 타이트 경고 */}
-      {data.is_tight && (
+      {view === 'cashflow' && data.is_tight && (
         <div style={{ background: '#FFF1F2', border: '1px solid #FCA5A5', borderRadius: 12, padding: '12px 16px', marginBottom: 16, fontSize: 13, color: '#B91C1C', fontWeight: 600 }}>
           🔴 이번 주 나갈 돈이 많아요. 미리 준비해두세요.
         </div>
       )}
 
       {/* 지급 목록 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>지급 예정 {visible.length}건</span>
-        <button onClick={() => setShowAdd(!showAdd)} style={{
-          padding: '6px 12px', background: '#111827', color: '#fff',
-          border: 'none', borderRadius: 8, fontSize: 12, cursor: 'pointer',
-        }}>+ 추가</button>
-      </div>
+      {view === 'upcoming' && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>지급 예정 {visible.length}건</span>
+          <button onClick={() => setShowAdd(!showAdd)} style={{
+            padding: '6px 12px', background: '#111827', color: '#fff',
+            border: 'none', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+          }}>+ 추가</button>
+        </div>
+      )}
 
       {/* 필터 */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-        <FilterChip active={filter === '3days'} onClick={() => setFilter('3days')}>3일</FilterChip>
-        <FilterChip active={filter === 'week'} onClick={() => setFilter('week')}>이번주</FilterChip>
-        <FilterChip active={filter === 'month'} onClick={() => setFilter('month')}>이번달</FilterChip>
-      </div>
+      {view === 'upcoming' && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <FilterChip active={filter === '3days'} onClick={() => setFilter('3days')}>3일</FilterChip>
+          <FilterChip active={filter === 'week'} onClick={() => setFilter('week')}>이번주</FilterChip>
+          <FilterChip active={filter === 'month'} onClick={() => setFilter('month')}>이번달</FilterChip>
+        </div>
+      )}
 
       {/* 추가 폼 */}
-      {showAdd && (
+      {view === 'upcoming' && showAdd && (
         <div style={{ background: '#F9FAFB', border: '1px solid #e5e7eb', borderRadius: 12, padding: 16, marginBottom: 12 }}>
           {[
             { label: '거래처명', val: newSupplier, set: setNewSupplier, placeholder: '예: 한마음 식자재' },
@@ -120,7 +132,7 @@ export default function MoneyClient({ data, restaurantId }: Props) {
         </div>
       )}
 
-      {visible.length === 0 ? (
+      {view === 'upcoming' && (visible.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af', fontSize: 14 }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>✅</div>
           지급 예정이 없어요. 좋은 상황이에요 👍
@@ -147,10 +159,11 @@ export default function MoneyClient({ data, restaurantId }: Props) {
             )
           })}
         </div>
-      )}
+      ))}
 
       {/* 거래처 미지급금 */}
-      <div style={{ marginTop: 24, background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', padding: '14px 16px' }}>
+      {view === 'suppliers' && (
+      <div style={{ marginTop: 8, background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', padding: '14px 16px' }}>
         <div style={{ fontSize: 13, fontWeight: 800, color: '#111827', marginBottom: 10 }}>
           거래처 미지급금
         </div>
@@ -236,17 +249,52 @@ export default function MoneyClient({ data, restaurantId }: Props) {
           </div>
         )}
       </div>
+      )}
 
       {/* 자금 흐름 요약 */}
-      <div style={{ marginTop: 24, background: '#F9FAFB', borderRadius: 12, padding: '16px', border: '1px solid #e5e7eb' }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>자금 흐름 요약</div>
-        <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 2 }}>
-          <div>미지급 총액 <strong style={{ color: '#111827', float: 'right' }}>{formatKRW(data.total_unpaid)}</strong></div>
-          <div>이번 주 <strong style={{ color: data.is_tight ? '#B91C1C' : '#111827', float: 'right' }}>{formatKRW(data.due_this_week)}</strong></div>
-          <div>이번 달 <strong style={{ color: '#111827', float: 'right' }}>{formatKRW(data.due_this_month)}</strong></div>
+      {view === 'cashflow' && (
+        <div style={{ marginTop: 8, background: '#F9FAFB', borderRadius: 12, padding: '16px', border: '1px solid #e5e7eb' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>자금 흐름 요약</div>
+          <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 2 }}>
+            <div>미지급 총액 <strong style={{ color: '#111827', float: 'right' }}>{formatKRW(data.total_unpaid)}</strong></div>
+            <div>이번 주 <strong style={{ color: data.is_tight ? '#B91C1C' : '#111827', float: 'right' }}>{formatKRW(data.due_this_week)}</strong></div>
+            <div>이번 달 <strong style={{ color: '#111827', float: 'right' }}>{formatKRW(data.due_this_month)}</strong></div>
+          </div>
         </div>
-      </div>
+      )}
     </main>
+  )
+}
+
+function MoneySubNav({ active }: { active: 'upcoming' | 'suppliers' | 'cashflow' }) {
+  const item = (href: string, label: string, key: typeof active) => {
+    const isActive = active === key
+    return (
+      <a
+        href={href}
+        style={{
+          flex: 1,
+          textAlign: 'center',
+          padding: '10px 0',
+          borderRadius: 12,
+          textDecoration: 'none',
+          border: `1px solid ${isActive ? '#111827' : '#e5e7eb'}`,
+          background: isActive ? '#111827' : '#fff',
+          color: isActive ? '#fff' : '#374151',
+          fontSize: 12,
+          fontWeight: 800,
+        }}
+      >
+        {label}
+      </a>
+    )
+  }
+  return (
+    <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+      {item('/money/upcoming', '지급예정', 'upcoming')}
+      {item('/money/suppliers', '거래처미지급금', 'suppliers')}
+      {item('/money/cashflow', '자금흐름', 'cashflow')}
+    </div>
   )
 }
 
