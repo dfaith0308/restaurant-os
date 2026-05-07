@@ -221,6 +221,13 @@ export async function acceptBidAndCreateOrder(
     })
   }
 
+  try {
+    const { notifyRfqBidOutcomesAfterAccept } = await import('@/lib/rfq-notify-suppliers')
+    await notifyRfqBidOutcomesAfterAccept(supabase, rfq_id, tenant_id)
+  } catch (e) {
+    console.error('[acceptBidAndCreateOrder] notifyRfqBidOutcomesAfterAccept', e)
+  }
+
   return { success: true, data: { order_id } }
 }
 
