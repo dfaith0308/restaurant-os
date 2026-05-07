@@ -1,6 +1,7 @@
 'use server'
 
 import { createServerClient } from '@/lib/supabase-server'
+import { getAdminSettingNumber } from '@/lib/admin-settings-read'
 import type { ActionResult, RfqRequest, RfqBid } from '@/types'
 import { revalidatePath } from 'next/cache'
 
@@ -23,6 +24,34 @@ export async function createRfqRequest(
 ): Promise<ActionResult<{ id: string }>> {
   const supabase = await createServerClient()
 
+  const windowHours = await getAdminSettingNumber('rfq_open_duration_hours', { min: 1, max: 720 })
+  const repeatLimit = await getAdminSettingNumber('rfq_repeat_limit', { min: 1, max: 50 })
+
+  const sinceIso = new Date(Date.now() - windowHours * 60 * 60 * 1000).toISOString()
+  const productName = input.product_name.trim()
+
+  const { count: recentRepeatCount, error: repeatErr } = await supabase
+    .from('rfq_requests')
+    .select('id', { count: 'exact', head: true })
+    .eq('tenant_id', input.tenant_id)
+    .eq('product_name', productName)
+    .gte('created_at', sinceIso)
+
+  if (repeatErr) {
+    console.error('[createRfqRequest] repeat check', repeatErr)
+    return { success: false, error: repeatErr.message }
+  }
+  if ((recentRepeatCount ?? 0) >= repeatLimit) {
+    return {
+      success: false,
+      error: `동일 품목 RFQ는 최근 ${windowHours}시간 안에 최대 ${repeatLimit}회까지 생성할 수 있습니다.`,
+    }
+  }
+
+  const deadline =
+    input.deadline?.trim() ||
+    new Date(Date.now() + windowHours * 60 * 60 * 1000).toISOString()
+
   const { data, error } = await supabase
     .from('rfq_requests')
     .insert({
@@ -32,7 +61,7 @@ export async function createRfqRequest(
       unit:           input.unit,
       current_price:  input.current_price ?? null,
       request_note:   input.request_note ?? null,
-      deadline:       input.deadline ?? null,
+      deadline,
       region:         input.region ?? null,
       ingredient_id:  input.ingredient_id ?? null,
       status:         'open',
