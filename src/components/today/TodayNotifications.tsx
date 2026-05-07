@@ -29,13 +29,33 @@ export default function TodayNotifications({ notifications }: Props) {
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         borderBottom: '1px solid #f3f4f6',
       }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>
-          알림 {notifications.length}건
-        </span>
-        <button onClick={() => setShown(false)}
-          style={{ border: 'none', background: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: 18, lineHeight: 1 }}>
-          ×
-        </button>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>알림 {notifications.length}건</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <a
+            href="/notifications"
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              color: '#111827',
+              textDecoration: 'none',
+            }}
+          >
+            전체보기 →
+          </a>
+          <button
+            onClick={() => setShown(false)}
+            style={{
+              border: 'none',
+              background: 'none',
+              color: '#9ca3af',
+              cursor: 'pointer',
+              fontSize: 18,
+              lineHeight: 1,
+            }}
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       {top.map(n => {
