@@ -149,20 +149,25 @@ export async function importIngredients(
 
   // 거래처도 자동 시드 (없는 경우만)
   let supplier_seeded = false
-  for (const sname of supplierNames) {
-    const { data: existing } = await supabase
+  if (supplierNames.size > 0) {
+    const names = [...supplierNames]
+    const { data: existingRows } = await supabase
       .from('suppliers')
-      .select('id')
+      .select('id, name')
       .eq('tenant_id', tenant_id)
-      .eq('name', sname)
       .eq('is_active', true)
-      .maybeSingle()
-    if (!existing) {
-      await supabase.from('suppliers').insert({
-        tenant_id,
-        name:      sname,
-        is_active: true,
-      })
+      .in('name', names)
+
+    const existingNameSet = new Set((existingRows ?? []).map((r: any) => r.name))
+    const missing = names.filter((n) => !existingNameSet.has(n))
+    if (missing.length > 0) {
+      await supabase.from('suppliers').insert(
+        missing.map((name) => ({
+          tenant_id,
+          name,
+          is_active: true,
+        }))
+      )
       supplier_seeded = true
     }
   }

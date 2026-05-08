@@ -114,6 +114,7 @@ export async function getFixedCosts(
     .from('fixed_costs')
     .select('id, name, amount, cycle')
     .eq('tenant_id', tenant_id)
+    .eq('is_active', true)
     .order('created_at', { ascending: false })
 
   if (error) return { success: false, error: error.message, data: [] }
@@ -141,7 +142,7 @@ export async function upsertFixedCost(
   }
 
   const query = input.id
-    ? supabase.from('fixed_costs').update(payload).eq('id', input.id).select('id').single()
+    ? supabase.from('fixed_costs').update(payload).eq('id', input.id).eq('tenant_id', input.tenant_id).select('id').single()
     : supabase.from('fixed_costs').insert(payload).select('id').single()
 
   const { data, error } = await query
@@ -154,7 +155,14 @@ export async function upsertFixedCost(
 
 export async function deleteFixedCost(id: string): Promise<ActionResult> {
   const supabase = await createServerClient()
-  const { error } = await supabase.from('fixed_costs').delete().eq('id', id)
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id) return { success: false, error: '인증 필요' }
+
+  const { error } = await supabase
+    .from('fixed_costs')
+    .update({ is_active: false })
+    .eq('tenant_id', tenant_id)
+    .eq('id', id)
   if (error) return { success: false, error: error.message }
 
   revalidatePath('/settings/fixed-costs')

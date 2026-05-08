@@ -3,6 +3,7 @@
 import { createServerClient } from '@/lib/supabase-server'
 import { getAdminSettingNumber } from '@/lib/admin-settings-read'
 import type { ActionResult, RfqRequest, RfqBid } from '@/types'
+import { getTenantId } from '@/lib/get-restaurant'
 import { revalidatePath } from 'next/cache'
 
 // ── 발주요청 생성 ─────────────────────────────────────────────
@@ -301,10 +302,13 @@ export async function closeRfq(
   reason: string,
 ): Promise<ActionResult> {
   const supabase = await createServerClient()
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id) return { success: false, error: '인증 필요' }
 
   const { error } = await supabase
     .from('rfq_requests')
     .update({ status: 'closed', closed_reason: reason })
+    .eq('tenant_id', tenant_id)
     .eq('id', rfq_id)
 
   if (error) return { success: false, error: error.message }
