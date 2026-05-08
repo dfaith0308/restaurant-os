@@ -3,6 +3,7 @@
 import { createServerClient } from '@/lib/supabase-server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types'
+import { getAuthCtx } from '@/lib/supabase-server'
 
 // ── 거래처 목록 (최근 거래 포함) ──────────────────────────────
 
@@ -67,7 +68,6 @@ export async function getSuppliers(
 // ── 거래처 생성 ───────────────────────────────────────────────
 
 export interface CreateSupplierInput {
-  tenant_id:     string
   name:          string
   contact?:      string
   region?:       string
@@ -80,10 +80,13 @@ export async function createSupplier(
   if (!input.name.trim()) return { success: false, error: '거래처명을 입력해주세요' }
 
   const supabase = await createServerClient()
+  const ctx = await getAuthCtx(supabase)
+  if (!ctx) return { success: false, error: '인증 필요' }
+
   const { data, error } = await supabase
     .from('suppliers')
     .insert({
-      tenant_id:     input.tenant_id,
+      tenant_id:     ctx.tenant_id,
       name:          input.name.trim(),
       contact:       input.contact ?? null,
       region:        input.region ?? null,
@@ -120,11 +123,14 @@ export async function getSupplierDetail(
   id: string,
 ): Promise<ActionResult<SupplierDetail>> {
   const supabase = await createServerClient()
+  const ctx = await getAuthCtx(supabase)
+  if (!ctx) return { success: false, error: '인증 필요' }
 
   const { data: supplier, error } = await supabase
     .from('suppliers')
     .select('id, name, contact, region, memo, tenant_id')
     .eq('id', id)
+    .eq('tenant_id', ctx.tenant_id)
     .single()
 
   if (error || !supplier) return { success: false, error: '거래처를 찾을 수 없어요' }

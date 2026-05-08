@@ -10,7 +10,9 @@ export async function GET(request: NextRequest) {
   const type      = searchParams.get('type') as EmailOtpType | null
   const next      = searchParams.get('next') ?? '/today'
 
-  console.log('[auth/callback] 진입. params:', { code: !!code, tokenHash: !!tokenHash, type, next })
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[auth/callback] 진입. params:', { code: !!code, tokenHash: !!tokenHash, type, next })
+  }
 
   // redirect response를 먼저 만들어두고 여기에 쿠키를 직접 심는 것이 핵심
   // cookies().set()은 Route Handler에서 response에 반영되지 않음
@@ -43,26 +45,26 @@ export async function GET(request: NextRequest) {
   let authError: string | null = null
 
   if (code) {
-    console.log('[auth/callback] PKCE code 교환 시도')
+    if (process.env.NODE_ENV === 'development') console.log('[auth/callback] PKCE code 교환 시도')
     const { error } = await supabase.auth.exchangeCodeForSession(code)
     if (error) {
       authError = error.message
-      console.error('[auth/callback] code 교환 실패:', error.message)
+      if (process.env.NODE_ENV === 'development') console.log('[auth/callback] code 교환 실패')
     } else {
-      console.log('[auth/callback] code 교환 성공. 쿠키 수:', cookiesToSet.length)
+      if (process.env.NODE_ENV === 'development') console.log('[auth/callback] code 교환 성공. 쿠키 수:', cookiesToSet.length)
     }
   } else if (tokenHash && type) {
-    console.log('[auth/callback] token_hash 검증 시도. type:', type)
+    if (process.env.NODE_ENV === 'development') console.log('[auth/callback] token_hash 검증 시도. type:', type)
     const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type })
     if (error) {
       authError = error.message
-      console.error('[auth/callback] token_hash 검증 실패:', error.message)
+      if (process.env.NODE_ENV === 'development') console.log('[auth/callback] token_hash 검증 실패')
     } else {
-      console.log('[auth/callback] token_hash 검증 성공. 쿠키 수:', cookiesToSet.length)
+      if (process.env.NODE_ENV === 'development') console.log('[auth/callback] token_hash 검증 성공. 쿠키 수:', cookiesToSet.length)
     }
   } else {
     authError = 'code 또는 token_hash 파라미터 없음'
-    console.error('[auth/callback]', authError)
+    if (process.env.NODE_ENV === 'development') console.log('[auth/callback]', authError)
   }
 
   if (authError) {
@@ -75,6 +77,8 @@ export async function GET(request: NextRequest) {
     response.cookies.set(name, value, options as Parameters<typeof response.cookies.set>[2])
   })
 
-  console.log('[auth/callback] 성공. redirect →', redirectTo.pathname)
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[auth/callback] 성공. redirect →', redirectTo.pathname)
+  }
   return response
 }

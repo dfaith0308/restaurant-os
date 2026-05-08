@@ -89,8 +89,11 @@ export async function recognizeProductFromImage(formData: FormData): Promise<{ o
 
   const model = process.env.ANTHROPIC_VISION_MODEL?.trim() || 'claude-3-5-sonnet-20241022'
 
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 5000)
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
+    signal: controller.signal,
     headers: {
       'content-type': 'application/json',
       'x-api-key': apiKey,
@@ -116,7 +119,9 @@ export async function recognizeProductFromImage(formData: FormData): Promise<{ o
         },
       ],
     }),
-  })
+  }).catch(() => null)
+  clearTimeout(timeout)
+  if (!res) return { ok: false, error: 'Vision API 타임아웃' }
 
   if (!res.ok) {
     const t = await res.text().catch(() => '')

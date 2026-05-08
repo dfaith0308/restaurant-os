@@ -4,12 +4,12 @@ import { createServerClient } from '@/lib/supabase-server'
 import { getAdminSettingNumber } from '@/lib/admin-settings-read'
 import type { ActionResult, RfqRequest, RfqBid } from '@/types'
 import { getTenantId } from '@/lib/get-restaurant'
+import { getAuthCtx } from '@/lib/supabase-server'
 import { revalidatePath } from 'next/cache'
 
 // ── 발주요청 생성 ─────────────────────────────────────────────
 
 export interface CreateRfqInput {
-  tenant_id:      string
   product_name:   string
   quantity:       number
   unit:           string
@@ -24,6 +24,8 @@ export async function createRfqRequest(
   input: CreateRfqInput,
 ): Promise<ActionResult<{ id: string }>> {
   const supabase = await createServerClient()
+  const ctx = await getAuthCtx(supabase)
+  if (!ctx) return { success: false, error: '인증 필요' }
 
   const windowHours = await getAdminSettingNumber('rfq_open_duration_hours', { min: 1, max: 720 })
   const repeatLimit = await getAdminSettingNumber('rfq_repeat_limit', { min: 1, max: 50 })
@@ -34,7 +36,7 @@ export async function createRfqRequest(
   const { count: recentRepeatCount, error: repeatErr } = await supabase
     .from('rfq_requests')
     .select('id', { count: 'exact', head: true })
-    .eq('tenant_id', input.tenant_id)
+    .eq('tenant_id', ctx.tenant_id)
     .eq('product_name', productName)
     .gte('created_at', sinceIso)
 
@@ -56,7 +58,7 @@ export async function createRfqRequest(
   const { data, error } = await supabase
     .from('rfq_requests')
     .insert({
-      tenant_id:      input.tenant_id,
+      tenant_id:      ctx.tenant_id,
       product_name:   input.product_name,
       quantity:       input.quantity,
       unit:           input.unit,
@@ -88,7 +90,7 @@ export async function createRfqRequest(
       barcode = ing?.barcode ?? null
     }
     await supabase.from('price_history').insert({
-      tenant_id:       input.tenant_id,
+      tenant_id:       ctx.tenant_id,
       ingredient_name: input.product_name,
       barcode,
       price:           input.current_price,
@@ -287,11 +289,14 @@ export async function getOrderByRfqId(
   rfq_id: string,
 ): Promise<ActionResult<LinkedOrder | null>> {
   const supabase = await createServerClient()
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id) return { success: false, error: '인증 필요' }
 
   const { data, error } = await supabase
     .from('orders')
     .select('id, status, counterparty_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, delivered_at, delivery_note, created_at')
     .eq('rfq_id', rfq_id)
+    .eq('buyer_tenant_id', tenant_id)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()

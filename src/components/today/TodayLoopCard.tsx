@@ -137,7 +137,6 @@ export default function TodayLoopCard({
     setError(null)
     startTr(async () => {
       const res = await createRfqRequest({
-        tenant_id:     restaurantId,
         product_name:  ing.name,
         quantity:      qtyNum,
         unit:          ing.unit,

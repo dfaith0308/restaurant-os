@@ -27,3 +27,27 @@ export async function createServerClient() {
     },
   )
 }
+
+export interface AuthCtx {
+  user_id: string
+  tenant_id: string
+  role: string
+}
+
+export async function getAuthCtx(supabase: any): Promise<AuthCtx | null> {
+  const { data: { user }, error } = await supabase.auth.getUser()
+  if (error || !user) return null
+
+  const { data, error: rowErr } = await supabase
+    .from('users')
+    .select('tenant_id, role')
+    .eq('id', user.id)
+    .maybeSingle()
+
+  if (rowErr || !data?.tenant_id) return null
+  return {
+    user_id: user.id,
+    tenant_id: data.tenant_id as string,
+    role: (data as any).role ?? 'unknown',
+  }
+}

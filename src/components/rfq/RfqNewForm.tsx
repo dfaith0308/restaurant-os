@@ -5,8 +5,6 @@ import { useRouter } from 'next/navigation'
 import { createRfqRequest } from '@/actions/rfq'
 import { formatKRW, priceDiffPct } from '@/lib/utils'
 
-const TENANT_ID = process.env.NEXT_PUBLIC_TENANT_ID ?? ''
-
 const UNITS = ['kg', 'g', '개', '봉', 'L', 'ml', '박스', '팩']
 
 interface Props {
@@ -45,7 +43,6 @@ export default function RfqNewForm({ prefillName, prefillPrice }: Props) {
 
     startTr(async () => {
       const res = await createRfqRequest({
-        tenant_id:      TENANT_ID,
         product_name:   name.trim(),
         quantity:       qtyNum,
         unit,

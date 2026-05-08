@@ -126,7 +126,7 @@ export async function cancelOrder(
   // 1. 주문 취소
   const { error: updateErr } = await supabase
     .from('orders')
-    .update({ status: 'cancelled' })
+    .update({ status: 'cancelled', cancel_reason: (reason ?? '').trim() || null })
     .eq('id', order_id)
     .eq('buyer_tenant_id', tenant_id)
 
@@ -189,6 +189,7 @@ export async function getPendingDeliveries(
     const { data: bids } = await supabase
       .from('rfq_bids')
       .select('id, delivery_days')
+      .eq('tenant_id', tenant_id)
       .in('id', bidIds)
 
     for (const b of bids ?? []) {

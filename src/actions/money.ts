@@ -115,9 +115,16 @@ export interface AddManualPaymentInput {
 export async function addManualPayment(
   input: AddManualPaymentInput,
 ): Promise<ActionResult<{ id: string }>> {
-  if (!input.supplier_name.trim() || !input.amount || !input.due_date) {
+  const supplier = input.supplier_name.trim()
+  const amount = input.amount
+
+  if (!supplier || !input.due_date) {
     return { success: false, error: '거래처/금액/지급일을 입력해주세요' }
   }
+  if (!Number.isFinite(amount)) return { success: false, error: '금액이 올바르지 않습니다' }
+  if (!Number.isInteger(amount)) return { success: false, error: '금액은 정수(원)만 입력할 수 있습니다' }
+  if (amount <= 0) return { success: false, error: '금액은 1원 이상이어야 합니다' }
+  if (amount > 999_999_999) return { success: false, error: '금액이 너무 큽니다 (최대 999,999,999원)' }
 
   const supabase = await createServerClient()
   const { data, error } = await supabase
@@ -125,8 +132,8 @@ export async function addManualPayment(
     .insert({
       payer_tenant_id: input.tenant_id,
       tenant_id:       input.tenant_id,   // RLS용
-      counterparty_name: input.supplier_name.trim(),  // payments 컬럼명
-      amount:          input.amount,
+      counterparty_name: supplier,  // payments 컬럼명
+      amount,
       due_date:        input.due_date,
       memo:            input.memo ?? null,
       status:          'pending',
