@@ -1,4 +1,5 @@
 -- fix: RULE-10 (fixed_costs soft delete)
+-- 운영 DB 적용 완료 (2026-05-08)
 
 ALTER TABLE public.fixed_costs
   ADD COLUMN IF NOT EXISTS is_active boolean NOT NULL DEFAULT true;
