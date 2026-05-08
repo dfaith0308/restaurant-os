@@ -4,6 +4,7 @@ import { createServerClient } from '@/lib/supabase-server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types'
 import type { Order } from '@/types'
+import { getTenantId } from '@/lib/get-restaurant'
 
 // ── 납품확인 완료 ─────────────────────────────────────────────
 // orders.status = 'completed'
@@ -104,11 +105,14 @@ export async function cancelOrder(
   reason?: string,
 ): Promise<ActionResult> {
   const supabase = await createServerClient()
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id) return { success: false, error: '인증 필요' }
 
   const { data: order, error: orderErr } = await supabase
     .from('orders')
     .select('id, status')
     .eq('id', order_id)
+    .eq('buyer_tenant_id', tenant_id)
     .single()
 
   if (orderErr || !order) {
@@ -124,6 +128,7 @@ export async function cancelOrder(
     .from('orders')
     .update({ status: 'cancelled' })
     .eq('id', order_id)
+    .eq('buyer_tenant_id', tenant_id)
 
   if (updateErr) {
     return { success: false, error: '취소 처리에 실패했어요' }
@@ -134,6 +139,7 @@ export async function cancelOrder(
     .from('payments')
     .update({ status: 'cancelled' })
     .eq('order_id', order_id)
+    .eq('payer_tenant_id', tenant_id)
     .eq('status', 'planned')
 
   revalidatePath('/today')

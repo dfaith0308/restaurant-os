@@ -95,7 +95,11 @@ export async function importIngredients(
       if (row.barcode      != null) patch.barcode      = row.barcode
       if (row.manufacturer != null) patch.manufacturer = row.manufacturer
 
-      const { error } = await supabase.from('ingredients').update(patch).eq('id', existing.id)
+      const { error } = await supabase
+        .from('ingredients')
+        .update(patch)
+        .eq('tenant_id', tenant_id)
+        .eq('id', existing.id)
       if (error) failed++
       else       { updated++; touchedIds.push(existing.id) }
     } else {
@@ -231,7 +235,7 @@ export async function registerSku(
       unit:         input.unit,
       barcode:      input.barcode,
       manufacturer: input.manufacturer,
-    }).eq('id', existing.id)
+    }).eq('tenant_id', input.tenant_id).eq('id', existing.id)
     revalidatePath('/today')
     revalidatePath('/settings/ingredients')
     return { success: true, data: { id: existing.id, created: false } }

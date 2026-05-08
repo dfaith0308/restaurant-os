@@ -135,7 +135,7 @@ export async function getRfqDetail(
 
   const [{ data: rfq, error: rfqErr }, { data: bids, error: bidErr }] = await Promise.all([
     supabase.from('rfq_requests').select('*').eq('id', rfq_id).eq('tenant_id', tenant_id).single(),
-    supabase.from('rfq_bids').select('*').eq('rfq_id', rfq_id)
+    supabase.from('rfq_bids').select('*').eq('rfq_id', rfq_id).eq('tenant_id', tenant_id)
       .order('price', { ascending: true }),
   ])
 
@@ -172,9 +172,13 @@ export async function createBid(
 ): Promise<ActionResult<{ id: string }>> {
   const supabase = await createServerClient()
 
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id) return { success: false, error: '인증 필요' }
+
   const { data, error } = await supabase
     .from('rfq_bids')
     .insert({
+      tenant_id,
       rfq_id:        input.rfq_id,
       supplier_name: input.supplier_name,
       supplier_tenant_id: input.supplier_id ?? null,  // rfq_bids 컬럼명
