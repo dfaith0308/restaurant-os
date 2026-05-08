@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserSupabase } from '@/lib/supabase-browser'
+import Link from 'next/link'
 
 type Mode = 'login' | 'signup'
 
@@ -27,6 +28,8 @@ export default function LoginPage() {
   const [email,     setEmail]    = useState('')
   const [password,  setPassword] = useState('')
   const [storeName, setStoreName] = useState('')
+  const [agreeTerms, setAgreeTerms] = useState(false)
+  const [agreePrivacy, setAgreePrivacy] = useState(false)
   const [loading,   setLoading]  = useState(false)
   const [error,     setError]    = useState<string | null>(null)
   const [done,      setDone]     = useState(false)   // 회원가입 완료
@@ -42,6 +45,12 @@ export default function LoginPage() {
     const supabase = createBrowserSupabase()
 
     if (mode === 'signup') {
+      if (!agreeTerms || !agreePrivacy) {
+        setError('이용약관 및 개인정보처리방침에 동의해야 가입할 수 있습니다.')
+        setLoading(false)
+        return
+      }
+
       // 1. 회원가입
       const { data, error: signUpErr } = await supabase.auth.signUp({
         email: email.trim(),
@@ -200,6 +209,29 @@ export default function LoginPage() {
             style={INPUT_STYLE}
           />
         </Field>
+
+        {mode === 'signup' && (
+          <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, color: '#374151' }}>
+              <input type="checkbox" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} style={{ marginTop: 3 }} />
+              <span>
+                <b>[필수]</b> 이용약관에 동의합니다.{' '}
+                <Link href="/terms" style={{ color: '#4F46E5', textDecoration: 'none', fontWeight: 700 }}>
+                  보기
+                </Link>
+              </span>
+            </label>
+            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, color: '#374151' }}>
+              <input type="checkbox" checked={agreePrivacy} onChange={(e) => setAgreePrivacy(e.target.checked)} style={{ marginTop: 3 }} />
+              <span>
+                <b>[필수]</b> 개인정보처리방침에 동의합니다.{' '}
+                <Link href="/privacy" style={{ color: '#4F46E5', textDecoration: 'none', fontWeight: 700 }}>
+                  보기
+                </Link>
+              </span>
+            </label>
+          </div>
+        )}
       </div>
 
       {error && (

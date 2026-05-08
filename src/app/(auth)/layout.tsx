@@ -1,15 +1,12 @@
 import type { ReactNode } from 'react'
-import BottomNav from '@/components/layout/BottomNav'
 import LegalFooter from '@/components/layout/LegalFooter'
 
-export default function AppLayout({ children }: { children: ReactNode }) {
+export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div style={{ minHeight: '100vh', background: '#F9FAFB', fontFamily: "'Pretendard', -apple-system, sans-serif" }}>
-      <div style={{ paddingBottom: 72 }}>
-        {children}
-      </div>
+      {children}
       <LegalFooter />
-      <BottomNav />
     </div>
   )
 }
+
