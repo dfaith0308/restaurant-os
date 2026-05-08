@@ -14,6 +14,7 @@ export interface IngredientRow {
   target_price: number | null
   category: string | null
   memo: string | null
+  barcode: string | null
   is_active: boolean
   created_at: string
   updated_at: string | null
@@ -26,7 +27,7 @@ export async function getIngredients(): Promise<ActionResult<IngredientRow[]>> {
 
   const { data, error } = await supabase
     .from('ingredients')
-    .select('id, tenant_id, name, unit, current_price, target_price, category, memo, is_active, created_at, updated_at')
+    .select('id, tenant_id, name, unit, current_price, target_price, category, memo, barcode, is_active, created_at, updated_at')
     .eq('tenant_id', tenant_id)
     .eq('is_active', true)
     .order('category', { ascending: true })
@@ -43,6 +44,7 @@ export async function createIngredient(input: {
   current_price?: number | null
   target_price?: number | null
   memo?: string | null
+  barcode?: string | null
 }): Promise<ActionResult<{ id: string }>> {
   const supabase = await createServerClient()
   const tenant_id = await getTenantId().catch(() => null)
@@ -63,6 +65,7 @@ export async function createIngredient(input: {
       current_price: input.current_price ?? null,
       target_price: input.target_price ?? null,
       memo: input.memo?.trim() || null,
+      barcode: input.barcode?.replace(/\D/g, '').trim() || null,
       is_active: true,
     })
     .select('id')
@@ -84,6 +87,7 @@ export async function updateIngredient(
     current_price?: number | null
     target_price?: number | null
     memo?: string | null
+    barcode?: string | null
   },
 ): Promise<ActionResult> {
   const supabase = await createServerClient()
@@ -95,17 +99,22 @@ export async function updateIngredient(
   if (!name) return { success: false, error: '식자재명은 필수입니다.' }
   if (!unit) return { success: false, error: '단위는 필수입니다.' }
 
+  const patch: Record<string, unknown> = {
+    name,
+    unit,
+    category: input.category?.trim() || null,
+    current_price: input.current_price ?? null,
+    target_price: input.target_price ?? null,
+    memo: input.memo?.trim() || null,
+    updated_at: new Date().toISOString(),
+  }
+  if (input.barcode !== undefined) {
+    patch.barcode = (input.barcode ?? '').replace(/\D/g, '').trim() || null
+  }
+
   const { error } = await supabase
     .from('ingredients')
-    .update({
-      name,
-      unit,
-      category: input.category?.trim() || null,
-      current_price: input.current_price ?? null,
-      target_price: input.target_price ?? null,
-      memo: input.memo?.trim() || null,
-      updated_at: new Date().toISOString(),
-    })
+    .update(patch)
     .eq('id', id)
     .eq('tenant_id', tenant_id)
 

@@ -1,9 +1,11 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useState, useTransition, useCallback } from 'react'
 import { createIngredient, updateIngredient, deactivateIngredient } from '@/actions/ingredients'
 import { formatKRW, toKoreanAmount } from '@/lib/utils'
 import Link from 'next/link'
+import IngredientBarcodeSection from '@/components/product/IngredientBarcodeSection'
+import type { IngredientBarcodeApplyHints } from '@/components/product/IngredientBarcodeSection'
 
 const UNITS = ['kg', 'g', '개', '봉', 'L', '박스', '팩']
 
@@ -15,6 +17,7 @@ interface Ingredient {
   target_price: number | null
   category: string | null
   memo: string | null
+  barcode: string | null
 }
 interface Props { ingredients: Ingredient[]; restaurantId: string }
 
@@ -30,6 +33,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId }: P
   const [price, setPrice] = useState('')
   const [targetPrice, setTargetPrice] = useState('')
   const [memo, setMemo] = useState('')
+  const [barcode, setBarcode] = useState('')
 
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('')
@@ -76,7 +80,17 @@ export default function IngredientsClient({ ingredients: init, restaurantId }: P
     setPrice('')
     setTargetPrice('')
     setMemo('')
+    setBarcode('')
   }
+
+  const applyBarcodeHints = useCallback((h: IngredientBarcodeApplyHints) => {
+    if (h.name != null) setName(h.name)
+    if (h.unit != null) setUnit(h.unit)
+    if (h.category != null) setCategory(h.category)
+    if (h.memo != null) setMemo(h.memo)
+    if (h.barcode != null) setBarcode(h.barcode)
+    if (h.current_price != null) setPrice(h.current_price)
+  }, [])
 
   function handleAdd() {
     if (!name.trim()) return
@@ -93,6 +107,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId }: P
             current_price,
             target_price,
             memo: memo.trim() || null,
+            barcode: barcode.replace(/\D/g, '').trim() || null,
           })
         : await createIngredient({
             name: name.trim(),
@@ -101,13 +116,23 @@ export default function IngredientsClient({ ingredients: init, restaurantId }: P
             current_price,
             target_price,
             memo: memo.trim() || null,
+            barcode: barcode.replace(/\D/g, '').trim() || null,
           })
       if (res.success) {
         if (editingId) {
           setList((prev) =>
             prev.map((i) =>
               i.id === editingId
-                ? { ...i, name: name.trim(), unit, category: category.trim() || null, current_price, target_price, memo: memo.trim() || null }
+                ? {
+                    ...i,
+                    name: name.trim(),
+                    unit,
+                    category: category.trim() || null,
+                    current_price,
+                    target_price,
+                    memo: memo.trim() || null,
+                    barcode: barcode.replace(/\D/g, '').trim() || null,
+                  }
                 : i,
             ),
           )
@@ -123,6 +148,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId }: P
               current_price,
               target_price,
               memo: memo.trim() || null,
+              barcode: barcode.replace(/\D/g, '').trim() || null,
             },
           ])
         }
@@ -147,6 +173,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId }: P
     setPrice(i.current_price != null ? String(i.current_price) : '')
     setTargetPrice(i.target_price != null ? String(i.target_price) : '')
     setMemo(i.memo ?? '')
+    setBarcode(i.barcode ?? '')
     setShowForm(true)
   }
 
@@ -183,6 +210,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId }: P
 
       {showForm && (
         <div style={{ background: '#F9FAFB', border: '1px solid #e5e7eb', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+          <IngredientBarcodeSection onApply={applyBarcodeHints} />
           <div style={{ marginBottom: 10 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }}>식자재명 *</div>
             <input value={name} onChange={e => setName(e.target.value)} placeholder="예: 고춧가루"
@@ -193,6 +221,17 @@ export default function IngredientsClient({ ingredients: init, restaurantId }: P
             <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }}>카테고리 (선택)</div>
             <input value={category} onChange={e => setCategory(e.target.value)} placeholder="예: 채소, 육류, 소스..."
               style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }} />
+          </div>
+
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 4 }}>바코드 (선택)</div>
+            <input
+              value={barcode}
+              onChange={(e) => setBarcode(e.target.value.replace(/\D/g, ''))}
+              placeholder="숫자만"
+              inputMode="numeric"
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }}
+            />
           </div>
 
           <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
@@ -271,6 +310,9 @@ export default function IngredientsClient({ ingredients: init, restaurantId }: P
                     <div key={i.id} style={{ display: 'grid', gridTemplateColumns: '1.7fr .7fr .8fr .8fr .7fr .8fr', borderBottom: '1px solid #f3f4f6' }}>
                       <div style={{ padding: '10px 10px' }}>
                         <div style={{ fontSize: 13, fontWeight: 800, color: '#111827' }}>{i.name}</div>
+                        {i.barcode ? (
+                          <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2 }}>바코드 {i.barcode}</div>
+                        ) : null}
                         {i.memo ? <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.memo}</div> : null}
                       </div>
                       <div style={{ padding: '10px 10px', fontSize: 12, color: '#6b7280' }}>{i.unit}</div>
