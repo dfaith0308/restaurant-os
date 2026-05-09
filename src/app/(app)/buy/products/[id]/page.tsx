@@ -12,14 +12,48 @@ export default async function BuyProductPage({ params }: { params: Promise<{ id:
   if (!res.success || !res.data?.listing) notFound()
 
   const p = res.data.listing
+  const thumb = p.thumbnail_url?.trim()
 
   return (
     <main style={shell}>
       <Link href="/buy" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'none', display: 'inline-block', marginBottom: 14 }}>
         ← 목록
       </Link>
+      {thumb ? (
+        <img
+          src={thumb}
+          alt=""
+          width={480}
+          height={240}
+          style={{
+            width: '100%',
+            maxHeight: 240,
+            objectFit: 'cover',
+            borderRadius: 14,
+            background: '#f3f4f6',
+            marginBottom: 16,
+            display: 'block',
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            width: '100%',
+            height: 180,
+            borderRadius: 14,
+            background: '#e5e7eb',
+            marginBottom: 16,
+          }}
+          aria-hidden
+        />
+      )}
       <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: '0 0 8px' }}>{p.product_name ?? '상품'}</h1>
-      <p style={{ fontSize: 18, fontWeight: 900, color: '#111827', margin: '0 0 20px' }}>{formatKRW(p.commerce_price)}</p>
+      <p style={{ fontSize: 18, fontWeight: 900, color: '#111827', margin: '0 0 12px' }}>{formatKRW(p.commerce_price)}</p>
+      {p.description?.trim() ? (
+        <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.55, margin: '0 0 20px', whiteSpace: 'pre-wrap' }}>
+          {p.description.trim()}
+        </p>
+      ) : null}
 
       <BuyProductDetailClient listingId={p.id} price={p.commerce_price} />
     </main>

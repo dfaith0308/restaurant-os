@@ -135,6 +135,31 @@ export default async function BuyHomePage({
                 gap: 12,
               }}
             >
+              {p.thumbnail_url?.trim() ? (
+                <img
+                  src={p.thumbnail_url.trim()}
+                  alt=""
+                  width={72}
+                  height={72}
+                  style={{
+                    flexShrink: 0,
+                    objectFit: 'cover',
+                    borderRadius: 10,
+                    background: '#f3f4f6',
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: 72,
+                    height: 72,
+                    flexShrink: 0,
+                    borderRadius: 10,
+                    background: '#e5e7eb',
+                  }}
+                  aria-hidden
+                />
+              )}
               <Link href={`/buy/products/${p.id}`} style={{ textDecoration: 'none', color: 'inherit', flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: '#111827' }}>{p.product_name ?? '상품'}</div>
                 <div style={{ fontSize: 14, fontWeight: 800, color: '#374151', marginTop: 6 }}>{formatKRW(p.commerce_price)}</div>

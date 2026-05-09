@@ -8,6 +8,9 @@ export type BuyListingRow = {
   status: string
   is_visible: boolean
   created_at: string
+  thumbnail_url: string | null
+  image_urls: string[] | null
+  description: string | null
   product_name: string | null
   category_id: string | null
 }

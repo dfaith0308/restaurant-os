@@ -75,6 +75,9 @@ export async function getListings(filters?: {
       status,
       is_visible,
       created_at,
+      thumbnail_url,
+      image_urls,
+      description,
       products ( name, category_id )
     `,
     )
@@ -93,6 +96,9 @@ export async function getListings(filters?: {
     const { products: _p, ...rest } = row as BuyListingRow & { products?: unknown }
     return {
       ...(rest as Omit<BuyListingRow, 'product_name' | 'category_id'>),
+      thumbnail_url: (row.thumbnail_url as string | null) ?? null,
+      image_urls: (row.image_urls as string[] | null) ?? null,
+      description: (row.description as string | null) ?? null,
       product_name,
       category_id,
     }
@@ -117,6 +123,9 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
       status,
       is_visible,
       created_at,
+      thumbnail_url,
+      image_urls,
+      description,
       products ( name, category_id )
     `,
     )
@@ -131,8 +140,12 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
 
   const { product_name, category_id } = normalizeProductName(data as Record<string, unknown>)
   const { products: _p, ...rest } = data as BuyListingRow & { products?: unknown }
+  const r = data as Record<string, unknown>
   const listing: BuyListingRow = {
     ...(rest as Omit<BuyListingRow, 'product_name' | 'category_id'>),
+    thumbnail_url: (r.thumbnail_url as string | null) ?? null,
+    image_urls: (r.image_urls as string[] | null) ?? null,
+    description: (r.description as string | null) ?? null,
     product_name,
     category_id,
   }
