@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { bottomNavFixedBox } from '@/lib/app-shell'
 
 const NAV = [
   { href: '/today',     icon: '🏠', label: '오늘운영' },
@@ -15,12 +16,17 @@ export default function BottomNav() {
   const pathname = usePathname()
 
   return (
-    <nav style={{
-      position: 'fixed', bottom: 0, left: 0, right: 0,
-      background: '#fff', borderTop: '1px solid #e5e7eb',
-      display: 'flex', height: 64, zIndex: 50,
-      boxShadow: '0 -4px 12px rgba(0,0,0,0.06)',
-    }}>
+    <nav
+      style={{
+        ...bottomNavFixedBox,
+        background: '#fff',
+        borderTop: '1px solid #e5e7eb',
+        display: 'flex',
+        height: 64,
+        boxSizing: 'border-box',
+        boxShadow: '0 -4px 12px rgba(0,0,0,0.06)',
+      }}
+    >
       {NAV.map(({ href, icon, label }) => {
         const active = pathname === href || pathname.startsWith(href + '/')
         return (

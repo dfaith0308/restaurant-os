@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { getCart, getListings, getRecentOrderItems } from '@/actions/buy'
 import { BUY_CATEGORY_CHIPS, categoryIdForCatParam, isValidCatSlug } from '@/lib/buy-category-chips'
+import { fixedStripeAboveBottomNav } from '@/lib/app-shell'
 import { formatKRW } from '@/lib/utils'
 import CartAddButton from '@/components/buy/CartAddButton'
 
@@ -12,11 +13,6 @@ const card = {
   background: '#fff',
   padding: 12,
 } as const
-
-function listingTitle(name: string | null | undefined) {
-  const t = name?.trim()
-  return t && t.length > 0 ? t : '\u2014'
-}
 
 function listingDescriptionLine(desc: string | null | undefined): string | null {
   const t = desc?.trim()
@@ -399,7 +395,7 @@ export default async function BuyHomePage({
                     />
                   )}
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#111', marginTop: 8, lineHeight: 1.35, minHeight: 36 }}>
-                    {listingTitle(p.product_name)}
+                    {p.product_name?.trim() ?? ''}
                   </div>
                   {descLine ? (
                     <div
@@ -432,19 +428,15 @@ export default async function BuyHomePage({
       </div>
 
       <div
-        style={{
-          position: 'fixed',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 40,
+        style={fixedStripeAboveBottomNav({
           background: '#fff',
           borderTop: '1px solid #eee',
           boxShadow: '0 -2px 10px rgba(0,0,0,0.06)',
           padding: '12px 16px calc(12px + env(safe-area-inset-bottom, 0px))',
-        }}
+          boxSizing: 'border-box',
+        })}
       >
-        <div style={{ maxWidth: 480, margin: '0 auto', textAlign: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
           <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 10px' }}>원하는 상품이 없으신가요?</p>
           <Link
             href="/rfq/new"

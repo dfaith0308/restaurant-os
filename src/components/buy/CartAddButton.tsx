@@ -25,7 +25,8 @@ export default function CartAddButton({
   const [pending, start] = useTransition()
   const [err, setErr] = useState<string | null>(null)
 
-  const buttonLabel = label === '닫기' ? '담기' : (label ?? '담기')
+  const raw = typeof label === 'string' ? label.trim() : ''
+  const buttonLabel = !raw || raw === '닫기' ? '담기' : raw
 
   return (
     <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>

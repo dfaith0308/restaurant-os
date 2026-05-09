@@ -24,6 +24,34 @@ function normalizeProductName(row: Record<string, unknown>): {
   return { product_name: name, category_id: o.category_id ?? null }
 }
 
+type RowWithProductName = { product_id: string | null; product_name: string | null }
+
+async function enrichProductNamesFromProductsTable(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  rows: RowWithProductName[],
+): Promise<void> {
+  const needIds = [
+    ...new Set(
+      rows.filter((l) => l.product_id && !(l.product_name && l.product_name.trim())).map((l) => l.product_id as string),
+    ),
+  ]
+  if (needIds.length === 0) return
+
+  const { data: prows } = await supabase
+    .from('products')
+    .select('id, name')
+    .in('id', needIds)
+    .is('deleted_at', null)
+
+  const map = new Map((prows ?? []).map((r: { id: string; name: string | null }) => [r.id, r.name]))
+  for (const l of rows) {
+    if (!l.product_id) continue
+    if (l.product_name && l.product_name.trim()) continue
+    const n = map.get(l.product_id)
+    if (n != null && String(n).trim()) l.product_name = String(n).trim()
+  }
+}
+
 function genOrderNumber(): string {
   const d = new Date()
   const y = d.getFullYear()
@@ -105,6 +133,8 @@ export async function getListings(filters?: {
     }
   })
 
+  await enrichProductNamesFromProductsTable(supabase, listings)
+
   return { success: true, data: { listings } }
 }
 
@@ -150,6 +180,8 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
     product_name,
     category_id,
   }
+
+  await enrichProductNamesFromProductsTable(supabase, [listing])
 
   return { success: true, data: { listing } }
 }
@@ -244,6 +276,7 @@ async function assertListingBuyable(
     .select(
       `
       id,
+      product_id,
       commerce_price,
       status,
       is_visible,
@@ -258,6 +291,7 @@ async function assertListingBuyable(
   if (!data) return { ok: false, error: '상품을 찾을 수 없습니다' }
 
   const row = data as {
+    product_id: string | null
     commerce_price: number
     status: string
     is_visible: boolean
@@ -270,7 +304,20 @@ async function assertListingBuyable(
 
   const raw = row.products
   const p = Array.isArray(raw) ? raw[0] : raw
-  const product_name = (p?.name && String(p.name).trim()) || '\u2014'
+  let product_name = (p?.name && String(p.name).trim()) || ''
+
+  if (!product_name && row.product_id) {
+    const { data: pr } = await supabase
+      .from('products')
+      .select('name')
+      .eq('id', row.product_id)
+      .is('deleted_at', null)
+      .maybeSingle()
+    const pn = pr && (pr as { name: string | null }).name
+    if (pn != null && String(pn).trim()) product_name = String(pn).trim()
+  }
+
+  if (!product_name) product_name = '상품'
 
   return { ok: true, commerce_price: row.commerce_price, product_name }
 }
@@ -333,6 +380,7 @@ export async function getCart(): Promise<ActionResult<{ items: CartRow[] }>> {
       listing_id,
       quantity,
       commerce_product_listings (
+        product_id,
         commerce_price,
         thumbnail_url,
         products ( name )
@@ -346,21 +394,31 @@ export async function getCart(): Promise<ActionResult<{ items: CartRow[] }>> {
 
   const items: CartRow[] = (data ?? []).map((row: Record<string, unknown>) => {
     const lid = row.commerce_product_listings as
-      | { commerce_price: number; products: { name: string | null } | { name: string | null }[] }
+      | {
+          product_id: string | null
+          commerce_price: number
+          products: { name: string | null } | { name: string | null }[]
+        }
       | null
     const lp = lid
     const rawP = lp?.products
     const p = Array.isArray(rawP) ? rawP[0] : rawP
     const thumb = lp && 'thumbnail_url' in lp ? (lp as { thumbnail_url?: string | null }).thumbnail_url : null
+    const nameRaw = p?.name
+    const product_name =
+      nameRaw != null && String(nameRaw).trim() ? String(nameRaw).trim() : null
     return {
       id: row.id as string,
       listing_id: row.listing_id as string,
       quantity: row.quantity as number,
       commerce_price: lp?.commerce_price ?? 0,
-      product_name: p?.name ?? null,
+      product_id: lp?.product_id ?? null,
+      product_name,
       thumbnail_url: thumb?.trim() ? thumb.trim() : null,
     }
   })
+
+  await enrichProductNamesFromProductsTable(supabase, items)
 
   return { success: true, data: { items } }
 }

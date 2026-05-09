@@ -4,6 +4,7 @@ import { useTransition, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { removeFromCart, updateCartItemQuantity } from '@/actions/buy'
+import { fixedStripeAboveBottomNav } from '@/lib/app-shell'
 import type { CartRow } from '@/lib/buy-types'
 import { formatKRW } from '@/lib/utils'
 
@@ -96,7 +97,7 @@ export default function BuyCartClient({ items }: { items: CartRow[] }) {
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: '#111', lineHeight: 1.35 }}>
-                    {it.product_name?.trim() ? it.product_name.trim() : '\u2014'}
+                    {it.product_name?.trim() ?? ''}
                   </div>
                   <div style={{ fontSize: 13, color: '#6b7280', marginTop: 6 }}>{formatKRW(it.commerce_price)}</div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, gap: 8 }}>
@@ -178,19 +179,15 @@ export default function BuyCartClient({ items }: { items: CartRow[] }) {
       </ul>
 
       <div
-        style={{
-          position: 'fixed',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          zIndex: 40,
+        style={fixedStripeAboveBottomNav({
           background: '#fff',
           borderTop: '1px solid #eee',
           boxShadow: '0 -2px 10px rgba(0,0,0,0.06)',
           padding: '16px 16px calc(16px + env(safe-area-inset-bottom, 0px))',
-        }}
+          boxSizing: 'border-box',
+        })}
       >
-        <div style={{ maxWidth: 480, margin: '0 auto' }}>
+        <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
             <span style={{ fontSize: 14, color: '#6b7280' }}>총 금액</span>
             <span style={{ fontSize: 22, fontWeight: 800, color: '#111' }}>{formatKRW(total)}</span>

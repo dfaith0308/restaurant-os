@@ -48,7 +48,7 @@ export default async function BuyProductPage({ params }: { params: Promise<{ id:
         />
       )}
       <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: '0 0 8px' }}>
-        {p.product_name?.trim() ? p.product_name.trim() : '\u2014'}
+        {p.product_name?.trim() ?? ''}
       </h1>
       <p style={{ fontSize: 18, fontWeight: 900, color: '#111827', margin: '0 0 12px' }}>{formatKRW(p.commerce_price)}</p>
       {p.description?.trim() ? (

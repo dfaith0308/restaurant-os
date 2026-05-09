@@ -31,6 +31,7 @@ export type CartRow = {
   listing_id: string
   quantity: number
   commerce_price: number
+  product_id: string | null
   product_name: string | null
   thumbnail_url: string | null
 }

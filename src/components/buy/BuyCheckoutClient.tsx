@@ -164,8 +164,7 @@ export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {items.map((it) => (
             <li key={it.id} style={{ fontSize: 13, color: '#374151' }}>
-              {it.product_name?.trim() ? it.product_name.trim() : '\u2014'} × {it.quantity} —{' '}
-              {formatKRW(it.commerce_price * it.quantity)}
+              {(it.product_name?.trim() || '상품')} × {it.quantity} — {formatKRW(it.commerce_price * it.quantity)}
             </li>
           ))}
         </ul>
