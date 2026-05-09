@@ -9,47 +9,46 @@ const shell = { width: '100%', boxSizing: 'border-box' as const, padding: '20px 
 
 const card = {
   borderRadius: 12,
-  boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+  boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
   background: '#fff',
   padding: 12,
 } as const
 
 const gridCardShell = {
   borderRadius: 12,
-  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+  boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
   background: '#fff',
   overflow: 'hidden' as const,
 }
 
 const THUMB_H = 160
+const GRID_GAP = 10
+const INFO_PAD = 12
+const INFO_GAP = 6
+const PRICE_TO_BTN = 10
 
-/** description 없을 때 상품명에서 용량·규격 한 줄 추출 */
-function subtitleFromDescriptionOrName(
-  description: string | null | undefined,
-  productName: string | null | undefined,
-): string {
-  const d = description?.trim()
-  if (d) return d.replace(/\s+/g, ' ')
-  const n = productName?.trim()
-  if (!n) return ''
+const BRAND_GENERIC = new Set([
+  '업소용',
+  '프리미엄',
+  '국산',
+  '일반',
+  '특급',
+  '대용량',
+])
 
-  const spaced = n.match(/(\d+(?:[.,]\d+)?)\s*(kg|KG|g|G|L|l|ML|ml|mL)\b/)
-  if (spaced) {
-    const num = spaced[1].replace(',', '.')
-    let u = spaced[2]
-    if (u.toLowerCase() === 'l') u = 'L'
-    else if (u.toLowerCase() === 'ml') u = 'ml'
-    else if (u.toLowerCase() === 'kg') u = 'kg'
-    else u = 'g'
-    return `${num}${u}`
-  }
-  const attached = n.match(/(\d+(?:[.,]\d+)?)(kg|KG|L|l|ML|ml|g|G)\b/i)
-  if (attached) {
-    const u = attached[2]
-    const norm = u.toLowerCase() === 'l' ? 'L' : u.toLowerCase() === 'ml' ? 'ml' : u.toLowerCase() === 'kg' ? 'kg' : u.toLowerCase() === 'g' ? 'g' : attached[2]
-    return `${attached[1].replace(',', '.')}${norm}`
-  }
-  return ''
+/** 상품명 첫 단어 — generic 이면 브랜드 미표시 */
+function brandHintFromTitle(title: string): string | null {
+  const t = title.trim()
+  if (!t) return null
+  const first = t.split(/\s+/)[0]
+  if (!first || BRAND_GENERIC.has(first)) return null
+  return first
+}
+
+/** 추후 listing.shipping_policy 등 연동 — false면 뱃지 숨김 */
+function shippingBadgeLabel(listing: { shipping_free?: boolean | null }): string | null {
+  if (listing.shipping_free === false) return null
+  return '무료배송'
 }
 
 function productNameInitial(name: string | null | undefined): string {
@@ -64,6 +63,26 @@ function buyHref(search?: string, catSlug?: string) {
   if (catSlug && catSlug !== 'all') p.set('cat', catSlug)
   const q = p.toString()
   return q ? `/buy?${q}` : '/buy'
+}
+
+function PriceAidStack({
+  commercePrice,
+  originalPrice,
+}: {
+  commercePrice: number
+  originalPrice: number | null
+}) {
+  const savings =
+    originalPrice != null && originalPrice > commercePrice ? originalPrice - commercePrice : null
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+      <span style={{ fontSize: 11, color: '#888' }}>식식이가</span>
+      <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--color-text)' }}>{formatKRW(commercePrice)}</span>
+      {savings != null && savings > 0 ? (
+        <span style={{ fontSize: 12, color: 'var(--color-primary)' }}>{formatKRW(savings)} 절감</span>
+      ) : null}
+    </div>
+  )
 }
 
 function CartHeaderIcon({ count }: { count: number }) {
@@ -230,7 +249,7 @@ export default async function BuyHomePage({
           <div
             style={{
               display: 'flex',
-              gap: 12,
+              gap: GRID_GAP,
               overflowX: 'auto',
               paddingBottom: 4,
               margin: '0 -16px',
@@ -239,58 +258,121 @@ export default async function BuyHomePage({
               WebkitOverflowScrolling: 'touch',
             }}
           >
-            {recent.map((it) => (
-              <div
-                key={it.listing_id}
-                style={{
-                  ...card,
-                  flex: '0 0 auto',
-                  width: 168,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                  boxSizing: 'border-box',
-                }}
-              >
-                {it.thumbnail_url ? (
-                  <img
-                    src={it.thumbnail_url}
-                    alt=""
-                    width={144}
-                    height={100}
-                    style={{
-                      width: '100%',
-                      height: 100,
-                      objectFit: 'cover',
-                      borderRadius: 8,
-                      background: '#e5e7eb',
-                    }}
-                  />
-                ) : (
+            {recent.map((it) => {
+              const title = it.listing_title?.trim() ?? ''
+              const brand = brandHintFromTitle(title)
+              const badge = shippingBadgeLabel(it)
+              const thumb = it.thumbnail_url?.trim()
+              return (
+                <div
+                  key={it.listing_id}
+                  style={{
+                    ...gridCardShell,
+                    flex: '0 0 auto',
+                    width: 168,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    {badge ? (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: 6,
+                          left: 6,
+                          zIndex: 1,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          background: 'var(--color-primary)',
+                          color: '#fff',
+                          lineHeight: 1.25,
+                        }}
+                      >
+                        {badge}
+                      </span>
+                    ) : null}
+                    {thumb ? (
+                      <img
+                        src={thumb}
+                        alt=""
+                        width={168}
+                        height={THUMB_H}
+                        style={{
+                          width: '100%',
+                          height: THUMB_H,
+                          objectFit: 'cover',
+                          display: 'block',
+                          background: '#f5f5f5',
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: '100%',
+                          height: THUMB_H,
+                          background: '#eef4f0',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 28,
+                          color: 'var(--color-primary)',
+                          lineHeight: 1,
+                        }}
+                        aria-hidden
+                      >
+                        {productNameInitial(it.listing_title)}
+                      </div>
+                    )}
+                  </div>
                   <div
                     style={{
-                      width: '100%',
-                      height: 100,
-                      borderRadius: 8,
-                      background: '#e5e7eb',
+                      padding: `${INFO_PAD}px ${INFO_PAD}px 0`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: INFO_GAP,
+                      flex: 1,
                     }}
-                    aria-hidden
-                  />
-                )}
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.35, minHeight: 36 }}>
-                  {it.listing_title}
+                  >
+                    {brand ? (
+                      <div style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600, lineHeight: 1.25 }}>
+                        {brand}
+                      </div>
+                    ) : null}
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 600,
+                        color: 'var(--color-text)',
+                        lineHeight: 1.35,
+                        minHeight: 36,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {title}
+                    </div>
+                    {it.listing_buyable && it.current_price != null ? (
+                      <PriceAidStack commercePrice={it.current_price} originalPrice={it.original_price} />
+                    ) : (
+                      <div style={{ fontSize: 12, color: '#9ca3af' }}>현재 담을 수 없음</div>
+                    )}
+                  </div>
+                  {it.listing_buyable ? (
+                    <div style={{ padding: `${PRICE_TO_BTN}px ${INFO_PAD}px ${INFO_PAD}px` }}>
+                      <CartAddButton listingId={it.listing_id} quantity={1} label="다시 담기" listingCard fullWidth primary />
+                    </div>
+                  ) : (
+                    <div style={{ height: INFO_PAD }} aria-hidden />
+                  )}
                 </div>
-                <div style={{ fontSize: 11, color: '#6b7280' }}>최근 구매가(참고) {formatKRW(it.unit_price)}</div>
-                {it.listing_buyable && it.current_price != null ? (
-                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>현재 {formatKRW(it.current_price)}</div>
-                ) : (
-                  <div style={{ fontSize: 12, color: '#9ca3af' }}>현재 담을 수 없음</div>
-                )}
-                {it.listing_buyable ? (
-                  <CartAddButton listingId={it.listing_id} quantity={1} label="다시 담기" compact fullWidth />
-                ) : null}
-              </div>
-            ))}
+              )
+            })}
           </div>
         ) : (
           <div
@@ -399,34 +481,37 @@ export default async function BuyHomePage({
             padding: 0,
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
-            gap: 12,
+            gap: GRID_GAP,
           }}
         >
           {listings.map((p) => {
             const title = p.product_name?.trim() ?? ''
-            const subtitle = subtitleFromDescriptionOrName(p.description, p.product_name)
+            const brand = brandHintFromTitle(title)
+            const badge = shippingBadgeLabel(p)
             const thumb = p.thumbnail_url?.trim()
             return (
               <li key={p.id} style={{ ...gridCardShell, display: 'flex', flexDirection: 'column' }}>
                 <Link href={`/buy/products/${p.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
                   <div style={{ position: 'relative', width: '100%' }}>
-                    <span
-                      style={{
-                        position: 'absolute',
-                        top: 6,
-                        left: 6,
-                        zIndex: 1,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        padding: '2px 6px',
-                        borderRadius: 4,
-                        background: 'var(--color-primary)',
-                        color: '#fff',
-                        lineHeight: 1.25,
-                      }}
-                    >
-                      무료배송
-                    </span>
+                    {badge ? (
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: 6,
+                          left: 6,
+                          zIndex: 1,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          background: 'var(--color-primary)',
+                          color: '#fff',
+                          lineHeight: 1.25,
+                        }}
+                      >
+                        {badge}
+                      </span>
+                    ) : null}
                     {thumb ? (
                       <img
                         src={thumb}
@@ -460,14 +545,26 @@ export default async function BuyHomePage({
                       </div>
                     )}
                   </div>
-                  <div style={{ padding: 16 }}>
+                  <div
+                    style={{
+                      padding: `${INFO_PAD}px ${INFO_PAD}px 0`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: INFO_GAP,
+                    }}
+                  >
+                    {brand ? (
+                      <div style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600, lineHeight: 1.25 }}>
+                        {brand}
+                      </div>
+                    ) : null}
                     <div
                       style={{
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: 600,
                         color: 'var(--color-text)',
                         lineHeight: 1.35,
-                        minHeight: 40,
+                        minHeight: 36,
                         display: '-webkit-box',
                         WebkitLineClamp: 2,
                         WebkitBoxOrient: 'vertical',
@@ -476,26 +573,10 @@ export default async function BuyHomePage({
                     >
                       {title}
                     </div>
-                    <div
-                      style={{
-                        marginTop: 6,
-                        fontSize: 12,
-                        color: 'var(--color-text-muted)',
-                        lineHeight: 1.35,
-                        minHeight: 18,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {subtitle || '\u00A0'}
-                    </div>
-                    <div style={{ marginTop: 10, fontSize: 17, fontWeight: 700, color: 'var(--color-primary)' }}>
-                      {formatKRW(p.commerce_price)}
-                    </div>
+                    <PriceAidStack commercePrice={p.commerce_price} originalPrice={p.original_price} />
                   </div>
                 </Link>
-                <div style={{ padding: '0 16px 16px' }}>
+                <div style={{ padding: `${PRICE_TO_BTN}px ${INFO_PAD}px ${INFO_PAD}px` }}>
                   <CartAddButton listingId={p.id} quantity={1} label="담기" listingCard fullWidth primary />
                 </div>
               </li>

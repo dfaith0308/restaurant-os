@@ -5,6 +5,8 @@ export type BuyListingRow = {
   tenant_id: string
   product_id: string | null
   commerce_price: number
+  /** 시중/정상가(원). NULL이면 절감 라인 미표시 */
+  original_price: number | null
   status: string
   is_visible: boolean
   created_at: string
@@ -13,6 +15,8 @@ export type BuyListingRow = {
   description: string | null
   product_name: string | null
   category_id: string | null
+  /** false면 무료배송 뱃지 숨김. 미정이면 기본 무료(추후 listing별 정책) */
+  shipping_free?: boolean | null
 }
 
 export type RecentOrderItemRow = {
@@ -23,7 +27,10 @@ export type RecentOrderItemRow = {
   thumbnail_url: string | null
   /** 현재 listing 판매가 (미판매·삭제 시 null) */
   current_price: number | null
+  /** listing 정상가 — 없으면 절감 미표시 */
+  original_price: number | null
   listing_buyable: boolean
+  shipping_free?: boolean | null
 }
 
 export type CartRow = {

@@ -101,6 +101,7 @@ export async function getListings(filters?: {
       tenant_id,
       product_id,
       commerce_price,
+      original_price,
       status,
       is_visible,
       created_at,
@@ -123,11 +124,15 @@ export async function getListings(filters?: {
   const listings = (data ?? []).map((row: Record<string, unknown>) => {
     const { product_name, category_id } = normalizeProductName(row)
     const { products: _p, ...rest } = row as BuyListingRow & { products?: unknown }
+    const op = row.original_price
+    const original_price =
+      typeof op === 'number' && Number.isFinite(op) && op >= 0 ? Math.round(op) : null
     return {
-      ...(rest as Omit<BuyListingRow, 'product_name' | 'category_id'>),
+      ...(rest as Omit<BuyListingRow, 'product_name' | 'category_id' | 'original_price'>),
       thumbnail_url: (row.thumbnail_url as string | null) ?? null,
       image_urls: (row.image_urls as string[] | null) ?? null,
       description: (row.description as string | null) ?? null,
+      original_price,
       product_name,
       category_id,
     }
@@ -151,6 +156,7 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
       tenant_id,
       product_id,
       commerce_price,
+      original_price,
       status,
       is_visible,
       created_at,
@@ -172,11 +178,15 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
   const { product_name, category_id } = normalizeProductName(data as Record<string, unknown>)
   const { products: _p, ...rest } = data as BuyListingRow & { products?: unknown }
   const r = data as Record<string, unknown>
+  const op = r.original_price
+  const original_price =
+    typeof op === 'number' && Number.isFinite(op) && op >= 0 ? Math.round(op) : null
   const listing: BuyListingRow = {
-    ...(rest as Omit<BuyListingRow, 'product_name' | 'category_id'>),
+    ...(rest as Omit<BuyListingRow, 'product_name' | 'category_id' | 'original_price'>),
     thumbnail_url: (r.thumbnail_url as string | null) ?? null,
     image_urls: (r.image_urls as string[] | null) ?? null,
     description: (r.description as string | null) ?? null,
+    original_price,
     product_name,
     category_id,
   }
@@ -224,6 +234,7 @@ export async function getRecentOrderItems(): Promise<ActionResult<{ items: Recen
       created_at: (row as { created_at: string }).created_at,
       thumbnail_url: null,
       current_price: null,
+      original_price: null,
       listing_buyable: false,
     })
     if (items.length >= 10) break
@@ -234,22 +245,28 @@ export async function getRecentOrderItems(): Promise<ActionResult<{ items: Recen
   const lidList = items.map((i) => i.listing_id)
   const { data: listingRows, error: le2 } = await supabase
     .from('commerce_product_listings')
-    .select('id, commerce_price, thumbnail_url, status, is_visible, deleted_at')
+    .select('id, commerce_price, original_price, thumbnail_url, status, is_visible, deleted_at')
     .in('id', lidList)
 
   if (le2) return { success: false, error: le2.message }
 
   const listingMap = new Map(
-    (listingRows ?? []).map((r: Record<string, unknown>) => [
-      r.id as string,
-      {
-        commerce_price: r.commerce_price as number,
-        thumbnail_url: (r.thumbnail_url as string | null) ?? null,
-        status: r.status as string,
-        is_visible: r.is_visible as boolean,
-        deleted_at: r.deleted_at as string | null,
-      },
-    ]),
+    (listingRows ?? []).map((r: Record<string, unknown>) => {
+      const op = r.original_price
+      const original_price =
+        typeof op === 'number' && Number.isFinite(op) && op >= 0 ? Math.round(op) : null
+      return [
+        r.id as string,
+        {
+          commerce_price: r.commerce_price as number,
+          original_price,
+          thumbnail_url: (r.thumbnail_url as string | null) ?? null,
+          status: r.status as string,
+          is_visible: r.is_visible as boolean,
+          deleted_at: r.deleted_at as string | null,
+        },
+      ]
+    }),
   )
 
   for (const it of items) {
@@ -258,6 +275,7 @@ export async function getRecentOrderItems(): Promise<ActionResult<{ items: Recen
     const buyable = row.status === 'visible' && row.is_visible && !row.deleted_at
     it.thumbnail_url = row.thumbnail_url?.trim() ? row.thumbnail_url.trim() : null
     it.current_price = buyable ? row.commerce_price : null
+    it.original_price = buyable ? row.original_price : null
     it.listing_buyable = buyable
   }
 

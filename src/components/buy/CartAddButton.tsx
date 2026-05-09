@@ -20,7 +20,7 @@ export default function CartAddButton({
   primary?: boolean
   compact?: boolean
   fullWidth?: boolean
-  /** /buy 그리드: 풀 너비·높이 40px */
+  /** /buy 그리드: 풀 너비·높이 36px, radius 6 */
   listingCard?: boolean
   disabled?: boolean
 }) {
@@ -51,9 +51,10 @@ export default function CartAddButton({
         style={{
           width: fullWidth || listingCard ? '100%' : undefined,
           boxSizing: 'border-box',
-          minHeight: listingCard ? 40 : undefined,
-          padding: listingCard ? '0 16px' : compact ? '8px 10px' : '8px 12px',
-          borderRadius: 8,
+          minHeight: listingCard ? 36 : undefined,
+          height: listingCard ? 36 : undefined,
+          padding: listingCard ? '0 12px' : compact ? '8px 10px' : '8px 12px',
+          borderRadius: listingCard ? 6 : 8,
           border: primary ? 'none' : '1px solid var(--color-border)',
           background: primary ? 'var(--color-primary)' : '#fff',
           color: primary ? '#fff' : 'var(--color-text)',
