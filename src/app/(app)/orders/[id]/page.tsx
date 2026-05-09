@@ -43,7 +43,7 @@ export default async function OrderDetailPage({ params }: Props) {
 
       <div style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: 0 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text)', margin: 0 }}>
             {order.product_name}
           </h1>
           <span style={{
@@ -80,7 +80,7 @@ export default async function OrderDetailPage({ params }: Props) {
         background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb',
         padding: '14px 16px',
       }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#111827', marginBottom: 10 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-text)', marginBottom: 10 }}>
           주문 품목
         </div>
 
@@ -105,7 +105,7 @@ export default async function OrderDetailPage({ params }: Props) {
               }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                   <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {l.product_name}
                     </div>
                     <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
@@ -113,7 +113,7 @@ export default async function OrderDetailPage({ params }: Props) {
                     </div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 13, fontWeight: 900, color: '#111827' }}>
+                    <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--color-text)' }}>
                       {formatKRW(l.unit_price * l.quantity)}
                     </div>
                     {l.saving > 0 && (
@@ -148,7 +148,7 @@ function Row({
       <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 700 }}>{label}</span>
       <span style={{
         fontSize: strong ? 14 : 13,
-        color: color ?? '#111827',
+        color: color ?? 'var(--color-text)',
         fontWeight: strong ? 900 : 700,
       }}>
         {value}

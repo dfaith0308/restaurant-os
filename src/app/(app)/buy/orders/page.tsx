@@ -28,7 +28,7 @@ export default async function BuyOrdersPage() {
       <Link href="/buy" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'none', display: 'inline-block', marginBottom: 14 }}>
         ← 구매하기
       </Link>
-      <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: '0 0 16px' }}>구매 내역</h1>
+      <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 16px' }}>구매 내역</h1>
 
       {!res.success ? (
         <p style={{ color: '#b91c1c', fontSize: 14 }}>{res.error}</p>
@@ -46,7 +46,7 @@ export default async function BuyOrdersPage() {
                 borderRadius: 14,
               }}
             >
-              <div style={{ fontSize: 14, fontWeight: 900, color: '#111827' }}>{orderNo(o)}</div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: 'var(--color-text)' }}>{orderNo(o)}</div>
               <div style={{ fontSize: 13, color: '#6b7280', marginTop: 6 }}>
                 {STATUS_KO[o.status] ?? o.status} · {formatKRW(o.total_amount)}
               </div>

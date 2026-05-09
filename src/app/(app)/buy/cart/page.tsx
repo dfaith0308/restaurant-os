@@ -14,7 +14,7 @@ export default async function BuyCartPage() {
       <Link href="/buy" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'none', display: 'inline-block', marginBottom: 14 }}>
         ← 구매하기
       </Link>
-      <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111', margin: '0 0 16px' }}>
+      <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 16px' }}>
         장바구니 ({n}건)
       </h1>
 

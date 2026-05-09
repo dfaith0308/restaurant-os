@@ -225,14 +225,14 @@ export default function MenusClient(props: {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '16px 0 20px' }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: 0 }}>메뉴 · 원가</h1>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text)', margin: 0 }}>메뉴 · 원가</h1>
           <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>
             원가는 실시간 계산(저장 금지). 대략적인 양만 입력해도 충분합니다(±20% OK).
           </div>
         </div>
         <button
           onClick={openCreate}
-          style={{ padding: '8px 14px', background: '#111827', color: '#fff', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+          style={{ padding: '8px 14px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
         >
           + 메뉴 추가
         </button>
@@ -266,7 +266,7 @@ export default function MenusClient(props: {
       {showForm && (
         <div style={{ background: '#F9FAFB', border: '1px solid #e5e7eb', borderRadius: 14, padding: 16, marginBottom: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 900, color: '#111827' }}>
+            <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--color-text)' }}>
               {editingId ? '메뉴 수정' : '메뉴 등록'}
             </div>
             {editingId && (
@@ -314,7 +314,7 @@ export default function MenusClient(props: {
             </div>
             <label style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
               <input type="checkbox" checked={isRep} onChange={(e) => setIsRep(e.target.checked)} />
-              <span style={{ fontSize: 12, fontWeight: 800, color: '#111827' }}>
+              <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-text)' }}>
                 대표메뉴 (최대 3개)
               </span>
             </label>
@@ -332,7 +332,7 @@ export default function MenusClient(props: {
 
           {editingId && (
             <div style={{ marginTop: 14, borderTop: '1px solid #e5e7eb', paddingTop: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 900, color: '#111827', marginBottom: 8 }}>식재료 구성 (1인분 기준)</div>
+              <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--color-text)', marginBottom: 8 }}>식재료 구성 (1인분 기준)</div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 110px 90px', gap: 8, alignItems: 'end' }}>
                 <div>
@@ -377,7 +377,7 @@ export default function MenusClient(props: {
                 <button
                   onClick={handleAddIngredient}
                   disabled={isPending || !ingId || !(Number(ingQty) > 0)}
-                  style={{ padding: '10px 10px', background: '#111827', color: '#fff', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                  style={{ padding: '10px 10px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
                 >
                   추가
                 </button>
@@ -400,13 +400,13 @@ export default function MenusClient(props: {
                       <button
                         onClick={handleFetchEstimate}
                         disabled={isPending || !name.trim()}
-                        style={{ padding: '8px 10px', background: '#111827', color: '#fff', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
+                        style={{ padding: '8px 10px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
                       >
                         AI 추정 원가 조회
                       </button>
                     </div>
                     {estimate?.estimated_cost != null && (
-                      <div style={{ marginTop: 10, color: '#111827', fontWeight: 800 }}>
+                      <div style={{ marginTop: 10, color: 'var(--color-text)', fontWeight: 800 }}>
                         예상 원가 약 {formatKRW(estimate.estimated_cost)} (±15% 오차)
                       </div>
                     )}
@@ -419,14 +419,14 @@ export default function MenusClient(props: {
                 ) : (
                   currentMenu!.ingredients.map((r) => (
                     <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 90px 70px', borderBottom: '1px solid #f3f4f6' }}>
-                      <div style={{ padding: '10px 10px', fontSize: 13, fontWeight: 800, color: '#111827' }}>
+                      <div style={{ padding: '10px 10px', fontSize: 13, fontWeight: 800, color: 'var(--color-text)' }}>
                         {r.ingredient_name}
                         <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, marginTop: 2 }}>
                           {r.unit || r.ingredient_unit || ''}
                         </div>
                       </div>
-                      <div style={{ padding: '10px 10px', fontSize: 13, color: '#111827' }}>{r.quantity}</div>
-                      <div style={{ padding: '10px 10px', fontSize: 13, color: '#111827' }}>
+                      <div style={{ padding: '10px 10px', fontSize: 13, color: 'var(--color-text)' }}>{r.quantity}</div>
+                      <div style={{ padding: '10px 10px', fontSize: 13, color: 'var(--color-text)' }}>
                         {r.ingredient_current_price != null ? formatKRW(r.ingredient_current_price) : '-'}
                       </div>
                       <div style={{ padding: '10px 10px', display: 'flex', justifyContent: 'flex-end' }}>
@@ -446,13 +446,13 @@ export default function MenusClient(props: {
               <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
                   <div style={{ fontSize: 11, fontWeight: 900, color: '#6b7280' }}>현재 원가</div>
-                  <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900, color: '#111827' }}>
+                  <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900, color: 'var(--color-text)' }}>
                     {formatKRW(liveCost ?? 0)}
                   </div>
                 </div>
                 <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
                   <div style={{ fontSize: 11, fontWeight: 900, color: '#6b7280' }}>마진율</div>
-                  <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900, color: '#111827' }}>
+                  <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900, color: 'var(--color-text)' }}>
                     {pct(liveMargin)}
                   </div>
                 </div>
@@ -464,7 +464,7 @@ export default function MenusClient(props: {
             <button
               onClick={handleSaveMenu}
               disabled={isPending || !name.trim() || !String(price).trim()}
-              style={{ flex: 2, padding: '11px', background: '#111827', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 900, cursor: 'pointer' }}
+              style={{ flex: 2, padding: '11px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 900, cursor: 'pointer' }}
             >
               {isPending ? '저장 중…' : '저장'}
             </button>
@@ -494,21 +494,21 @@ export default function MenusClient(props: {
           filtered.map((m) => (
             <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '1.4fr .8fr .8fr .7fr .7fr .3fr', borderBottom: '1px solid #f3f4f6', alignItems: 'center' }}>
               <div style={{ padding: '10px 10px' }}>
-                <div style={{ fontSize: 13, fontWeight: 900, color: '#111827' }}>{m.name}</div>
+                <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--color-text)' }}>{m.name}</div>
                 <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
                   {(m.category ?? '미분류')} · 재료 {m.ingredients.length}개
                 </div>
               </div>
-              <div style={{ padding: '10px 10px', fontSize: 13, color: '#111827' }}>{formatKRW(m.price ?? 0)}</div>
-              <div style={{ padding: '10px 10px', fontSize: 13, color: '#111827' }}>{formatKRW(m.calculated_cost ?? 0)}</div>
-              <div style={{ padding: '10px 10px', fontSize: 13, color: '#111827' }}>{pct(m.margin_rate)}</div>
+              <div style={{ padding: '10px 10px', fontSize: 13, color: 'var(--color-text)' }}>{formatKRW(m.price ?? 0)}</div>
+              <div style={{ padding: '10px 10px', fontSize: 13, color: 'var(--color-text)' }}>{formatKRW(m.calculated_cost ?? 0)}</div>
+              <div style={{ padding: '10px 10px', fontSize: 13, color: 'var(--color-text)' }}>{pct(m.margin_rate)}</div>
               <div style={{ padding: '10px 10px', fontSize: 12, fontWeight: 900, color: m.is_representative ? '#0f766e' : '#9ca3af' }}>
                 {m.is_representative ? '대표' : '-'}
               </div>
               <div style={{ padding: '10px 10px', display: 'flex', justifyContent: 'flex-end' }}>
                 <button
                   onClick={() => openEdit(m)}
-                  style={{ background: 'transparent', border: 'none', color: '#111827', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--color-primary)', fontSize: 12, fontWeight: 900, cursor: 'pointer' }}
                 >
                   편집
                 </button>

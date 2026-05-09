@@ -128,7 +128,7 @@ export default function TodayPaymentCard({ urgentPayments, totalDue }: Props) {
           return (
             <div key={p.id} style={{ padding: '10px 16px' }}>
               <div style={{ marginBottom: 8 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>
                   {p.counterparty_name}
                 </div>
                 <div style={{ fontSize: 12, color: day.urgent ? '#EF4444' : '#9ca3af', marginTop: 2 }}>
@@ -143,11 +143,11 @@ export default function TodayPaymentCard({ urgentPayments, totalDue }: Props) {
               <button
                 onClick={() => handlePay(p.id)}
                 onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.97)'; e.currentTarget.style.background = '#374151' }}
-                onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = isFailed ? '#EF4444' : '#111827' }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = isFailed ? '#EF4444' : '#111827' }}
+                onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = isFailed ? '#EF4444' : 'var(--color-primary)' }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.background = isFailed ? '#EF4444' : 'var(--color-primary)' }}
                 style={{
                   width: '100%', padding: '13px',
-                  background: isFailed ? '#EF4444' : '#111827',
+                  background: isFailed ? '#EF4444' : 'var(--color-primary)',
                   color: '#fff', border: 'none', borderRadius: 10,
                   fontSize: 15, fontWeight: 700, cursor: 'pointer',
                   transition: 'transform 0.08s ease, background 0.1s ease',
@@ -169,7 +169,7 @@ export default function TodayPaymentCard({ urgentPayments, totalDue }: Props) {
             </div>
             <a href="/rfq/new" style={{
               display: 'block', padding: '13px',
-              background: '#111827', color: '#fff',
+              background: 'var(--color-primary)', color: '#fff',
               borderRadius: 10, fontSize: 14, fontWeight: 700,
               textDecoration: 'none', textAlign: 'center',
             }}>

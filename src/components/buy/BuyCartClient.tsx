@@ -32,7 +32,7 @@ export default function BuyCartClient({ items }: { items: CartRow[] }) {
             display: 'inline-block',
             padding: '14px 24px',
             borderRadius: 8,
-            background: '#111',
+            background: 'var(--color-primary)',
             color: '#fff',
             textDecoration: 'none',
             fontSize: 14,
@@ -96,7 +96,7 @@ export default function BuyCartClient({ items }: { items: CartRow[] }) {
                   />
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#111', lineHeight: 1.35 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.35 }}>
                     {it.product_name?.trim() ?? ''}
                   </div>
                   <div style={{ fontSize: 13, color: '#6b7280', marginTop: 6 }}>{formatKRW(it.commerce_price)}</div>
@@ -141,7 +141,7 @@ export default function BuyCartClient({ items }: { items: CartRow[] }) {
                         +
                       </button>
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: '#111' }}>{formatKRW(sub)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>{formatKRW(sub)}</div>
                   </div>
                   <button
                     type="button"
@@ -190,7 +190,7 @@ export default function BuyCartClient({ items }: { items: CartRow[] }) {
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
             <span style={{ fontSize: 14, color: '#6b7280' }}>총 금액</span>
-            <span style={{ fontSize: 22, fontWeight: 800, color: '#111' }}>{formatKRW(total)}</span>
+            <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-text)' }}>{formatKRW(total)}</span>
           </div>
           <Link
             href="/buy/checkout"
@@ -199,7 +199,7 @@ export default function BuyCartClient({ items }: { items: CartRow[] }) {
               textAlign: 'center',
               padding: '14px 16px',
               borderRadius: 8,
-              background: '#111',
+              background: 'var(--color-primary)',
               color: '#fff',
               textDecoration: 'none',
               fontSize: 16,

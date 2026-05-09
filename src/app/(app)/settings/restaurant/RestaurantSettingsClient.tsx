@@ -63,7 +63,7 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
   const isSaved    = status === 'saved'
   const showDirty  = status === 'dirty'
 
-  const btnBg = isDisabled ? '#d1d5db' : isSaved ? '#15803D' : '#111827'
+  const btnBg = isDisabled ? '#d1d5db' : isSaved ? '#15803D' : 'var(--color-primary)'
 
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
@@ -71,7 +71,7 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
         ← 설정
       </Link>
 
-      <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: '16px 0 20px' }}>
+      <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)', margin: '16px 0 20px' }}>
         매장 정보
       </h1>
 

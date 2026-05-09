@@ -123,7 +123,7 @@ export default function LoginPage() {
       <Wrapper>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginBottom: 10 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)', marginBottom: 10 }}>
             가입 완료
           </div>
           <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.7, margin: '0 0 24px' }}>
@@ -132,7 +132,7 @@ export default function LoginPage() {
           </p>
           <button
             onClick={() => { setDone(false); setMode('login') }}
-            style={{ ...BTN, background: '#111827', color: '#fff' }}
+            style={{ ...BTN, background: 'var(--color-primary)', color: '#fff' }}
           >
             로그인하러 가기
           </button>
@@ -146,7 +146,7 @@ export default function LoginPage() {
       {/* 헤더 */}
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
         <div style={{ fontSize: 40, marginBottom: 10 }}>🍽️</div>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: 0 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>
           식당OS
         </h1>
         <p style={{ fontSize: 13, color: '#9ca3af', margin: '6px 0 0' }}>
@@ -165,7 +165,7 @@ export default function LoginPage() {
             border: 'none', borderRadius: 8,
             fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
             background: mode === m ? '#fff' : 'transparent',
-            color: mode === m ? '#111827' : '#6b7280',
+            color: mode === m ? 'var(--color-primary)' : '#6b7280',
             boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
           }}>
             {m === 'login' ? '로그인' : '회원가입'}
@@ -249,7 +249,7 @@ export default function LoginPage() {
         disabled={!isReady || loading}
         style={{
           ...BTN, marginTop: 20,
-          background: (!isReady || loading) ? '#d1d5db' : '#111827',
+          background: (!isReady || loading) ? '#d1d5db' : 'var(--color-primary)',
           color: '#fff',
           cursor: (!isReady || loading) ? 'not-allowed' : 'pointer',
         }}

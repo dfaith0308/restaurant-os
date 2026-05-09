@@ -26,7 +26,7 @@ export default async function OrderResultsPage() {
   if (rfqErr) {
     return (
       <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: 0 }}>입찰 결과</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>입찰 결과</h1>
         <p style={{ marginTop: 10, fontSize: 13, color: '#b91c1c' }}>
           데이터를 불러오지 못했어요: {rfqErr.message}
         </p>
@@ -55,7 +55,7 @@ export default async function OrderResultsPage() {
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
       <div style={{ marginBottom: 18 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: 0 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>
           입찰 결과
         </h1>
         <p style={{ fontSize: 13, color: '#9ca3af', margin: '4px 0 0 0' }}>
@@ -96,7 +96,7 @@ function ResultCard({ rfq, bids }: { rfq: RfqRow; bids: BidRow[] }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 6 }}>
-            <div style={{ fontSize: 15, fontWeight: 800, color: '#111827' }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text)' }}>
               {rfq.product_name}
             </div>
             <span style={{
@@ -117,7 +117,7 @@ function ResultCard({ rfq, bids }: { rfq: RfqRow; bids: BidRow[] }) {
 
           {show ? (
             <div style={{ marginTop: 10 }}>
-              <div style={{ fontSize: 13, fontWeight: 800, color: '#111827' }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-text)' }}>
                 {accepted ? '낙찰' : '최저가'}: {show.supplier_name} · {formatKRW(show.price * rfq.quantity)}
               </div>
               <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
@@ -142,7 +142,7 @@ function ResultCard({ rfq, bids }: { rfq: RfqRow; bids: BidRow[] }) {
           style={{
             padding: '10px 12px',
             borderRadius: 12,
-            background: '#111827',
+            background: 'var(--color-primary)',
             color: '#fff',
             fontSize: 12,
             fontWeight: 800,
@@ -161,14 +161,14 @@ function EmptyState() {
   return (
     <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: '28px 18px', textAlign: 'center' }}>
       <div style={{ fontSize: 40, marginBottom: 10 }}>🏁</div>
-      <div style={{ fontSize: 15, fontWeight: 800, color: '#111827' }}>
+      <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text)' }}>
         입찰 결과가 없어요
       </div>
       <div style={{ fontSize: 13, color: '#9ca3af', marginTop: 6 }}>
         RFQ를 만들고 입찰을 받으면 여기에서 낙찰 결과를 볼 수 있어요.
       </div>
       <div style={{ marginTop: 16 }}>
-        <Link href="/rfq" style={{ display: 'inline-block', padding: '12px 18px', background: '#111827', color: '#fff', borderRadius: 10, fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
+        <Link href="/rfq" style={{ display: 'inline-block', padding: '12px 18px', background: 'var(--color-primary)', color: '#fff', borderRadius: 10, fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
           RFQ로 이동
         </Link>
       </div>

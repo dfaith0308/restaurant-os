@@ -44,15 +44,15 @@ export default function FixedCostsClient({ costs: init, restaurantId }: Props) {
       <Link href="/settings" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'none' }}>← 설정</Link>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '16px 0 12px' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: 0 }}>고정비</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>고정비</h1>
         <button onClick={() => setShowForm(!showForm)}
-          style={{ padding: '8px 14px', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ 추가</button>
+          style={{ padding: '8px 14px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ 추가</button>
       </div>
 
       {total > 0 && (
         <div style={{ background: '#F9FAFB', border: '1px solid #e5e7eb', borderRadius: 12, padding: '12px 16px', marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 13, color: '#6b7280' }}>월 고정비 합계</span>
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{formatKRW(total)}</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>{formatKRW(total)}</span>
         </div>
       )}
 
@@ -91,7 +91,7 @@ export default function FixedCostsClient({ costs: init, restaurantId }: Props) {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={() => handleAdd()} disabled={isPending || !name || !amount}
-              style={{ flex: 2, padding: '10px', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>저장</button>
+              style={{ flex: 2, padding: '10px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>저장</button>
             <button onClick={() => setShowForm(false)}
               style={{ flex: 1, padding: '10px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, cursor: 'pointer', color: '#6b7280' }}>취소</button>
           </div>
@@ -107,7 +107,7 @@ export default function FixedCostsClient({ costs: init, restaurantId }: Props) {
           {list.map(c => (
             <div key={c.id} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#111827' }}>{c.name}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>{c.name}</div>
                 <div style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>월 {formatKRW(c.amount)}</div>
               </div>
               <button onClick={() => handleDelete(c.id)}

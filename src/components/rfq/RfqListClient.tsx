@@ -63,7 +63,7 @@ export default function RfqListClient({ rfqs, allRfqs, activeStatus }: Props) {
               href={href}
               style={{
                 padding: '6px 14px', borderRadius: 20,
-                background: active ? '#111827' : '#fff',
+                background: active ? 'var(--color-primary)' : '#fff',
                 color:      active ? '#fff' : '#6b7280',
                 fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap',
                 boxShadow: active ? 'none' : '0 0 0 1px #e5e7eb',
@@ -119,7 +119,7 @@ function RfqCard({ rfq }: { rfq: RfqRequest }) {
       }}>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
+            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>
               {rfq.product_name}
             </span>
             <span style={{
@@ -154,7 +154,7 @@ function EmptyState() {
       background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb',
     }}>
       <div style={{ fontSize: 40, marginBottom: 12 }}>📋</div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 8 }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)', marginBottom: 8 }}>
         아직 발주요청이 없어요
       </div>
       <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 20 }}>
@@ -162,7 +162,7 @@ function EmptyState() {
       </div>
       <Link href="/rfq/new" style={{
         display: 'inline-block', padding: '12px 24px',
-        background: '#111827', color: '#fff', borderRadius: 10,
+        background: 'var(--color-primary)', color: '#fff', borderRadius: 10,
         fontSize: 14, fontWeight: 600, textDecoration: 'none',
       }}>
         첫 발주요청 해보기

@@ -117,7 +117,7 @@ export default function IngredientBarcodeSection({ onApply }: { onApply: (h: Ing
           }}
           style={{
             padding: '8px 12px',
-            background: scanOpen ? '#374151' : '#111827',
+            background: scanOpen ? '#374151' : 'var(--color-primary)',
             color: '#fff',
             border: 'none',
             borderRadius: 8,

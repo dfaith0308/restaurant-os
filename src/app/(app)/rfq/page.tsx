@@ -29,7 +29,7 @@ export default async function RfqPage({
         marginBottom: 20,
       }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: 0 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>
             주문관리
           </h1>
           <p style={{ fontSize: 13, color: '#9ca3af', margin: '4px 0 0 0' }}>
@@ -37,7 +37,7 @@ export default async function RfqPage({
           </p>
         </div>
         <Link href="/rfq/new" style={{
-          padding: '10px 18px', background: '#111827', color: '#fff',
+          padding: '10px 18px', background: 'var(--color-primary)', color: '#fff',
           borderRadius: 10, fontSize: 13, fontWeight: 600, textDecoration: 'none',
         }}>
           + 새 견적 요청

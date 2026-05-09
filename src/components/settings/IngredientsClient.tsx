@@ -181,9 +181,9 @@ export default function IngredientsClient({ ingredients: init, restaurantId }: P
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
       <Link href="/settings" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'none' }}>← 설정</Link>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '16px 0 20px' }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: 0 }}>식자재 관리</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>식자재 관리</h1>
         <button onClick={() => setShowForm(!showForm)}
-          style={{ padding: '8px 14px', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+          style={{ padding: '8px 14px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
           + 식자재 추가
         </button>
       </div>
@@ -271,7 +271,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId }: P
 
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={handleAdd} disabled={isPending || !name.trim() || !unit.trim()}
-              style={{ flex: 2, padding: '10px', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>저장</button>
+              style={{ flex: 2, padding: '10px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>저장</button>
             <button onClick={() => { setShowForm(false); resetForm() }}
               style={{ flex: 1, padding: '10px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, cursor: 'pointer', color: '#6b7280' }}>취소</button>
           </div>
@@ -309,7 +309,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId }: P
                   return (
                     <div key={i.id} style={{ display: 'grid', gridTemplateColumns: '1.7fr .7fr .8fr .8fr .7fr .8fr', borderBottom: '1px solid #f3f4f6' }}>
                       <div style={{ padding: '10px 10px' }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: '#111827' }}>{i.name}</div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-text)' }}>{i.name}</div>
                         {i.barcode ? (
                           <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2 }}>바코드 {i.barcode}</div>
                         ) : null}

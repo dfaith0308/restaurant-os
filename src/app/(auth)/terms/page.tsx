@@ -6,12 +6,12 @@ export default function TermsPage() {
   return (
     <main style={{ minHeight: '100vh', background: '#F9FAFB', padding: '48px 16px', fontFamily: "'Pretendard', -apple-system, sans-serif" }}>
       <div style={{ maxWidth: 860, margin: '0 auto', background: '#fff', borderRadius: 16, padding: '28px 24px', boxShadow: '0 4px 24px rgba(0,0,0,0.08)' }}>
-        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: '#111827' }}>이용약관 (최소 버전)</h1>
+        <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--color-text)' }}>이용약관 (최소 버전)</h1>
         <p style={{ margin: '8px 0 0', color: '#6b7280', fontSize: 13 }}>
           본 문서는 유료 서비스 출시를 위한 최소 요건 문서입니다.
         </p>
 
-        <section style={{ marginTop: 22, lineHeight: 1.8, color: '#111827' }}>
+        <section style={{ marginTop: 22, lineHeight: 1.8, color: 'var(--color-text)' }}>
           <h2 style={{ fontSize: 16, margin: '18px 0 8px' }}>1. 서비스 정보</h2>
           <ul style={{ margin: 0, paddingLeft: 18 }}>
             <li>서비스 명칭: 식식이OS</li>

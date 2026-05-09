@@ -15,7 +15,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
       <Link href="/suppliers" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'none' }}>← 거래처 목록</Link>
 
       <div style={{ marginTop: 16, marginBottom: 20 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>{s.name}</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 4px' }}>{s.name}</h1>
         {s.region  && <div style={{ fontSize: 13, color: '#9ca3af' }}>{s.region}</div>}
         {s.contact && <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4 }}>📞 {s.contact}</div>}
       </div>
@@ -25,11 +25,11 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 20 }}>
           <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: '12px 14px' }}>
             <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>총 거래 횟수</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>{s.total_orders}회</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)' }}>{s.total_orders}회</div>
           </div>
           <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: '12px 14px' }}>
             <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>총 거래 금액</div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>{formatKRW(s.total_amount)}</div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)' }}>{formatKRW(s.total_amount)}</div>
           </div>
         </div>
       )}
@@ -44,7 +44,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
       {/* 행동 버튼 */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
         <Link href={`/rfq/new?supplier=${encodeURIComponent(s.name)}`}
-          style={{ display: 'block', padding: '13px', background: '#111827', color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', textAlign: 'center' }}>
+          style={{ display: 'block', padding: '13px', background: 'var(--color-primary)', color: '#fff', borderRadius: 12, fontSize: 14, fontWeight: 700, textDecoration: 'none', textAlign: 'center' }}>
           이 거래처로 발주요청 하기
         </Link>
         <Link href="/rfq/new"
@@ -57,7 +57,7 @@ export default async function SupplierDetailPage({ params }: { params: Promise<{
       {s.recent_order && (
         <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: '14px 16px' }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>최근 거래</div>
-          <div style={{ fontSize: 13, color: '#111827' }}>{s.recent_order.product_name}</div>
+          <div style={{ fontSize: 13, color: 'var(--color-text)' }}>{s.recent_order.product_name}</div>
           <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
             {formatKRW(s.recent_order.total_amount)} · {s.recent_order.created_at.slice(0, 10)}
           </div>

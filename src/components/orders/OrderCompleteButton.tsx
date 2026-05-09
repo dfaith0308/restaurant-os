@@ -36,7 +36,7 @@ export default function OrderCompleteButton({
         padding: '14px 14px',
         borderRadius: 12,
         border: 'none',
-        background: (disabled || isPending) ? '#d1d5db' : '#111827',
+        background: (disabled || isPending) ? '#d1d5db' : 'var(--color-primary)',
         color: '#fff',
         fontSize: 15,
         fontWeight: 800,

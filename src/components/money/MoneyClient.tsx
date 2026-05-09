@@ -62,7 +62,7 @@ export default function MoneyClient({ data, restaurantId, view = 'upcoming' }: P
 
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
-      <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>돈관리</h1>
+      <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 4px' }}>돈관리</h1>
       <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 20px' }}>나갈 돈 중심으로 관리해요</p>
 
       <MoneySubNav active={view} />
@@ -90,9 +90,9 @@ export default function MoneyClient({ data, restaurantId, view = 'upcoming' }: P
       {/* 지급 목록 */}
       {view === 'upcoming' && (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>지급 예정 {visible.length}건</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>지급 예정 {visible.length}건</span>
           <button onClick={() => setShowAdd(!showAdd)} style={{
-            padding: '6px 12px', background: '#111827', color: '#fff',
+            padding: '6px 12px', background: 'var(--color-primary)', color: '#fff',
             border: 'none', borderRadius: 8, fontSize: 12, cursor: 'pointer',
           }}>+ 추가</button>
         </div>
@@ -126,7 +126,7 @@ export default function MoneyClient({ data, restaurantId, view = 'upcoming' }: P
               style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }} />
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={handleAdd} disabled={isPending} style={{ flex: 2, padding: '10px', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>저장</button>
+            <button onClick={handleAdd} disabled={isPending} style={{ flex: 2, padding: '10px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, cursor: 'pointer' }}>저장</button>
             <button onClick={() => setShowAdd(false)} style={{ flex: 1, padding: '10px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, cursor: 'pointer', color: '#6b7280' }}>취소</button>
           </div>
         </div>
@@ -144,15 +144,15 @@ export default function MoneyClient({ data, restaurantId, view = 'upcoming' }: P
             return (
               <div key={p.id} style={{ background: '#fff', borderRadius: 12, border: `1px solid ${day.urgent ? '#FCA5A5' : '#e5e7eb'}`, padding: '14px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{p.counterparty_name}</div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginTop: 2 }}>{formatKRW(p.amount)}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>{p.counterparty_name}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginTop: 2 }}>{formatKRW(p.amount)}</div>
                   <div style={{ fontSize: 11, color: day.urgent ? '#EF4444' : '#9ca3af', marginTop: 2 }}>
                     {day.text} · {p.due_date}
                   </div>
                   {p.memo && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{p.memo}</div>}
                 </div>
                 <button onClick={() => handlePay(p.id)} disabled={isPending}
-                  style={{ padding: '8px 14px', background: '#111827', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                  style={{ padding: '8px 14px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                   지급 완료
                 </button>
               </div>
@@ -164,7 +164,7 @@ export default function MoneyClient({ data, restaurantId, view = 'upcoming' }: P
       {/* 거래처 미지급금 */}
       {view === 'suppliers' && (
       <div style={{ marginTop: 8, background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb', padding: '14px 16px' }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: '#111827', marginBottom: 10 }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-text)', marginBottom: 10 }}>
           거래처 미지급금
         </div>
 
@@ -196,7 +196,7 @@ export default function MoneyClient({ data, restaurantId, view = 'upcoming' }: P
                 >
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {b.counterparty_name}
                       </div>
                       <div style={{ fontSize: 11, fontWeight: 800, color: '#6b7280' }}>
@@ -207,14 +207,14 @@ export default function MoneyClient({ data, restaurantId, view = 'upcoming' }: P
                       가장 오래된 미지급일 · {b.oldest_due_date}
                     </div>
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 900, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>
+                  <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }}>
                     {formatKRW(b.total_unpaid)}
                   </div>
                 </button>
 
                 {selectedCounterparty === b.counterparty_name && (
                   <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff' }}>
-                    <div style={{ fontSize: 12, fontWeight: 800, color: '#111827', marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-text)', marginBottom: 8 }}>
                       지급 예정 내역 {drilldownPayments.length}건
                     </div>
                     {drilldownPayments.length === 0 ? (
@@ -235,7 +235,7 @@ export default function MoneyClient({ data, restaurantId, view = 'upcoming' }: P
                                 </div>
                               )}
                             </div>
-                            <div style={{ fontSize: 12, fontWeight: 900, color: '#111827', fontVariantNumeric: 'tabular-nums' }}>
+                            <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--color-text)', fontVariantNumeric: 'tabular-nums' }}>
                               {formatKRW(p.amount)}
                             </div>
                           </div>
@@ -256,9 +256,9 @@ export default function MoneyClient({ data, restaurantId, view = 'upcoming' }: P
         <div style={{ marginTop: 8, background: '#F9FAFB', borderRadius: 12, padding: '16px', border: '1px solid #e5e7eb' }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8 }}>자금 흐름 요약</div>
           <div style={{ fontSize: 13, color: '#6b7280', lineHeight: 2 }}>
-            <div>미지급 총액 <strong style={{ color: '#111827', float: 'right' }}>{formatKRW(data.total_unpaid)}</strong></div>
-            <div>이번 주 <strong style={{ color: data.is_tight ? '#B91C1C' : '#111827', float: 'right' }}>{formatKRW(data.due_this_week)}</strong></div>
-            <div>이번 달 <strong style={{ color: '#111827', float: 'right' }}>{formatKRW(data.due_this_month)}</strong></div>
+            <div>미지급 총액 <strong style={{ color: 'var(--color-text)', float: 'right' }}>{formatKRW(data.total_unpaid)}</strong></div>
+            <div>이번 주 <strong style={{ color: data.is_tight ? '#B91C1C' : 'var(--color-text)', float: 'right' }}>{formatKRW(data.due_this_week)}</strong></div>
+            <div>이번 달 <strong style={{ color: 'var(--color-text)', float: 'right' }}>{formatKRW(data.due_this_month)}</strong></div>
           </div>
         </div>
       )}
@@ -278,8 +278,8 @@ function MoneySubNav({ active }: { active: 'upcoming' | 'suppliers' | 'cashflow'
           padding: '10px 0',
           borderRadius: 12,
           textDecoration: 'none',
-          border: `1px solid ${isActive ? '#111827' : '#e5e7eb'}`,
-          background: isActive ? '#111827' : '#fff',
+          border: `1px solid ${isActive ? 'var(--color-primary)' : '#e5e7eb'}`,
+          background: isActive ? 'var(--color-primary)' : '#fff',
           color: isActive ? '#fff' : '#374151',
           fontSize: 12,
           fontWeight: 800,
@@ -314,8 +314,8 @@ function FilterChip({
       style={{
         padding: '6px 10px',
         borderRadius: 999,
-        border: `1px solid ${active ? '#111827' : '#e5e7eb'}`,
-        background: active ? '#111827' : '#fff',
+        border: `1px solid ${active ? 'var(--color-primary)' : '#e5e7eb'}`,
+        background: active ? 'var(--color-primary)' : '#fff',
         color: active ? '#fff' : '#374151',
         fontSize: 12,
         fontWeight: 700,
@@ -331,7 +331,7 @@ function KpiCard({ label, value, warn, sub }: { label: string; value: string; wa
   return (
     <div style={{ background: '#fff', borderRadius: 12, border: `1px solid ${warn ? '#FCA5A5' : '#e5e7eb'}`, padding: '12px 14px' }}>
       <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 17, fontWeight: 700, color: warn ? '#B91C1C' : '#111827' }}>{value}</div>
+      <div style={{ fontSize: 17, fontWeight: 700, color: warn ? '#B91C1C' : 'var(--color-text)' }}>{value}</div>
       {sub && <div style={{ fontSize: 11, color: warn ? '#EF4444' : '#15803D', marginTop: 4 }}>{sub}</div>}
     </div>
   )

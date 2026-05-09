@@ -16,12 +16,12 @@ export default function TodayRfqCard({ openCount, noPrice }: Props) {
           <div style={{ fontSize: 12, color: '#4F46E5', fontWeight: 600, marginBottom: 8 }}>
             📋 오늘 할 일
           </div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)', marginBottom: 16 }}>
             품목만 알려주시면 더 싼 곳 찾아드려요
           </div>
           <Link href="/rfq/new" style={{
             display: 'block', padding: '15px',
-            background: '#111827', color: '#fff',
+            background: 'var(--color-primary)', color: '#fff',
             borderRadius: 12, fontSize: 16, fontWeight: 700,
             textDecoration: 'none', textAlign: 'center',
           }}>
@@ -41,12 +41,12 @@ export default function TodayRfqCard({ openCount, noPrice }: Props) {
         <div style={{ fontSize: 12, color: '#1D4ED8', fontWeight: 600, marginBottom: 6 }}>
           📋 오늘 할 일
         </div>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginBottom: 16 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)', marginBottom: 16 }}>
           견적 {openCount}건 도착했어요
         </div>
         <Link href="/rfq" style={{
           display: 'block', padding: '15px',
-          background: '#111827', color: '#fff',
+          background: 'var(--color-primary)', color: '#fff',
           borderRadius: 12, fontSize: 16, fontWeight: 700,
           textDecoration: 'none', textAlign: 'center',
         }}>

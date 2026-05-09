@@ -21,7 +21,7 @@ export default async function TodayPage() {
 
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
-      <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: '0 0 6px' }}>오늘운영</h1>
+      <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 6px' }}>오늘운영</h1>
       <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 16px' }}>
         오늘 해야 할 일을 3가지 이내로 정리해요
       </p>
@@ -49,7 +49,7 @@ export default async function TodayPage() {
             gap: 6,
             fontSize: 14,
             fontWeight: 800,
-            color: '#111827',
+            color: 'var(--color-primary)',
             textDecoration: 'none',
           }}
         >
@@ -121,12 +121,12 @@ function TodayCards({ d, moneyTight }: { d: TodayDashboard; moneyTight: boolean 
   if (cards.length === 0) {
     return (
       <div style={{ textAlign: 'center', padding: '44px 0', borderRadius: 14, border: '1px dashed #e5e7eb', background: '#fff' }}>
-        <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', marginBottom: 8 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-text)', marginBottom: 8 }}>
           오늘도 잘 운영하고 계세요 👍
         </div>
         <Link
           href="/rfq/new"
-          style={{ display: 'inline-block', padding: '10px 14px', borderRadius: 10, background: '#111827', color: '#fff', textDecoration: 'none', fontSize: 13, fontWeight: 800 }}
+          style={{ display: 'inline-block', padding: '10px 14px', borderRadius: 10, background: 'var(--color-primary)', color: '#fff', textDecoration: 'none', fontSize: 13, fontWeight: 800 }}
         >
           발주요청 하러 가기
         </Link>
@@ -172,16 +172,16 @@ function Card({
 }) {
   const border = tone === 'danger' ? '#FCA5A5' : tone === 'warning' ? '#FCD34D' : '#e5e7eb'
   const bg = tone === 'danger' ? '#FFF1F2' : tone === 'warning' ? '#FFFBEB' : '#fff'
-  const titleColor = tone === 'danger' ? '#B91C1C' : tone === 'warning' ? '#92400E' : '#111827'
+  const titleColor = tone === 'danger' ? '#B91C1C' : tone === 'warning' ? '#92400E' : 'var(--color-text)'
   return (
     <div style={{ border: `1px solid ${border}`, background: bg, borderRadius: 14, padding: '14px 16px' }}>
       <div style={{ fontSize: 12, fontWeight: 900, color: titleColor, marginBottom: 6 }}>{title}</div>
-      <div style={{ fontSize: 14, fontWeight: 800, color: '#111827', lineHeight: 1.35, marginBottom: 10 }}>
+      <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-text)', lineHeight: 1.35, marginBottom: 10 }}>
         {desc}
       </div>
       <Link
         href={href}
-        style={{ display: 'inline-block', padding: '9px 12px', borderRadius: 10, background: '#111827', color: '#fff', textDecoration: 'none', fontSize: 13, fontWeight: 800 }}
+        style={{ display: 'inline-block', padding: '9px 12px', borderRadius: 10, background: 'var(--color-primary)', color: '#fff', textDecoration: 'none', fontSize: 13, fontWeight: 800 }}
       >
         {ctaLabel}
       </Link>

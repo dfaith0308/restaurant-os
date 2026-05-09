@@ -34,7 +34,7 @@ export default function BottomNav() {
             flex: 1, display: 'flex', flexDirection: 'column',
             alignItems: 'center', justifyContent: 'center',
             gap: 3, textDecoration: 'none',
-            color: active ? '#111827' : '#6b7280',
+            color: active ? 'var(--color-primary)' : '#6b7280',
             fontSize: 10, fontWeight: active ? 700 : 500,
           }}>
             <span style={{ fontSize: 22 }}>{icon}</span>

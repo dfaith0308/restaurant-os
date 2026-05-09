@@ -86,7 +86,7 @@ export default function BidCompareClient({ rfq, bids, linkedOrder }: Props) {
             {expectedDate && (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ fontSize: 13, color: '#6b7280' }}>납품 예상일</span>
-                <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>
                   {expectedDate}
                 </span>
               </div>
@@ -154,7 +154,7 @@ export default function BidCompareClient({ rfq, bids, linkedOrder }: Props) {
           <div style={{ fontSize: 12, color: '#15803D', fontWeight: 700, marginBottom: 4 }}>
             견적이 도착했어요
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 2 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)', marginBottom: 2 }}>
             {bid.supplier_name}
           </div>
           {bid.delivery_days && (
@@ -172,7 +172,7 @@ export default function BidCompareClient({ rfq, bids, linkedOrder }: Props) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
             <div>
               <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 4 }}>단가</div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: '#111827', letterSpacing: '-0.02em' }}>
+              <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--color-text)', letterSpacing: '-0.02em' }}>
                 {formatKRW(bid.price)}
               </div>
               <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
@@ -207,7 +207,7 @@ export default function BidCompareClient({ rfq, bids, linkedOrder }: Props) {
           onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
           style={{
             width: '100%', padding: '16px',
-            background: isPending ? '#6B7280' : '#111827',
+            background: isPending ? '#6B7280' : 'var(--color-primary)',
             color: '#fff', border: 'none', borderRadius: 12,
             fontSize: 16, fontWeight: 700, cursor: isPending ? 'not-allowed' : 'pointer',
             marginBottom: 12,
@@ -242,13 +242,13 @@ export default function BidCompareClient({ rfq, bids, linkedOrder }: Props) {
       {/* 최선 입찰 — 즉시 발주 강조 */}
       <div style={{
         background: '#fff', borderRadius: 16,
-        border: '2px solid #111827',
+        border: '2px solid var(--color-primary)',
         padding: '18px', marginBottom: 12,
         position: 'relative',
       }}>
         <div style={{
           position: 'absolute', top: -11, left: 14,
-          background: '#111827', color: '#fff',
+          background: 'var(--color-primary)', color: '#fff',
           fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 10,
         }}>
           ✓ 가장 싼 조건
@@ -256,7 +256,7 @@ export default function BidCompareClient({ rfq, bids, linkedOrder }: Props) {
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
           <div>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>
               {bestBid.supplier_name}
             </div>
             {bestBid.delivery_days && (
@@ -266,7 +266,7 @@ export default function BidCompareClient({ rfq, bids, linkedOrder }: Props) {
             )}
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: 26, fontWeight: 800, color: '#111827', letterSpacing: '-0.02em' }}>
+            <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--color-text)', letterSpacing: '-0.02em' }}>
               {formatKRW(bestBid.price)}
             </div>
             <div style={{ fontSize: 11, color: '#9ca3af' }}>단가</div>
@@ -302,7 +302,7 @@ export default function BidCompareClient({ rfq, bids, linkedOrder }: Props) {
           onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
           style={{
             width: '100%', padding: '15px',
-            background: isPending ? '#6B7280' : '#111827',
+            background: isPending ? '#6B7280' : 'var(--color-primary)',
             color: '#fff', border: 'none', borderRadius: 10,
             fontSize: 15, fontWeight: 700, cursor: isPending ? 'not-allowed' : 'pointer',
             transition: 'transform 0.08s ease',
@@ -490,7 +490,7 @@ function LinkedOrderPanel({ order, rfq }: { order: LinkedOrder; rfq: RfqRequest 
         <div style={{ fontSize: 12, color: '#1D4ED8', fontWeight: 600, marginBottom: 6 }}>
           🚚 납품 대기 중
         </div>
-        <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)', marginBottom: 4 }}>
           {order.product_name}
         </div>
         <div style={{ fontSize: 13, color: '#374151', marginBottom: 2 }}>
@@ -518,7 +518,7 @@ function LinkedOrderPanel({ order, rfq }: { order: LinkedOrder; rfq: RfqRequest 
         onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
         style={{
           width: '100%', padding: '15px',
-          background: isPending ? '#6B7280' : '#111827',
+          background: isPending ? '#6B7280' : 'var(--color-primary)',
           color: '#fff', border: 'none',
           borderRadius: 12, fontSize: 15, fontWeight: 700,
           cursor: isPending ? 'not-allowed' : 'pointer',

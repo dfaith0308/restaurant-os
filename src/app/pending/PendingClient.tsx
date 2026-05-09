@@ -50,7 +50,7 @@ export default function PendingClient() {
       }}>
         <div style={{ fontSize: 48, marginBottom: 20 }}>⏳</div>
 
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: '0 0 12px' }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 12px' }}>
           승인 대기 중입니다
         </h1>
 

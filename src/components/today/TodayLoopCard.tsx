@@ -347,7 +347,7 @@ export default function TodayLoopCard({
               style={{
                 ...primaryBtnStyle,
                 flex: 2,
-                background: !qtyNum ? '#d1d5db' : '#111827',
+                background: !qtyNum ? '#d1d5db' : 'var(--color-primary)',
               }} type="button">
               견적 요청하기 →
             </button>
@@ -499,7 +499,7 @@ function VerdictView({
       </div>
 
       {/* ── 헤드라인 ── */}
-      <div style={{ fontSize: 19, fontWeight: 800, color: '#111827', lineHeight: 1.3, marginBottom: 12 }}>
+      <div style={{ fontSize: 19, fontWeight: 800, color: 'var(--color-text)', lineHeight: 1.3, marginBottom: 12 }}>
         {ai.headline}
       </div>
 
@@ -516,7 +516,7 @@ function VerdictView({
             <span style={{ fontSize: 12, color: '#6b7280' }}>지금 사는 가격</span>
             <span style={{
               fontSize: 16, fontWeight: 800,
-              color: isExpensive ? '#B91C1C' : '#111827',
+              color: isExpensive ? '#B91C1C' : 'var(--color-text)',
             }}>
               {formatKRW(currentPrice)}
               <span style={{ fontSize: 11, fontWeight: 500, color: '#9ca3af', marginLeft: 2 }}>/ {ingredient.unit}</span>
@@ -527,7 +527,7 @@ function VerdictView({
             alignItems: 'center',
           }}>
             <span style={{ fontSize: 12, color: '#6b7280' }}>{refLabel}</span>
-            <span style={{ fontSize: 16, fontWeight: 800, color: '#111827' }}>
+            <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--color-text)' }}>
               {formatKRW(refPrice)}
               <span style={{ fontSize: 11, fontWeight: 500, color: '#9ca3af', marginLeft: 2 }}>/ {ingredient.unit}</span>
             </span>
@@ -814,7 +814,7 @@ function ConflictBox({
           disabled={isPending}
           style={{
             flex: 1, padding: '8px 10px',
-            background: isPending ? '#d1d5db' : '#111827',
+            background: isPending ? '#d1d5db' : 'var(--color-primary)',
             color: '#fff', border: 'none',
             borderRadius: 8, fontSize: 12, fontWeight: 600,
             cursor: isPending ? 'not-allowed' : 'pointer',
@@ -997,7 +997,7 @@ function MergeCandidateBox({
         disabled={isPending}
         style={{
           padding: '6px 12px',
-          background: isPending ? '#d1d5db' : '#111827',
+          background: isPending ? '#d1d5db' : 'var(--color-primary)',
           color: '#fff', border: 'none',
           borderRadius: 8, fontSize: 12, fontWeight: 600,
           cursor: isPending ? 'not-allowed' : 'pointer',
@@ -1124,7 +1124,7 @@ function AutoReadyView({
         <div style={{
           width: `${progressPct}%`,
           height: '100%',
-          background: '#111827',
+          background: 'var(--color-primary)',
           transition: 'width 1s linear',
         }} />
       </div>
@@ -1165,7 +1165,7 @@ function AutoReadyView({
           style={{
             ...primaryBtnStyle,
             flex: 2,
-            background: (isPending || firedRef.current) ? '#d1d5db' : '#111827',
+            background: (isPending || firedRef.current) ? '#d1d5db' : 'var(--color-primary)',
           }}>
           {isPending ? '요청 중...' : '지금 실행'}
         </button>
@@ -1227,7 +1227,7 @@ function RfqConfirmView({
       <div style={{
         marginTop: 12, padding: '12px 14px',
         background: '#F9FAFB', border: '1px solid #e5e7eb',
-        borderRadius: 10, fontSize: 13, color: '#111827', lineHeight: 1.8,
+        borderRadius: 10, fontSize: 13, color: 'var(--color-text)', lineHeight: 1.8,
       }}>
         <div><span style={label}>품목</span> <strong>{ingredient.name}</strong></div>
         <div><span style={label}>수량</span> <strong>{qty} {ingredient.unit}</strong></div>
@@ -1260,7 +1260,7 @@ function RfqConfirmView({
         <button onClick={onSubmit} disabled={isPending} style={{
           ...primaryBtnStyle,
           flex: 2,
-          background: isPending ? '#d1d5db' : '#111827',
+          background: isPending ? '#d1d5db' : 'var(--color-primary)',
         }} type="button">
           {isPending ? '요청 중...' : '견적 요청 보내기'}
         </button>
@@ -1292,7 +1292,7 @@ function Tag({ children, tone }: { children: React.ReactNode; tone?: 'good' }) {
 
 function Headline({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: 17, fontWeight: 700, color: '#111827', lineHeight: 1.35 }}>
+    <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.35 }}>
       {children}
     </div>
   )
@@ -1331,7 +1331,7 @@ function PrimaryBtn(props: {
         ...primaryBtnStyle,
         marginTop: 14,
         width: '100%',
-        background: props.disabled ? '#d1d5db' : '#111827',
+        background: props.disabled ? '#d1d5db' : 'var(--color-primary)',
         cursor: props.disabled ? 'not-allowed' : 'pointer',
       }}>
       {props.children}
@@ -1343,14 +1343,14 @@ function PrimaryBtn(props: {
 
 const card: React.CSSProperties = {
   background: '#fff', borderRadius: 16,
-  border: '1.5px solid #111827', padding: '20px 20px',
+  border: '1.5px solid var(--color-primary)', padding: '20px 20px',
 }
 
 const input: React.CSSProperties = {
   width: '100%', padding: '12px 14px',
   border: '1.5px solid #e5e7eb', borderRadius: 10,
   fontSize: 15, outline: 'none', boxSizing: 'border-box',
-  background: '#fff', color: '#111827', fontFamily: 'inherit',
+  background: '#fff', color: 'var(--color-primary)', fontFamily: 'inherit',
 }
 
 const won: React.CSSProperties = {

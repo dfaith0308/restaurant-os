@@ -39,7 +39,7 @@ export default async function OrdersPage({
         marginBottom: 18,
       }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: 0 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>
             실제 주문
           </h1>
           <p style={{ fontSize: 13, color: '#9ca3af', margin: '4px 0 0 0' }}>
@@ -86,7 +86,7 @@ function StatusTabs({
         const badgeCount =
           t.key === 'all' ? (counts.confirmed + counts.completed + counts.cancelled) : counts[t.key]
 
-        const badgeBg = t.tone === 'urgent' ? '#EF4444' : '#111827'
+        const badgeBg = t.tone === 'urgent' ? '#EF4444' : 'var(--color-primary)'
 
         return (
           <Link
@@ -94,7 +94,7 @@ function StatusTabs({
             href={href}
             style={{
               padding: '6px 14px', borderRadius: 20,
-              background: isActive ? '#111827' : '#fff',
+              background: isActive ? 'var(--color-primary)' : '#fff',
               color:      isActive ? '#fff' : '#6b7280',
               fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
               boxShadow: isActive ? 'none' : '0 0 0 1px #e5e7eb',
@@ -108,7 +108,7 @@ function StatusTabs({
               <span style={{
                 marginLeft: 6,
                 background: isActive ? '#fff' : badgeBg,
-                color:      isActive ? '#111827' : '#fff',
+                color:      isActive ? 'var(--color-primary)' : '#fff',
                 borderRadius: 10,
                 padding: '1px 6px',
                 fontSize: 10,
@@ -141,7 +141,7 @@ function OrderCard({ order }: { order: Order }) {
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>
             {order.product_name}
           </span>
           <span style={{
@@ -155,7 +155,7 @@ function OrderCard({ order }: { order: Order }) {
         <div style={{ fontSize: 13, color: '#6b7280' }}>
           {order.counterparty_name} · {order.quantity}{order.unit}
         </div>
-        <div style={{ fontSize: 13, color: '#111827', fontWeight: 700, marginTop: 6 }}>
+        <div style={{ fontSize: 13, color: 'var(--color-text)', fontWeight: 700, marginTop: 6 }}>
           {formatKRW(order.total_amount)}
         </div>
         <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
@@ -175,7 +175,7 @@ function EmptyState() {
       background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb',
     }}>
       <div style={{ fontSize: 40, marginBottom: 12 }}>🧾</div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', marginBottom: 8 }}>
+      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)', marginBottom: 8 }}>
         아직 실제 주문이 없어요
       </div>
       <div style={{ fontSize: 13, color: '#9ca3af' }}>
@@ -184,7 +184,7 @@ function EmptyState() {
       <div style={{ marginTop: 18 }}>
         <Link href="/rfq" style={{
           display: 'inline-block', padding: '12px 18px',
-          background: '#111827', color: '#fff', borderRadius: 10,
+          background: 'var(--color-primary)', color: '#fff', borderRadius: 10,
           fontSize: 14, fontWeight: 600, textDecoration: 'none',
         }}>
           RFQ로 이동

@@ -41,8 +41,8 @@ export default function NotificationsClient({ tenant_id, initial }: Props) {
         }}
       >
         <div style={{ fontSize: 12, color: '#6b7280' }}>
-          미읽음 <b style={{ color: '#111827' }}>{unread.length}</b> · 전체{' '}
-          <b style={{ color: '#111827' }}>{items.length}</b>
+          미읽음 <b style={{ color: 'var(--color-text)' }}>{unread.length}</b> · 전체{' '}
+          <b style={{ color: 'var(--color-text)' }}>{items.length}</b>
         </div>
         {isPending && <div style={{ fontSize: 12, color: '#9ca3af' }}>처리 중...</div>}
       </div>
@@ -98,7 +98,7 @@ export default function NotificationsClient({ tenant_id, initial }: Props) {
 
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: '#111827' }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-text)' }}>
                         {n.title}
                       </div>
                       {!n.is_read && (
@@ -108,7 +108,7 @@ export default function NotificationsClient({ tenant_id, initial }: Props) {
                             fontWeight: 800,
                             padding: '2px 6px',
                             borderRadius: 999,
-                            background: '#111827',
+                            background: 'var(--color-primary)',
                             color: '#fff',
                           }}
                         >

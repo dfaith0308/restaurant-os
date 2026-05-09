@@ -66,7 +66,7 @@ export default function RfqNewForm({ prefillName, prefillPrice }: Props) {
           style={{ border: 'none', background: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 14, padding: 0, marginBottom: 12 }}>
           ← 뒤로
         </button>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: 0 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>
           더 좋은 조건 받아보기
         </h1>
         <p style={{ fontSize: 13, color: '#9ca3af', margin: '6px 0 0 0' }}>
@@ -173,7 +173,7 @@ export default function RfqNewForm({ prefillName, prefillPrice }: Props) {
         disabled={isPending || !name || !qty}
         style={{
           display: 'block', width: '100%', marginTop: 24,
-          padding: '15px', background: (!name || !qty) ? '#d1d5db' : '#111827',
+          padding: '15px', background: (!name || !qty) ? '#d1d5db' : 'var(--color-primary)',
           color: '#fff', border: 'none', borderRadius: 14,
           fontSize: 16, fontWeight: 700, cursor: (!name || !qty) ? 'not-allowed' : 'pointer',
         }}
@@ -206,5 +206,5 @@ const inputStyle: React.CSSProperties = {
   width: '100%', padding: '12px 14px',
   border: '1.5px solid #e5e7eb', borderRadius: 10,
   fontSize: 15, outline: 'none', boxSizing: 'border-box',
-  background: '#fff', color: '#111827',
+  background: '#fff', color: 'var(--color-primary)',
 }

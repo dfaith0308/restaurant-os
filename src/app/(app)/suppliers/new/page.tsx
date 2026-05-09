@@ -25,7 +25,7 @@ export default function SupplierNewPage() {
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
       <button onClick={() => router.back()} style={{ border: 'none', background: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 13, padding: 0, marginBottom: 16 }}>← 뒤로</button>
-      <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: '0 0 24px' }}>거래처 등록</h1>
+      <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 24px' }}>거래처 등록</h1>
 
       {[
         { label: '거래처명 *', val: name,    set: setName,    placeholder: '예: 한마음 식자재' },
@@ -43,7 +43,7 @@ export default function SupplierNewPage() {
       {error && <div style={{ padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 8, fontSize: 13, color: '#B91C1C', marginBottom: 16 }}>{error}</div>}
 
       <button onClick={handleSave} disabled={isPending || !name.trim()}
-        style={{ width: '100%', padding: '14px', background: (!name.trim() || isPending) ? '#d1d5db' : '#111827', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+        style={{ width: '100%', padding: '14px', background: (!name.trim() || isPending) ? '#d1d5db' : 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
         {isPending ? '저장 중...' : '저장하기'}
       </button>
     </main>

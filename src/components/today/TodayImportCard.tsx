@@ -211,7 +211,7 @@ export default function TodayImportCard({ restaurantId, emphasize = false }: Pro
             marginTop: 14,
             width: '100%',
             background: '#fff',
-            color: '#111827',
+            color: 'var(--color-text)',
             border: '1.5px dashed #9ca3af',
           }}>
           {btnLabel}
@@ -252,7 +252,7 @@ export default function TodayImportCard({ restaurantId, emphasize = false }: Pro
             disabled={isPending}
             style={{
               ...primaryBtn, flex: 2,
-              background: isPending ? '#d1d5db' : '#111827',
+              background: isPending ? '#d1d5db' : 'var(--color-primary)',
             }}>
             {isPending ? '저장 중...' : 'SKU 등록'}
           </button>
@@ -336,7 +336,7 @@ export default function TodayImportCard({ restaurantId, emphasize = false }: Pro
             style={{
               ...primaryBtn,
               flex: 2,
-              background: (isPending || selectedCount === 0) ? '#d1d5db' : '#111827',
+              background: (isPending || selectedCount === 0) ? '#d1d5db' : 'var(--color-primary)',
             }}>
             {isPending
               ? '저장 중...'
@@ -394,7 +394,7 @@ function PreviewRow({
       display: 'flex', alignItems: 'center',
       padding: '10px 12px',
       background: checked ? '#fff' : '#F9FAFB',
-      border: `1px solid ${checked ? '#111827' : '#e5e7eb'}`,
+      border: `1px solid ${checked ? 'var(--color-primary)' : '#e5e7eb'}`,
       borderRadius: 10, cursor: 'pointer',
       transition: 'border-color 0.15s',
     }}>
@@ -404,11 +404,11 @@ function PreviewRow({
         onChange={onToggle}
         style={{
           width: 18, height: 18, margin: '0 12px 0 0',
-          accentColor: '#111827', cursor: 'pointer',
+          accentColor: 'var(--color-primary)', cursor: 'pointer',
         }}
       />
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>
           {row.name} <span style={{ fontWeight: 400, color: '#9ca3af' }}>× {row.quantity}{row.unit}</span>
         </div>
         {hasSku && (
@@ -467,7 +467,7 @@ function ModeBtn({
         flex: 1, padding: '6px 10px',
         fontSize: 12, fontWeight: 600,
         borderRadius: 8, cursor: 'pointer',
-        background: active ? '#111827' : '#fff',
+        background: active ? 'var(--color-primary)' : '#fff',
         color:      active ? '#fff'    : '#6b7280',
         border:     active ? 'none'    : '1px solid #e5e7eb',
         fontFamily: 'inherit',
@@ -498,7 +498,7 @@ function QuickBtn({
         padding: '6px 12px',
         fontSize: 12, fontWeight: 600,
         borderRadius: 20, cursor: disabled ? 'not-allowed' : 'pointer',
-        background: active ? '#111827' : '#fff',
+        background: active ? 'var(--color-primary)' : '#fff',
         color:      active ? '#fff'    : disabled ? '#d1d5db' : '#374151',
         border:     active ? 'none'    : '1px solid #e5e7eb',
         fontFamily: 'inherit',
@@ -526,7 +526,7 @@ function Tag({ children, tone }: { children: React.ReactNode; tone?: 'good' | 'w
 }
 
 function Headline({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: 16, fontWeight: 700, color: '#111827', lineHeight: 1.35 }}>{children}</div>
+  return <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.35 }}>{children}</div>
 }
 function Sub({ children }: { children: React.ReactNode }) {
   return <div style={{ fontSize: 13, color: '#6b7280', marginTop: 4, lineHeight: 1.5 }}>{children}</div>

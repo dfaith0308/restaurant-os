@@ -174,7 +174,7 @@ export default function TodayDeliveryCard({ restaurantId, order, otherCount }: P
 
       {/* 주문 내용 */}
       <div style={{ padding: '10px 18px 0' }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#111827', marginBottom: 4 }}>
+        <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)', marginBottom: 4 }}>
           {order.product_name}
         </div>
         <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 2 }}>
@@ -209,7 +209,7 @@ export default function TodayDeliveryCard({ restaurantId, order, otherCount }: P
           onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
           style={{
             width: '100%', padding: '15px',
-            background: '#111827', color: '#fff', border: 'none',
+            background: 'var(--color-primary)', color: '#fff', border: 'none',
             borderRadius: 12, fontSize: 16, fontWeight: 700,
             cursor: 'pointer', marginBottom: 8,
             transition: 'transform 0.08s ease',

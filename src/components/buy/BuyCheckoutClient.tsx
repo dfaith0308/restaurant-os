@@ -82,9 +82,9 @@ export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
             padding: 20,
           }}
         >
-          <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#111' }}>주문이 접수됐습니다 ✓</p>
+          <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color: 'var(--color-text)' }}>주문이 접수됐습니다 ✓</p>
           <p style={{ margin: '14px 0 0', fontSize: 14, color: '#374151' }}>
-            주문번호: <span style={{ fontWeight: 700, color: '#111' }}>{done.orderNumber}</span>
+            주문번호: <span style={{ fontWeight: 700, color: 'var(--color-text)' }}>{done.orderNumber}</span>
           </p>
 
           {done.payment === 'bank_transfer' ? (
@@ -114,7 +114,7 @@ export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
             textAlign: 'center',
             padding: '14px 16px',
             borderRadius: 8,
-            background: '#111',
+            background: 'var(--color-primary)',
             color: '#fff',
             textDecoration: 'none',
             fontSize: 15,
@@ -132,7 +132,7 @@ export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
             borderRadius: 8,
             border: '1px solid #ddd',
             background: '#fff',
-            color: '#111',
+            color: 'var(--color-text)',
             textDecoration: 'none',
             fontSize: 15,
             fontWeight: 700,
@@ -225,7 +225,7 @@ export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
           padding: '14px 16px',
           borderRadius: 8,
           border: 'none',
-          background: '#111',
+          background: 'var(--color-primary)',
           color: '#fff',
           fontSize: 15,
           fontWeight: 700,

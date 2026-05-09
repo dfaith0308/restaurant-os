@@ -49,7 +49,7 @@ export default function AdminClient({ restaurants: initRest, rfqs, orders }: {
   const TAB_STYLE = (active: boolean): React.CSSProperties => ({
     padding: '8px 16px', border: 'none', borderRadius: 8,
     fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-    background: active ? '#111827' : 'transparent',
+    background: active ? 'var(--color-primary)' : 'transparent',
     color: active ? '#fff' : '#6b7280',
   })
 
@@ -57,7 +57,7 @@ export default function AdminClient({ restaurants: initRest, rfqs, orders }: {
     <main style={{ maxWidth: 720, margin: '0 auto', padding: '28px 16px 80px' }}>
       {/* 헤더 */}
       <div style={{ marginBottom: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>
+        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 4px' }}>
           관리자
         </h1>
         <p style={{ fontSize: 13, color: '#9ca3af', margin: 0 }}>
@@ -161,7 +161,7 @@ function RestaurantRow({ r, onToggle }: { r: Restaurant; onToggle: () => void })
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-          <span style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{r.name}</span>
+          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>{r.name}</span>
           <span style={{
             fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 10,
             background: r.is_approved ? '#ECFDF5' : '#FFFBEB',
@@ -184,7 +184,7 @@ function RestaurantRow({ r, onToggle }: { r: Restaurant; onToggle: () => void })
           fontSize: 12, fontWeight: 700, cursor: 'pointer',
           fontFamily: 'inherit', whiteSpace: 'nowrap',
           transition: 'transform 0.08s ease',
-          background: r.is_approved ? '#F3F4F6' : '#111827',
+          background: r.is_approved ? '#F3F4F6' : 'var(--color-primary)',
           color: r.is_approved ? '#374151' : '#fff',
         }}
       >
@@ -201,7 +201,7 @@ function TradeRow({ name, sub, statusColor }: { name: string; sub: string; statu
       border: '1px solid #e5e7eb', padding: '12px 14px',
       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
     }}>
-      <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', marginBottom: 2 }}>{name}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)', marginBottom: 2 }}>{name}</div>
       <div style={{ fontSize: 11, color: statusColor, fontWeight: 600, whiteSpace: 'nowrap', marginLeft: 12 }}>
         {sub}
       </div>

@@ -80,7 +80,7 @@ export default function OnboardingPage() {
           {[1, 2, 3].map(n => (
             <div key={n} style={{
               flex: 1, height: 4, borderRadius: 4,
-              background: n <= step ? '#111827' : '#e5e7eb',
+              background: n <= step ? 'var(--color-primary)' : '#e5e7eb',
               transition: 'background 0.3s',
             }} />
           ))}
@@ -90,7 +90,7 @@ export default function OnboardingPage() {
         {step === 1 && (
           <div>
             <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 8 }}>1 / 3</div>
-            <h2 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>
+            <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 8px' }}>
               반갑습니다 👋
             </h2>
             <p style={{ fontSize: 14, color: '#6b7280', margin: '0 0 28px', lineHeight: 1.6 }}>
@@ -118,7 +118,7 @@ export default function OnboardingPage() {
         {step === 2 && (
           <div>
             <div style={{ fontSize: 13, color: '#9ca3af', marginBottom: 8 }}>2 / 3</div>
-            <h2 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: '0 0 8px' }}>
+            <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 8px' }}>
               자주 사는 식자재<br />하나만 알려주세요
             </h2>
             <p style={{ fontSize: 14, color: '#6b7280', margin: '0 0 28px', lineHeight: 1.6 }}>
@@ -164,7 +164,7 @@ export default function OnboardingPage() {
         {step === 3 && (
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 52, marginBottom: 16 }}>🎉</div>
-            <h2 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: '0 0 12px' }}>
+            <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 12px' }}>
               준비 완료예요!
             </h2>
             <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.7, margin: '0 0 32px' }}>
@@ -211,7 +211,7 @@ function Btn({ onClick, disabled, children }: { onClick: () => void; disabled?: 
   return (
     <button onClick={onClick} disabled={disabled} style={{
       display: 'block', width: '100%', padding: '14px',
-      background: disabled ? '#d1d5db' : '#111827', color: '#fff',
+      background: disabled ? '#d1d5db' : 'var(--color-primary)', color: '#fff',
       border: 'none', borderRadius: 12, fontSize: 15, fontWeight: 700,
       cursor: disabled ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
       marginBottom: 10,

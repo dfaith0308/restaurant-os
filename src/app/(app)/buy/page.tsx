@@ -21,7 +21,7 @@ const gridCardShell = {
   overflow: 'hidden' as const,
 }
 
-const THUMB_H = 180
+const THUMB_H = 160
 
 /** description 없을 때 상품명에서 용량·규격 한 줄 추출 */
 function subtitleFromDescriptionOrName(
@@ -78,7 +78,7 @@ function CartHeaderIcon({ count }: { count: number }) {
         justifyContent: 'center',
         width: 40,
         height: 40,
-        color: '#111',
+        color: 'var(--color-primary)',
         textDecoration: 'none',
       }}
     >
@@ -103,7 +103,7 @@ function CartHeaderIcon({ count }: { count: number }) {
             height: 18,
             padding: '0 5px',
             borderRadius: 9,
-            background: '#111',
+            background: 'var(--color-primary)',
             color: '#fff',
             fontSize: 11,
             fontWeight: 800,
@@ -160,7 +160,7 @@ export default async function BuyHomePage({
           marginBottom: 16,
         }}
       >
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111', margin: 0 }}>구매하기</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-primary)', margin: 0 }}>구매하기</h1>
         <CartHeaderIcon count={cartLineCount} />
       </header>
 
@@ -174,7 +174,7 @@ export default async function BuyHomePage({
           }}
         >
           <div style={{ fontSize: 14, color: '#374151', marginBottom: 10 }}>
-            담은 상품 {cartLineCount}개 · <span style={{ fontWeight: 700, color: '#111' }}>합계 {formatKRW(cartTotal)}</span>
+            담은 상품 {cartLineCount}개 · <span style={{ fontWeight: 700, color: 'var(--color-text)' }}>합계 {formatKRW(cartTotal)}</span>
           </div>
           <Link
             href="/buy/cart"
@@ -184,7 +184,7 @@ export default async function BuyHomePage({
               borderRadius: 8,
               border: '1px solid #e0e0e0',
               background: '#fff',
-              color: '#111',
+              color: 'var(--color-text)',
               fontSize: 14,
               fontWeight: 700,
               textDecoration: 'none',
@@ -225,7 +225,7 @@ export default async function BuyHomePage({
             한 번에 다시 주문할 수 있어요
           </p>
         ) : null}
-        <h2 style={{ fontSize: 15, fontWeight: 800, color: '#111', margin: '0 0 12px' }}>다시 사기</h2>
+        <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 12px' }}>다시 사기</h2>
         {recent.length > 0 ? (
           <div
             style={{
@@ -277,12 +277,12 @@ export default async function BuyHomePage({
                     aria-hidden
                   />
                 )}
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#111', lineHeight: 1.35, minHeight: 36 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.35, minHeight: 36 }}>
                   {it.listing_title}
                 </div>
                 <div style={{ fontSize: 11, color: '#6b7280' }}>최근 구매가(참고) {formatKRW(it.unit_price)}</div>
                 {it.listing_buyable && it.current_price != null ? (
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>현재 {formatKRW(it.current_price)}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>현재 {formatKRW(it.current_price)}</div>
                 ) : (
                   <div style={{ fontSize: 12, color: '#9ca3af' }}>현재 담을 수 없음</div>
                 )}
@@ -366,7 +366,7 @@ export default async function BuyHomePage({
         })}
       </div>
 
-      <h2 style={{ fontSize: 15, fontWeight: 800, color: '#111', margin: '0 0 12px' }}>전체 상품</h2>
+      <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 12px' }}>전체 상품</h2>
 
       {listings.length === 0 ? (
         <div style={{ ...card, textAlign: 'center', padding: '24px 16px' }}>
@@ -381,7 +381,7 @@ export default async function BuyHomePage({
               display: 'inline-block',
               padding: '12px 18px',
               borderRadius: 8,
-              background: '#111',
+              background: 'var(--color-primary)',
               color: '#fff',
               textDecoration: 'none',
               fontSize: 14,
@@ -409,46 +409,69 @@ export default async function BuyHomePage({
             return (
               <li key={p.id} style={{ ...gridCardShell, display: 'flex', flexDirection: 'column' }}>
                 <Link href={`/buy/products/${p.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-                  {thumb ? (
-                    <img
-                      src={thumb}
-                      alt=""
-                      width={280}
-                      height={THUMB_H}
+                  <div style={{ position: 'relative', width: '100%' }}>
+                    <span
                       style={{
-                        width: '100%',
-                        height: THUMB_H,
-                        objectFit: 'cover',
-                        display: 'block',
-                        background: '#f5f5f5',
+                        position: 'absolute',
+                        top: 6,
+                        left: 6,
+                        zIndex: 1,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        padding: '2px 6px',
+                        borderRadius: 4,
+                        background: 'var(--color-primary)',
+                        color: '#fff',
+                        lineHeight: 1.25,
                       }}
-                    />
-                  ) : (
-                    <div
-                      style={{
-                        width: '100%',
-                        height: THUMB_H,
-                        background: '#f5f5f5',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: 32,
-                        color: '#999',
-                        lineHeight: 1,
-                      }}
-                      aria-hidden
                     >
-                      {productNameInitial(p.product_name)}
-                    </div>
-                  )}
+                      무료배송
+                    </span>
+                    {thumb ? (
+                      <img
+                        src={thumb}
+                        alt=""
+                        width={280}
+                        height={THUMB_H}
+                        style={{
+                          width: '100%',
+                          height: THUMB_H,
+                          objectFit: 'cover',
+                          display: 'block',
+                          background: '#f5f5f5',
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: '100%',
+                          height: THUMB_H,
+                          background: '#eef4f0',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: 28,
+                          color: 'var(--color-primary)',
+                          lineHeight: 1,
+                        }}
+                        aria-hidden
+                      >
+                        {productNameInitial(p.product_name)}
+                      </div>
+                    )}
+                  </div>
                   <div style={{ padding: 16 }}>
                     <div
                       style={{
-                        fontSize: 15,
+                        fontSize: 14,
                         fontWeight: 600,
-                        color: '#111',
+                        color: 'var(--color-text)',
                         lineHeight: 1.35,
-                        minHeight: 21,
+                        minHeight: 40,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
                       }}
                     >
                       {title}
@@ -456,8 +479,8 @@ export default async function BuyHomePage({
                     <div
                       style={{
                         marginTop: 6,
-                        fontSize: 13,
-                        color: '#666',
+                        fontSize: 12,
+                        color: 'var(--color-text-muted)',
                         lineHeight: 1.35,
                         minHeight: 18,
                         overflow: 'hidden',
@@ -467,7 +490,7 @@ export default async function BuyHomePage({
                     >
                       {subtitle || '\u00A0'}
                     </div>
-                    <div style={{ marginTop: 10, fontSize: 18, fontWeight: 700, color: '#111' }}>
+                    <div style={{ marginTop: 10, fontSize: 17, fontWeight: 700, color: 'var(--color-primary)' }}>
                       {formatKRW(p.commerce_price)}
                     </div>
                   </div>
@@ -506,7 +529,7 @@ export default async function BuyHomePage({
               borderRadius: 8,
               border: '1px solid #e0e0e0',
               background: '#fff',
-              color: '#111',
+              color: 'var(--color-text)',
               fontSize: 14,
               fontWeight: 700,
               textDecoration: 'none',

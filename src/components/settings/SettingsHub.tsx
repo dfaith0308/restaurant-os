@@ -143,7 +143,7 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
 
       {/* 헤더 */}
-      <h1 style={{ fontSize: 22, fontWeight: 700, color: '#111827', margin: '0 0 4px' }}>
+      <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 4px' }}>
         설정
       </h1>
       <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 20px' }}>
@@ -152,7 +152,7 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
 
       {/* ── 손익 요약 카드 ── */}
       <div style={{
-        background: monthlyFixed > 0 ? '#111827' : '#F9FAFB',
+        background: monthlyFixed > 0 ? 'var(--color-primary)' : '#F9FAFB',
         borderRadius: 16, padding: '20px',
         marginBottom: 12,
         border: monthlyFixed > 0 ? 'none' : '1px dashed #D1D5DB',
@@ -292,7 +292,7 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
               <span style={{ fontSize: 22 }}>🪑</span>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>좌석 구성</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>좌석 구성</span>
                   {totalSeats > 0 && (
                     <span style={{
                       fontSize: 10, fontWeight: 700, color: '#059669',
@@ -421,7 +421,7 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
               <span style={{ fontSize: 22 }}>📋</span>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>메뉴 / 가격</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>메뉴 / 가격</span>
                   {menuList.length > 0 && (
                     <span style={{
                       fontSize: 10, fontWeight: 700, color: '#059669',
@@ -487,7 +487,7 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
                   disabled={menuPending || !menuName.trim() || !menuPrice}
                   style={{
                     padding: '10px 14px',
-                    background: (!menuName.trim() || !menuPrice) ? '#E5E7EB' : '#111827',
+                    background: (!menuName.trim() || !menuPrice) ? '#E5E7EB' : 'var(--color-primary)',
                     color: (!menuName.trim() || !menuPrice) ? '#9CA3AF' : '#fff',
                     border: 'none', borderRadius: 8,
                     fontSize: 13, fontWeight: 700, cursor: 'pointer',
@@ -507,7 +507,7 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
                       padding: '8px 10px', background: '#fff',
                       borderRadius: 8, border: '1px solid #E5E7EB',
                     }}>
-                      <span style={{ fontSize: 13, color: '#111827', fontWeight: 500 }}>{m.name}</span>
+                      <span style={{ fontSize: 13, color: 'var(--color-text)', fontWeight: 500 }}>{m.name}</span>
                       <span style={{ fontSize: 13, color: '#374151', fontWeight: 700 }}>{formatKRW(m.price)}</span>
                     </div>
                   ))}
@@ -541,12 +541,12 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
       <div style={{ marginTop: 24, padding: '14px 16px', background: '#F9FAFB', borderRadius: 12 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           <span style={{ fontSize: 12, color: '#6B7280', fontWeight: 600 }}>핵심 세팅 완료</span>
-          <span style={{ fontSize: 12, color: '#111827', fontWeight: 700 }}>{pct}%</span>
+          <span style={{ fontSize: 12, color: 'var(--color-text)', fontWeight: 700 }}>{pct}%</span>
         </div>
         <div style={{ background: '#E5E7EB', borderRadius: 4, height: 6, overflow: 'hidden' }}>
           <div style={{
             width: `${pct}%`, height: '100%',
-            background: pct === 100 ? '#059669' : '#111827',
+            background: pct === 100 ? '#059669' : 'var(--color-primary)',
             borderRadius: 4, transition: 'width 0.3s ease',
           }} />
         </div>
@@ -575,7 +575,7 @@ function SettingsRow({ label, icon, href, status, statusNote, done, highlight, c
   const inner = (
     <div style={{
       background: '#fff', borderRadius: 14,
-      border: highlight ? '1.5px solid #111827' : '1px solid #E5E7EB',
+      border: highlight ? '1.5px solid var(--color-primary)' : '1px solid #E5E7EB',
       padding: '14px 16px',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       opacity: comingSoon ? 0.6 : 1,
@@ -584,7 +584,7 @@ function SettingsRow({ label, icon, href, status, statusNote, done, highlight, c
         <span style={{ fontSize: 22 }}>{icon}</span>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{label}</span>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>{label}</span>
             {done && (
               <span style={{
                 fontSize: 10, fontWeight: 700, color: '#059669',
@@ -607,7 +607,7 @@ function SettingsRow({ label, icon, href, status, statusNote, done, highlight, c
           <div style={{ fontSize: 12, color: done ? '#374151' : '#9CA3AF' }}>
             {status ? (
               <>
-                <span style={{ fontWeight: 600, color: '#111827' }}>{status}</span>
+                <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{status}</span>
                 {statusNote && <span style={{ color: '#9CA3AF' }}> · {statusNote}</span>}
               </>
             ) : statusNote}

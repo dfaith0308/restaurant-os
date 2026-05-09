@@ -29,14 +29,14 @@ export default function TodayNotifications({ notifications }: Props) {
         display: 'flex', justifyContent: 'space-between', alignItems: 'center',
         borderBottom: '1px solid #f3f4f6',
       }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: '#111827' }}>알림 {notifications.length}건</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text)' }}>알림 {notifications.length}건</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <a
             href="/notifications"
             style={{
               fontSize: 12,
               fontWeight: 700,
-              color: '#111827',
+              color: 'var(--color-text)',
               textDecoration: 'none',
             }}
           >
@@ -69,7 +69,7 @@ export default function TodayNotifications({ notifications }: Props) {
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
               <span>{cfg.icon}</span>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{n.title}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text)' }}>{n.title}</div>
                 <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{n.message}</div>
               </div>
               {n.action_link && (

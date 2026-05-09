@@ -14,7 +14,7 @@ export default async function NotificationsPage() {
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
       <div style={{ marginBottom: 18 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: '#111827', margin: 0 }}>
+        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>
           알림
         </h1>
         <p style={{ fontSize: 13, color: '#9ca3af', margin: '4px 0 0 0' }}>
