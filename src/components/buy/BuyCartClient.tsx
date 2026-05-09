@@ -3,7 +3,8 @@
 import { useTransition, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { removeFromCart, type CartRow } from '@/actions/buy'
+import { removeFromCart } from '@/actions/buy'
+import type { CartRow } from '@/lib/buy-types'
 import { formatKRW } from '@/lib/utils'
 
 export default function BuyCartClient({ items }: { items: CartRow[] }) {

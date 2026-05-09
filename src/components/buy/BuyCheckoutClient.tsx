@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { createCommerceOrder } from '@/actions/buy'
 import { formatKRW } from '@/lib/utils'
 import { shareTextViaKakao } from '@/lib/kakao-share'
-import type { CartRow } from '@/actions/buy'
+import type { CartRow } from '@/lib/buy-types'
 
 export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
   const router = useRouter()
