@@ -47,7 +47,9 @@ export default async function BuyProductPage({ params }: { params: Promise<{ id:
           aria-hidden
         />
       )}
-      <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: '0 0 8px' }}>{p.product_name ?? '상품'}</h1>
+      <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: '0 0 8px' }}>
+        {p.product_name?.trim() ? p.product_name.trim() : '\u2014'}
+      </h1>
       <p style={{ fontSize: 18, fontWeight: 900, color: '#111827', margin: '0 0 12px' }}>{formatKRW(p.commerce_price)}</p>
       {p.description?.trim() ? (
         <p style={{ fontSize: 14, color: '#374151', lineHeight: 1.55, margin: '0 0 20px', whiteSpace: 'pre-wrap' }}>

@@ -1,9 +1,10 @@
 import Link from 'next/link'
 import { getCart, getListings, getRecentOrderItems } from '@/actions/buy'
+import { BUY_CATEGORY_CHIPS, categoryIdForCatParam, isValidCatSlug } from '@/lib/buy-category-chips'
 import { formatKRW } from '@/lib/utils'
 import CartAddButton from '@/components/buy/CartAddButton'
 
-const shell = { maxWidth: 480, margin: '0 auto', padding: '20px 16px 96px' } as const
+const shell = { maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' } as const
 
 const card = {
   borderRadius: 12,
@@ -11,6 +12,25 @@ const card = {
   background: '#fff',
   padding: 12,
 } as const
+
+function listingTitle(name: string | null | undefined) {
+  const t = name?.trim()
+  return t && t.length > 0 ? t : '\u2014'
+}
+
+function listingDescriptionLine(desc: string | null | undefined): string | null {
+  const t = desc?.trim()
+  if (!t) return null
+  return t.replace(/\s+/g, ' ')
+}
+
+function buyHref(search?: string, catSlug?: string) {
+  const p = new URLSearchParams()
+  if (search?.trim()) p.set('search', search.trim())
+  if (catSlug && catSlug !== 'all') p.set('cat', catSlug)
+  const q = p.toString()
+  return q ? `/buy?${q}` : '/buy'
+}
 
 function CartHeaderIcon({ count }: { count: number }) {
   return (
@@ -67,14 +87,20 @@ function CartHeaderIcon({ count }: { count: number }) {
 export default async function BuyHomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string | string[] }>
+  searchParams: Promise<{ search?: string | string[]; cat?: string | string[] }>
 }) {
   const sp = await searchParams
-  const raw = Array.isArray(sp.search) ? sp.search[0] : sp.search
-  const search = raw?.trim() || undefined
+  const rawSearch = Array.isArray(sp.search) ? sp.search[0] : sp.search
+  const search = rawSearch?.trim() || undefined
+
+  const rawCat = Array.isArray(sp.cat) ? sp.cat[0] : sp.cat
+  let catSlug = rawCat?.trim() || undefined
+  if (catSlug && !isValidCatSlug(catSlug)) catSlug = undefined
+
+  const category_id = categoryIdForCatParam(catSlug)
 
   const [listRes, recentRes, cartRes] = await Promise.all([
-    getListings({ search }),
+    getListings({ search, category_id }),
     getRecentOrderItems(),
     getCart(),
   ])
@@ -104,6 +130,37 @@ export default async function BuyHomePage({
         <CartHeaderIcon count={cartLineCount} />
       </header>
 
+      {cartLineCount > 0 ? (
+        <section
+          style={{
+            background: '#f8f8f8',
+            borderRadius: 8,
+            padding: '12px 16px',
+            marginBottom: 16,
+          }}
+        >
+          <div style={{ fontSize: 14, color: '#374151', marginBottom: 10 }}>
+            담은 상품 {cartLineCount}개 · <span style={{ fontWeight: 700, color: '#111' }}>합계 {formatKRW(cartTotal)}</span>
+          </div>
+          <Link
+            href="/buy/cart"
+            style={{
+              display: 'inline-block',
+              padding: '10px 16px',
+              borderRadius: 8,
+              border: '1px solid #e0e0e0',
+              background: '#fff',
+              color: '#111',
+              fontSize: 14,
+              fontWeight: 700,
+              textDecoration: 'none',
+            }}
+          >
+            장바구니 보기 →
+          </Link>
+        </section>
+      ) : null}
+
       {(listError || recentError || cartError) && (
         <div
           style={{
@@ -119,32 +176,21 @@ export default async function BuyHomePage({
         </div>
       )}
 
-      {cartLineCount > 0 ? (
-        <section style={{ ...card, marginBottom: 16 }}>
-          <div style={{ fontSize: 14, color: '#374151', marginBottom: 10 }}>
-            담은 상품 {cartLineCount}개 · <span style={{ fontWeight: 700, color: '#111' }}>합계 {formatKRW(cartTotal)}</span>
-          </div>
-          <Link
-            href="/buy/cart"
+      <section style={{ marginBottom: 20 }}>
+        {recent.length === 0 ? (
+          <p
             style={{
-              display: 'block',
-              textAlign: 'center',
-              padding: '12px 16px',
-              borderRadius: 8,
-              border: '1px solid #ddd',
-              background: '#fff',
-              color: '#111',
-              fontSize: 14,
-              fontWeight: 700,
-              textDecoration: 'none',
+              fontSize: 13,
+              color: '#6b7280',
+              lineHeight: 1.5,
+              margin: '0 0 10px',
             }}
           >
-            장바구니 보기
-          </Link>
-        </section>
-      ) : null}
-
-      <section style={{ marginBottom: 20 }}>
+            자주 구매하는 식자재를
+            <br />
+            한 번에 다시 주문할 수 있어요
+          </p>
+        ) : null}
         <h2 style={{ fontSize: 15, fontWeight: 800, color: '#111', margin: '0 0 12px' }}>다시 사기</h2>
         {recent.length > 0 ? (
           <div
@@ -221,14 +267,13 @@ export default async function BuyHomePage({
               lineHeight: 1.55,
             }}
           >
-            첫 구매 후 자주 사는 상품을
-            <br />
-            한 번에 다시 주문할 수 있어요
+            구매 이력이 생기면 이곳에서 빠르게 다시 담을 수 있어요.
           </div>
         )}
       </section>
 
-      <form action="/buy" method="get" style={{ marginBottom: 20 }}>
+      <form action="/buy" method="get" style={{ marginBottom: 12 }}>
+        {catSlug && catSlug !== 'all' ? <input type="hidden" name="cat" value={catSlug} /> : null}
         <input
           name="search"
           defaultValue={search ?? ''}
@@ -243,6 +288,49 @@ export default async function BuyHomePage({
           }}
         />
       </form>
+
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          overflowX: 'auto',
+          marginBottom: 20,
+          paddingBottom: 4,
+          marginLeft: -16,
+          marginRight: -16,
+          paddingLeft: 16,
+          paddingRight: 16,
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        {BUY_CATEGORY_CHIPS.map((c) => {
+          const selected =
+            c.slug === 'all'
+              ? !catSlug || catSlug === 'all'
+              : catSlug === c.slug
+          const href = buyHref(search, c.slug === 'all' ? undefined : c.slug)
+          return (
+            <Link
+              key={c.slug}
+              href={href}
+              scroll={false}
+              style={{
+                flex: '0 0 auto',
+                borderRadius: 20,
+                padding: '6px 14px',
+                fontSize: 14,
+                textDecoration: 'none',
+                fontWeight: 600,
+                background: selected ? '#111' : '#f5f5f5',
+                color: selected ? '#fff' : '#333',
+                border: selected ? 'none' : '1px solid transparent',
+              }}
+            >
+              {c.label}
+            </Link>
+          )
+        })}
+      </div>
 
       <h2 style={{ fontSize: 15, fontWeight: 800, color: '#111', margin: '0 0 12px' }}>전체 상품</h2>
 
@@ -280,42 +368,60 @@ export default async function BuyHomePage({
             gap: 12,
           }}
         >
-          {listings.map((p) => (
-            <li key={p.id} style={{ ...card, display: 'flex', flexDirection: 'column', gap: 8, padding: 12 }}>
-              <Link href={`/buy/products/${p.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                {p.thumbnail_url?.trim() ? (
-                  <img
-                    src={p.thumbnail_url.trim()}
-                    alt=""
-                    width={200}
-                    height={120}
-                    style={{
-                      width: '100%',
-                      height: 120,
-                      objectFit: 'cover',
-                      borderRadius: 8,
-                      background: '#e5e7eb',
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: '100%',
-                      height: 120,
-                      borderRadius: 8,
-                      background: '#e5e7eb',
-                    }}
-                    aria-hidden
-                  />
-                )}
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#111', marginTop: 8, lineHeight: 1.35, minHeight: 36 }}>
-                  {p.product_name ?? '상품'}
-                </div>
-              </Link>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#111' }}>{formatKRW(p.commerce_price)}</div>
-              <CartAddButton listingId={p.id} quantity={1} compact fullWidth />
-            </li>
-          ))}
+          {listings.map((p) => {
+            const descLine = listingDescriptionLine(p.description)
+            return (
+              <li key={p.id} style={{ ...card, display: 'flex', flexDirection: 'column', gap: 8, padding: 12 }}>
+                <Link href={`/buy/products/${p.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                  {p.thumbnail_url?.trim() ? (
+                    <img
+                      src={p.thumbnail_url.trim()}
+                      alt=""
+                      width={200}
+                      height={120}
+                      style={{
+                        width: '100%',
+                        height: 120,
+                        objectFit: 'cover',
+                        borderRadius: 8,
+                        background: '#e5e7eb',
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        width: '100%',
+                        height: 120,
+                        borderRadius: 8,
+                        background: '#e5e7eb',
+                      }}
+                      aria-hidden
+                    />
+                  )}
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#111', marginTop: 8, lineHeight: 1.35, minHeight: 36 }}>
+                    {listingTitle(p.product_name)}
+                  </div>
+                  {descLine ? (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        color: '#6b7280',
+                        lineHeight: 1.35,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        marginTop: 2,
+                      }}
+                    >
+                      {descLine}
+                    </div>
+                  ) : null}
+                </Link>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#111' }}>{formatKRW(p.commerce_price)}</div>
+                <CartAddButton listingId={p.id} quantity={1} label="담기" compact fullWidth />
+              </li>
+            )
+          })}
         </ul>
       )}
 
@@ -346,7 +452,7 @@ export default async function BuyHomePage({
               display: 'block',
               padding: '12px 16px',
               borderRadius: 8,
-              border: '1px solid #ddd',
+              border: '1px solid #e0e0e0',
               background: '#fff',
               color: '#111',
               fontSize: 14,

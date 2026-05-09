@@ -25,11 +25,14 @@ export default function CartAddButton({
   const [pending, start] = useTransition()
   const [err, setErr] = useState<string | null>(null)
 
+  const buttonLabel = label === '닫기' ? '담기' : (label ?? '담기')
+
   return (
     <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
       <button
         type="button"
         disabled={pending || disabled}
+        aria-label={buttonLabel}
         onClick={() => {
           setErr(null)
           start(async () => {
@@ -55,7 +58,7 @@ export default function CartAddButton({
           opacity: pending ? 0.7 : disabled ? 0.45 : 1,
         }}
       >
-        {label}
+        {buttonLabel}
       </button>
       {err ? <span style={{ fontSize: 11, color: '#b91c1c' }}>{err}</span> : null}
     </span>

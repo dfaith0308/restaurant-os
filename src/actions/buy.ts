@@ -16,11 +16,12 @@ function normalizeProductName(row: Record<string, unknown>): {
   product_name: string | null
   category_id: string | null
 } {
-  const raw = row.products
+  const raw = row.products ?? (row as { product?: unknown }).product
   const p = Array.isArray(raw) ? raw[0] : raw
   if (!p || typeof p !== 'object') return { product_name: null, category_id: null }
   const o = p as { name?: string | null; category_id?: string | null }
-  return { product_name: o.name ?? null, category_id: o.category_id ?? null }
+  const name = o.name != null && String(o.name).trim() ? String(o.name).trim() : null
+  return { product_name: name, category_id: o.category_id ?? null }
 }
 
 function genOrderNumber(): string {
@@ -269,7 +270,7 @@ async function assertListingBuyable(
 
   const raw = row.products
   const p = Array.isArray(raw) ? raw[0] : raw
-  const product_name = (p?.name && String(p.name).trim()) || '상품'
+  const product_name = (p?.name && String(p.name).trim()) || '\u2014'
 
   return { ok: true, commerce_price: row.commerce_price, product_name }
 }

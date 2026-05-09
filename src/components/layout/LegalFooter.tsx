@@ -14,9 +14,8 @@ export default function LegalFooter() {
           개인정보처리방침
         </Link>
         <span style={{ opacity: 0.6 }}>|</span>
-        <span>운영자: [상호명] · 대표: [대표자명] · 연락처: [연락처] · 이메일: [이메일]</span>
+        <span>운영자: 디닷페이스 · 대표: 김정무 · 연락처: 032-215-3207 · 이메일: dfaith0308@gmail.com</span>
       </div>
-      {/* TODO: 운영자 정보(상호/대표/연락처/이메일)를 실제 값으로 교체하세요. */}
     </footer>
   )
 }

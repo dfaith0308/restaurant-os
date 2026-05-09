@@ -95,7 +95,9 @@ export default function BuyCartClient({ items }: { items: CartRow[] }) {
                   />
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: '#111', lineHeight: 1.35 }}>{it.product_name ?? '상품'}</div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#111', lineHeight: 1.35 }}>
+                    {it.product_name?.trim() ? it.product_name.trim() : '\u2014'}
+                  </div>
                   <div style={{ fontSize: 13, color: '#6b7280', marginTop: 6 }}>{formatKRW(it.commerce_price)}</div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, gap: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
