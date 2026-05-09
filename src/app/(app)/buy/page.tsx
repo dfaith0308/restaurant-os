@@ -5,7 +5,7 @@ import { fixedStripeAboveBottomNav } from '@/lib/app-shell'
 import { formatKRW } from '@/lib/utils'
 import CartAddButton from '@/components/buy/CartAddButton'
 
-const shell = { maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' } as const
+const shell = { width: '100%', boxSizing: 'border-box' as const, padding: '20px 16px 80px' }
 
 const card = {
   borderRadius: 12,
@@ -14,10 +14,48 @@ const card = {
   padding: 12,
 } as const
 
-function listingDescriptionLine(desc: string | null | undefined): string | null {
-  const t = desc?.trim()
-  if (!t) return null
-  return t.replace(/\s+/g, ' ')
+const gridCardShell = {
+  borderRadius: 12,
+  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+  background: '#fff',
+  overflow: 'hidden' as const,
+}
+
+const THUMB_H = 180
+
+/** description 없을 때 상품명에서 용량·규격 한 줄 추출 */
+function subtitleFromDescriptionOrName(
+  description: string | null | undefined,
+  productName: string | null | undefined,
+): string {
+  const d = description?.trim()
+  if (d) return d.replace(/\s+/g, ' ')
+  const n = productName?.trim()
+  if (!n) return ''
+
+  const spaced = n.match(/(\d+(?:[.,]\d+)?)\s*(kg|KG|g|G|L|l|ML|ml|mL)\b/)
+  if (spaced) {
+    const num = spaced[1].replace(',', '.')
+    let u = spaced[2]
+    if (u.toLowerCase() === 'l') u = 'L'
+    else if (u.toLowerCase() === 'ml') u = 'ml'
+    else if (u.toLowerCase() === 'kg') u = 'kg'
+    else u = 'g'
+    return `${num}${u}`
+  }
+  const attached = n.match(/(\d+(?:[.,]\d+)?)(kg|KG|L|l|ML|ml|g|G)\b/i)
+  if (attached) {
+    const u = attached[2]
+    const norm = u.toLowerCase() === 'l' ? 'L' : u.toLowerCase() === 'ml' ? 'ml' : u.toLowerCase() === 'kg' ? 'kg' : u.toLowerCase() === 'g' ? 'g' : attached[2]
+    return `${attached[1].replace(',', '.')}${norm}`
+  }
+  return ''
+}
+
+function productNameInitial(name: string | null | undefined): string {
+  const t = name?.trim()
+  if (!t) return '?'
+  return t[0] ?? '?'
 }
 
 function buyHref(search?: string, catSlug?: string) {
@@ -365,56 +403,78 @@ export default async function BuyHomePage({
           }}
         >
           {listings.map((p) => {
-            const descLine = listingDescriptionLine(p.description)
+            const title = p.product_name?.trim() ?? ''
+            const subtitle = subtitleFromDescriptionOrName(p.description, p.product_name)
+            const thumb = p.thumbnail_url?.trim()
             return (
-              <li key={p.id} style={{ ...card, display: 'flex', flexDirection: 'column', gap: 8, padding: 12 }}>
-                <Link href={`/buy/products/${p.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                  {p.thumbnail_url?.trim() ? (
+              <li key={p.id} style={{ ...gridCardShell, display: 'flex', flexDirection: 'column' }}>
+                <Link href={`/buy/products/${p.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+                  {thumb ? (
                     <img
-                      src={p.thumbnail_url.trim()}
+                      src={thumb}
                       alt=""
-                      width={200}
-                      height={120}
+                      width={280}
+                      height={THUMB_H}
                       style={{
                         width: '100%',
-                        height: 120,
+                        height: THUMB_H,
                         objectFit: 'cover',
-                        borderRadius: 8,
-                        background: '#e5e7eb',
+                        display: 'block',
+                        background: '#f5f5f5',
                       }}
                     />
                   ) : (
                     <div
                       style={{
                         width: '100%',
-                        height: 120,
-                        borderRadius: 8,
-                        background: '#e5e7eb',
+                        height: THUMB_H,
+                        background: '#f5f5f5',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: 32,
+                        color: '#999',
+                        lineHeight: 1,
                       }}
                       aria-hidden
-                    />
+                    >
+                      {productNameInitial(p.product_name)}
+                    </div>
                   )}
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#111', marginTop: 8, lineHeight: 1.35, minHeight: 36 }}>
-                    {p.product_name?.trim() ?? ''}
-                  </div>
-                  {descLine ? (
+                  <div style={{ padding: 16 }}>
                     <div
                       style={{
-                        fontSize: 12,
-                        color: '#6b7280',
+                        fontSize: 15,
+                        fontWeight: 600,
+                        color: '#111',
                         lineHeight: 1.35,
+                        minHeight: 21,
+                      }}
+                    >
+                      {title}
+                    </div>
+                    <div
+                      style={{
+                        marginTop: 6,
+                        fontSize: 13,
+                        color: '#666',
+                        lineHeight: 1.35,
+                        minHeight: 18,
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                         whiteSpace: 'nowrap',
-                        marginTop: 2,
                       }}
                     >
-                      {descLine}
+                      {subtitle || '\u00A0'}
                     </div>
-                  ) : null}
+                    <div style={{ marginTop: 10, fontSize: 18, fontWeight: 700, color: '#111' }}>
+                      {formatKRW(p.commerce_price)}
+                    </div>
+                  </div>
                 </Link>
-                <div style={{ fontSize: 15, fontWeight: 700, color: '#111' }}>{formatKRW(p.commerce_price)}</div>
-                <CartAddButton listingId={p.id} quantity={1} label="담기" compact fullWidth />
+                <div style={{ padding: '0 16px 16px' }}>
+                  <CartAddButton listingId={p.id} quantity={1} label="담기" listingCard fullWidth primary />
+                </div>
               </li>
             )
           })}

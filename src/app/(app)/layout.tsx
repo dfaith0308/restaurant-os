@@ -7,7 +7,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   return (
     <div
       style={{
-        maxWidth: APP_SHELL_MAX_WIDTH_PX,
+        width: '100%',
+        maxWidth: `min(${APP_SHELL_MAX_WIDTH_PX}px, 100vw)`,
         margin: '0 auto',
         minHeight: '100vh',
         background: '#fff',

@@ -11,6 +11,7 @@ export default function CartAddButton({
   primary = false,
   compact = false,
   fullWidth = false,
+  listingCard = false,
   disabled = false,
 }: {
   listingId: string
@@ -19,6 +20,8 @@ export default function CartAddButton({
   primary?: boolean
   compact?: boolean
   fullWidth?: boolean
+  /** /buy 그리드: 풀 너비·높이 40px */
+  listingCard?: boolean
   disabled?: boolean
 }) {
   const router = useRouter()
@@ -46,17 +49,21 @@ export default function CartAddButton({
           })
         }}
         style={{
-          width: fullWidth ? '100%' : undefined,
+          width: fullWidth || listingCard ? '100%' : undefined,
           boxSizing: 'border-box',
-          padding: compact ? '8px 10px' : '8px 12px',
+          minHeight: listingCard ? 40 : undefined,
+          padding: listingCard ? '0 16px' : compact ? '8px 10px' : '8px 12px',
           borderRadius: 8,
           border: primary ? 'none' : '1px solid #ddd',
           background: primary ? '#111' : '#fff',
           color: primary ? '#fff' : '#111',
-          fontSize: compact ? 12 : 13,
+          fontSize: listingCard ? 14 : compact ? 12 : 13,
           fontWeight: 700,
           cursor: pending || disabled ? 'not-allowed' : 'pointer',
           opacity: pending ? 0.7 : disabled ? 0.45 : 1,
+          display: listingCard ? 'flex' : undefined,
+          alignItems: listingCard ? 'center' : undefined,
+          justifyContent: listingCard ? 'center' : undefined,
         }}
       >
         {buttonLabel}
