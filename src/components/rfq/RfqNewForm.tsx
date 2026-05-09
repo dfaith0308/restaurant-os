@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { createRfqRequest } from '@/actions/rfq'
 import { formatKRW, priceDiffPct } from '@/lib/utils'
 
@@ -70,6 +71,11 @@ export default function RfqNewForm({ prefillName, prefillPrice }: Props) {
         </h1>
         <p style={{ fontSize: 13, color: '#9ca3af', margin: '6px 0 0 0' }}>
           품목과 수량만 입력하면 바로 비교해드려요
+        </p>
+        <p style={{ margin: '14px 0 0 0' }}>
+          <Link href="/buy" style={{ fontSize: 13, fontWeight: 700, color: '#2563eb', textDecoration: 'none' }}>
+            이미 구매 가능한 상품이 있을 수 있어요 →
+          </Link>
         </p>
       </div>
 

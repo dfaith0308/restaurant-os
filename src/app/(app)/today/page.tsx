@@ -33,6 +33,30 @@ export default async function TodayPage() {
       ) : (
         <TodayCards d={d} moneyTight={money.data?.is_tight ?? false} />
       )}
+
+      <section
+        style={{
+          marginTop: 24,
+          paddingTop: 20,
+          borderTop: '1px solid #e5e7eb',
+        }}
+      >
+        <Link
+          href="/buy"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: 14,
+            fontWeight: 800,
+            color: '#111827',
+            textDecoration: 'none',
+          }}
+        >
+          구매하기 <span aria-hidden>→</span>
+        </Link>
+        <p style={{ fontSize: 12, color: '#9ca3af', margin: '8px 0 0' }}>플랫폼에서 바로 살 수 있는 상품을 볼 수 있어요</p>
+      </section>
     </main>
   )
 }
