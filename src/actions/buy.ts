@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerClient, getAuthCtx } from '@/lib/supabase-server'
+import { buildKakaoOrderSummary } from '@/lib/kakao-format'
 import type { ActionResult } from '@/types'
 
 export type BuyListingRow = {
@@ -65,33 +66,6 @@ function genOrderNumber(): string {
   const day = String(d.getDate()).padStart(2, '0')
   const r = String(Math.floor(Math.random() * 100000)).padStart(5, '0')
   return `ORD-${y}${m}${day}-${r}`
-}
-
-export function buildKakaoOrderSummary(input: {
-  order_number: string | null
-  payment_label: string
-  total_amount: number
-  shipping_name: string
-  shipping_phone: string
-  shipping_address: string
-  delivery_memo: string | null
-  lines: { title: string; quantity: number; unit_price: number; line_total: number }[]
-}): string {
-  const no = input.order_number?.trim() || '(번호 생성 중)'
-  const lines = input.lines
-    .map((l) => `• ${l.title} × ${l.quantity} = ${l.line_total.toLocaleString()}원`)
-    .join('\n')
-  const memo = input.delivery_memo?.trim() ? `\n배송 메모: ${input.delivery_memo.trim()}` : ''
-  return (
-    `[식식이OS 구매 주문]\n` +
-    `주문번호: ${no}\n` +
-    `결제: ${input.payment_label}\n` +
-    `합계: ${input.total_amount.toLocaleString()}원\n` +
-    `수령인: ${input.shipping_name} / ${input.shipping_phone}\n` +
-    `주소: ${input.shipping_address}${memo}\n\n` +
-    `품목:\n${lines}\n\n` +
-    `무통장 입금 확인 후 배송이 진행됩니다.`
-  )
 }
 
 export async function getListings(filters?: {
