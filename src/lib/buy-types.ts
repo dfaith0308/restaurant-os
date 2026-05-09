@@ -20,6 +20,10 @@ export type RecentOrderItemRow = {
   listing_title: string
   unit_price: number
   created_at: string
+  thumbnail_url: string | null
+  /** 현재 listing 판매가 (미판매·삭제 시 null) */
+  current_price: number | null
+  listing_buyable: boolean
 }
 
 export type CartRow = {
@@ -28,6 +32,7 @@ export type CartRow = {
   quantity: number
   commerce_price: number
   product_name: string | null
+  thumbnail_url: string | null
 }
 
 export type CommerceOrderListRow = {

@@ -181,7 +181,7 @@ export async function getRecentOrderItems(): Promise<ActionResult<{ items: Recen
   const seen = new Set<string>()
   const items: RecentOrderItemRow[] = []
   for (const row of lines ?? []) {
-    const lid = (row as RecentOrderItemRow & { listing_id: string }).listing_id
+    const lid = (row as { listing_id: string }).listing_id
     if (seen.has(lid)) continue
     seen.add(lid)
     items.push({
@@ -189,8 +189,43 @@ export async function getRecentOrderItems(): Promise<ActionResult<{ items: Recen
       listing_title: (row as { listing_title: string }).listing_title,
       unit_price: (row as { unit_price: number }).unit_price,
       created_at: (row as { created_at: string }).created_at,
+      thumbnail_url: null,
+      current_price: null,
+      listing_buyable: false,
     })
     if (items.length >= 10) break
+  }
+
+  if (items.length === 0) return { success: true, data: { items } }
+
+  const lidList = items.map((i) => i.listing_id)
+  const { data: listingRows, error: le2 } = await supabase
+    .from('commerce_product_listings')
+    .select('id, commerce_price, thumbnail_url, status, is_visible, deleted_at')
+    .in('id', lidList)
+
+  if (le2) return { success: false, error: le2.message }
+
+  const listingMap = new Map(
+    (listingRows ?? []).map((r: Record<string, unknown>) => [
+      r.id as string,
+      {
+        commerce_price: r.commerce_price as number,
+        thumbnail_url: (r.thumbnail_url as string | null) ?? null,
+        status: r.status as string,
+        is_visible: r.is_visible as boolean,
+        deleted_at: r.deleted_at as string | null,
+      },
+    ]),
+  )
+
+  for (const it of items) {
+    const row = listingMap.get(it.listing_id)
+    if (!row) continue
+    const buyable = row.status === 'visible' && row.is_visible && !row.deleted_at
+    it.thumbnail_url = row.thumbnail_url?.trim() ? row.thumbnail_url.trim() : null
+    it.current_price = buyable ? row.commerce_price : null
+    it.listing_buyable = buyable
   }
 
   return { success: true, data: { items } }
@@ -298,6 +333,7 @@ export async function getCart(): Promise<ActionResult<{ items: CartRow[] }>> {
       quantity,
       commerce_product_listings (
         commerce_price,
+        thumbnail_url,
         products ( name )
       )
     `,
@@ -314,12 +350,14 @@ export async function getCart(): Promise<ActionResult<{ items: CartRow[] }>> {
     const lp = lid
     const rawP = lp?.products
     const p = Array.isArray(rawP) ? rawP[0] : rawP
+    const thumb = lp && 'thumbnail_url' in lp ? (lp as { thumbnail_url?: string | null }).thumbnail_url : null
     return {
       id: row.id as string,
       listing_id: row.listing_id as string,
       quantity: row.quantity as number,
       commerce_price: lp?.commerce_price ?? 0,
       product_name: p?.name ?? null,
+      thumbnail_url: thumb?.trim() ? thumb.trim() : null,
     }
   })
 
@@ -338,6 +376,34 @@ export async function removeFromCart(id: string): Promise<ActionResult<void>> {
 
   if (error) return { success: false, error: error.message }
 
+  revalidatePath('/buy/cart')
+  revalidatePath('/buy/checkout')
+  revalidatePath('/buy')
+  return { success: true }
+}
+
+export async function updateCartItemQuantity(cart_item_id: string, quantity: number): Promise<ActionResult<void>> {
+  const supabase = await createServerClient()
+  const ctx = await getAuthCtx(supabase)
+  if (!ctx) return { success: false, error: '로그인이 필요합니다' }
+
+  const cid = String(cart_item_id ?? '').trim()
+  const qty = Number(quantity)
+  if (!cid) return { success: false, error: '항목이 필요합니다' }
+  if (!Number.isFinite(qty) || !Number.isInteger(qty) || qty < 1) {
+    return { success: false, error: '수량은 1 이상이어야 합니다' }
+  }
+  if (qty > 999) return { success: false, error: '수량이 너무 많습니다' }
+
+  const { error } = await supabase
+    .from('cart_items')
+    .update({ quantity: qty, updated_at: new Date().toISOString() })
+    .eq('id', cid)
+    .eq('tenant_id', ctx.tenant_id)
+
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/buy')
   revalidatePath('/buy/cart')
   revalidatePath('/buy/checkout')
   return { success: true }

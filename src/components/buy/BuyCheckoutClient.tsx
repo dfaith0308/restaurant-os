@@ -8,11 +8,17 @@ import { formatKRW } from '@/lib/utils'
 import { shareTextViaKakao } from '@/lib/kakao-share'
 import type { CartRow } from '@/lib/buy-types'
 
+type DoneState = {
+  orderNumber: string
+  payment: 'bank_transfer' | 'kakao_manual'
+  kakaoHint: string | null
+}
+
 export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
   const router = useRouter()
   const [pending, start] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [hint, setHint] = useState<string | null>(null)
+  const [done, setDone] = useState<DoneState | null>(null)
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -24,12 +30,13 @@ export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
 
   function submit() {
     setError(null)
-    setHint(null)
 
     if (payment === 'card') {
       setError('카드 결제는 준비 중입니다. 무통장 또는 카카오 주문전달을 이용해 주세요.')
       return
     }
+
+    const pm = payment
 
     start(async () => {
       const res = await createCommerceOrder({
@@ -37,7 +44,7 @@ export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
         shipping_phone: phone,
         shipping_address: address,
         delivery_memo: memo || null,
-        payment_method: payment,
+        payment_method: pm,
       })
 
       if (!res.success || !res.data) {
@@ -46,12 +53,95 @@ export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
       }
 
       const summary = res.data.kakao_summary
+      const orderNumber = res.data.order_number ?? '—'
+
+      setDone({
+        orderNumber,
+        payment: pm,
+        kakaoHint: null,
+      })
+
       if (summary) {
-        shareTextViaKakao(summary, (msg) => setHint(msg))
+        shareTextViaKakao(summary, (msg) => {
+          setDone((prev) => (prev ? { ...prev, kakaoHint: msg } : prev))
+        })
       }
 
-      router.push('/buy/orders')
+      router.refresh()
     })
+  }
+
+  if (done) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div
+          style={{
+            borderRadius: 12,
+            boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+            background: '#fff',
+            padding: 20,
+          }}
+        >
+          <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#111' }}>주문이 접수됐습니다 ✓</p>
+          <p style={{ margin: '14px 0 0', fontSize: 14, color: '#374151' }}>
+            주문번호: <span style={{ fontWeight: 700, color: '#111' }}>{done.orderNumber}</span>
+          </p>
+
+          {done.payment === 'bank_transfer' ? (
+            <div style={{ marginTop: 16, fontSize: 14, color: '#374151', lineHeight: 1.55 }}>
+              <p style={{ margin: 0 }}>계좌로 입금해 주시면 배송이 시작됩니다</p>
+              <p style={{ margin: '8px 0 0', fontSize: 13, color: '#9ca3af' }}>(계좌 정보는 추후 운영자 설정)</p>
+            </div>
+          ) : (
+            <p style={{ marginTop: 16, fontSize: 14, color: '#374151', lineHeight: 1.55, marginBottom: 0 }}>
+              카카오톡으로 주문 내용이 전달됐습니다
+              <br />
+              담당자 확인 후 연락드립니다
+            </p>
+          )}
+
+          {done.kakaoHint ? (
+            <div style={{ marginTop: 14, padding: 12, borderRadius: 8, background: '#EFF6FF', color: '#1d4ed8', fontSize: 13 }}>
+              {done.kakaoHint}
+            </div>
+          ) : null}
+        </div>
+
+        <Link
+          href="/buy/orders"
+          style={{
+            display: 'block',
+            textAlign: 'center',
+            padding: '14px 16px',
+            borderRadius: 8,
+            background: '#111',
+            color: '#fff',
+            textDecoration: 'none',
+            fontSize: 15,
+            fontWeight: 700,
+          }}
+        >
+          구매내역 보기
+        </Link>
+        <Link
+          href="/buy"
+          style={{
+            display: 'block',
+            textAlign: 'center',
+            padding: '14px 16px',
+            borderRadius: 8,
+            border: '1px solid #ddd',
+            background: '#fff',
+            color: '#111',
+            textDecoration: 'none',
+            fontSize: 15,
+            fontWeight: 700,
+          }}
+        >
+          쇼핑 계속하기
+        </Link>
+      </div>
+    )
   }
 
   return (
@@ -61,13 +151,15 @@ export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
           {error}
         </div>
       ) : null}
-      {hint ? (
-        <div style={{ padding: 12, borderRadius: 10, background: '#EFF6FF', color: '#1d4ed8', fontSize: 13 }}>
-          {hint}
-        </div>
-      ) : null}
 
-      <section style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: 14 }}>
+      <section
+        style={{
+          borderRadius: 12,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+          background: '#fff',
+          padding: 14,
+        }}
+      >
         <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 10 }}>주문 상품</div>
         <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {items.map((it) => (
@@ -76,10 +168,17 @@ export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
             </li>
           ))}
         </ul>
-        <div style={{ marginTop: 12, fontSize: 15, fontWeight: 900 }}>합계 {formatKRW(subtotal)}</div>
+        <div style={{ marginTop: 12, fontSize: 15, fontWeight: 800 }}>합계 {formatKRW(subtotal)}</div>
       </section>
 
-      <section style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: 14 }}>
+      <section
+        style={{
+          borderRadius: 12,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+          background: '#fff',
+          padding: 14,
+        }}
+      >
         <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>배송지</div>
         <Field label="수령인 이름">
           <input value={name} onChange={(e) => setName(e.target.value)} style={inp} placeholder="홍길동" />
@@ -95,7 +194,14 @@ export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
         </Field>
       </section>
 
-      <section style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: 14 }}>
+      <section
+        style={{
+          borderRadius: 12,
+          boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+          background: '#fff',
+          padding: 14,
+        }}
+      >
         <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>결제 방식</div>
         <label style={radioRow}>
           <input type="radio" name="pay" checked={payment === 'bank_transfer'} onChange={() => setPayment('bank_transfer')} />
@@ -117,12 +223,12 @@ export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
         onClick={submit}
         style={{
           padding: '14px 16px',
-          borderRadius: 12,
+          borderRadius: 8,
           border: 'none',
-          background: '#111827',
+          background: '#111',
           color: '#fff',
           fontSize: 15,
-          fontWeight: 900,
+          fontWeight: 700,
           cursor: pending ? 'wait' : 'pointer',
         }}
       >
@@ -149,7 +255,7 @@ const inp: CSSProperties = {
   width: '100%',
   boxSizing: 'border-box',
   padding: '10px 12px',
-  borderRadius: 10,
+  borderRadius: 8,
   border: '1px solid #e5e7eb',
   fontSize: 14,
 }

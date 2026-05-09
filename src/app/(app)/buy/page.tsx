@@ -1,9 +1,68 @@
 import Link from 'next/link'
-import { getListings, getRecentOrderItems } from '@/actions/buy'
+import { getCart, getListings, getRecentOrderItems } from '@/actions/buy'
 import { formatKRW } from '@/lib/utils'
 import CartAddButton from '@/components/buy/CartAddButton'
 
-const shell = { maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' } as const
+const shell = { maxWidth: 480, margin: '0 auto', padding: '20px 16px 96px' } as const
+
+const card = {
+  borderRadius: 12,
+  boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+  background: '#fff',
+  padding: 12,
+} as const
+
+function CartHeaderIcon({ count }: { count: number }) {
+  return (
+    <Link
+      href="/buy/cart"
+      aria-label={count > 0 ? `장바구니, 상품 ${count}건` : '장바구니'}
+      style={{
+        position: 'relative',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: 40,
+        height: 40,
+        color: '#111',
+        textDecoration: 'none',
+      }}
+    >
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+        <path
+          d="M7 7h14l-1.5 9h-12L7 7zm0 0L5.5 3H2"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <circle cx="9.5" cy="19" r="1.35" fill="currentColor" />
+        <circle cx="17.5" cy="19" r="1.35" fill="currentColor" />
+      </svg>
+      {count > 0 ? (
+        <span
+          style={{
+            position: 'absolute',
+            top: 2,
+            right: 2,
+            minWidth: 18,
+            height: 18,
+            padding: '0 5px',
+            borderRadius: 9,
+            background: '#111',
+            color: '#fff',
+            fontSize: 11,
+            fontWeight: 800,
+            lineHeight: '18px',
+            textAlign: 'center',
+          }}
+        >
+          {count > 99 ? '99+' : count}
+        </span>
+      ) : null}
+    </Link>
+  )
+}
 
 export default async function BuyHomePage({
   searchParams,
@@ -14,166 +73,290 @@ export default async function BuyHomePage({
   const raw = Array.isArray(sp.search) ? sp.search[0] : sp.search
   const search = raw?.trim() || undefined
 
-  const [listRes, recentRes] = await Promise.all([
+  const [listRes, recentRes, cartRes] = await Promise.all([
     getListings({ search }),
     getRecentOrderItems(),
+    getCart(),
   ])
 
   const listings = listRes.success ? listRes.data?.listings ?? [] : []
   const recent = recentRes.success ? recentRes.data?.items ?? [] : []
   const listError = listRes.success ? null : listRes.error
   const recentError = recentRes.success ? null : recentRes.error
+  const cartError = cartRes.success ? null : cartRes.error
+
+  const cartItems = cartRes.success ? cartRes.data?.items ?? [] : []
+  const cartLineCount = cartItems.length
+  const cartTotal = cartItems.reduce((s, it) => s + it.commerce_price * it.quantity, 0)
 
   return (
     <main style={shell}>
-      <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: '0 0 6px' }}>구매하기</h1>
-      <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 16px' }}>플랫폼에서 바로 살 수 있는 상품이에요</p>
+      <header
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          marginBottom: 16,
+        }}
+      >
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111', margin: 0 }}>구매하기</h1>
+        <CartHeaderIcon count={cartLineCount} />
+      </header>
 
-      {(listError || recentError) && (
-        <div style={{ padding: 12, borderRadius: 10, background: '#FEF2F2', color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>
-          {listError || recentError}
+      {(listError || recentError || cartError) && (
+        <div
+          style={{
+            padding: 12,
+            borderRadius: 10,
+            background: '#FEF2F2',
+            color: '#b91c1c',
+            fontSize: 13,
+            marginBottom: 12,
+          }}
+        >
+          {listError || recentError || cartError}
         </div>
       )}
 
-      {recent.length > 0 ? (
-        <section style={{ marginBottom: 22 }}>
-          <h2 style={{ fontSize: 14, fontWeight: 900, color: '#111827', margin: '0 0 10px' }}>최근 구매 상품</h2>
-          <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {recent.map((it) => (
-              <li
-                key={it.listing_id}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: 12,
-                  background: '#fff',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: 12,
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#111827' }}>{it.listing_title}</div>
-                  <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>{formatKRW(it.unit_price)} (참고가)</div>
-                </div>
-                <CartAddButton listingId={it.listing_id} quantity={1} label="다시 담기" />
-              </li>
-            ))}
-          </ul>
+      {cartLineCount > 0 ? (
+        <section style={{ ...card, marginBottom: 16 }}>
+          <div style={{ fontSize: 14, color: '#374151', marginBottom: 10 }}>
+            담은 상품 {cartLineCount}개 · <span style={{ fontWeight: 700, color: '#111' }}>합계 {formatKRW(cartTotal)}</span>
+          </div>
+          <Link
+            href="/buy/cart"
+            style={{
+              display: 'block',
+              textAlign: 'center',
+              padding: '12px 16px',
+              borderRadius: 8,
+              border: '1px solid #ddd',
+              background: '#fff',
+              color: '#111',
+              fontSize: 14,
+              fontWeight: 700,
+              textDecoration: 'none',
+            }}
+          >
+            장바구니 보기
+          </Link>
         </section>
       ) : null}
 
-      <form action="/buy" method="get" style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+      <section style={{ marginBottom: 20 }}>
+        <h2 style={{ fontSize: 15, fontWeight: 800, color: '#111', margin: '0 0 12px' }}>다시 사기</h2>
+        {recent.length > 0 ? (
+          <div
+            style={{
+              display: 'flex',
+              gap: 12,
+              overflowX: 'auto',
+              paddingBottom: 4,
+              margin: '0 -16px',
+              paddingLeft: 16,
+              paddingRight: 16,
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
+            {recent.map((it) => (
+              <div
+                key={it.listing_id}
+                style={{
+                  ...card,
+                  flex: '0 0 auto',
+                  width: 168,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  boxSizing: 'border-box',
+                }}
+              >
+                {it.thumbnail_url ? (
+                  <img
+                    src={it.thumbnail_url}
+                    alt=""
+                    width={144}
+                    height={100}
+                    style={{
+                      width: '100%',
+                      height: 100,
+                      objectFit: 'cover',
+                      borderRadius: 8,
+                      background: '#e5e7eb',
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: '100%',
+                      height: 100,
+                      borderRadius: 8,
+                      background: '#e5e7eb',
+                    }}
+                    aria-hidden
+                  />
+                )}
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#111', lineHeight: 1.35, minHeight: 36 }}>
+                  {it.listing_title}
+                </div>
+                <div style={{ fontSize: 11, color: '#6b7280' }}>최근 구매가(참고) {formatKRW(it.unit_price)}</div>
+                {it.listing_buyable && it.current_price != null ? (
+                  <div style={{ fontSize: 14, fontWeight: 700, color: '#111' }}>현재 {formatKRW(it.current_price)}</div>
+                ) : (
+                  <div style={{ fontSize: 12, color: '#9ca3af' }}>현재 담을 수 없음</div>
+                )}
+                {it.listing_buyable ? (
+                  <CartAddButton listingId={it.listing_id} quantity={1} label="다시 담기" compact fullWidth />
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div
+            style={{
+              ...card,
+              fontSize: 14,
+              color: '#6b7280',
+              lineHeight: 1.55,
+            }}
+          >
+            첫 구매 후 자주 사는 상품을
+            <br />
+            한 번에 다시 주문할 수 있어요
+          </div>
+        )}
+      </section>
+
+      <form action="/buy" method="get" style={{ marginBottom: 20 }}>
         <input
           name="search"
           defaultValue={search ?? ''}
           placeholder="상품명 검색"
           style={{
-            flex: 1,
-            padding: '10px 12px',
-            borderRadius: 10,
+            width: '100%',
+            boxSizing: 'border-box',
+            padding: '12px 14px',
+            borderRadius: 8,
             border: '1px solid #e5e7eb',
             fontSize: 14,
           }}
         />
-        <button
-          type="submit"
-          style={{
-            padding: '10px 14px',
-            borderRadius: 10,
-            border: 'none',
-            background: '#111827',
-            color: '#fff',
-            fontWeight: 800,
-            fontSize: 13,
-            cursor: 'pointer',
-          }}
-        >
-          검색
-        </button>
       </form>
 
-      <h2 style={{ fontSize: 14, fontWeight: 900, color: '#111827', margin: '0 0 10px' }}>전체 상품</h2>
+      <h2 style={{ fontSize: 15, fontWeight: 800, color: '#111', margin: '0 0 12px' }}>전체 상품</h2>
 
       {listings.length === 0 ? (
-        <div style={{ padding: '28px 16px', borderRadius: 14, border: '1px dashed #e5e7eb', background: '#fff', textAlign: 'center' }}>
-          <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.5, margin: '0 0 14px' }}>
-            현재 구매 가능한 상품이 없습니다.
+        <div style={{ ...card, textAlign: 'center', padding: '24px 16px' }}>
+          <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.55, margin: '0 0 16px' }}>
+            아직 구매 가능한 상품이 없습니다
             <br />
-            발주요청을 통해 원하는 상품을 요청해보세요.
+            원하는 상품을 요청하면 확인 후 등록해드릴게요
           </p>
           <Link
             href="/rfq/new"
             style={{
               display: 'inline-block',
-              padding: '10px 14px',
-              borderRadius: 10,
-              background: '#111827',
+              padding: '12px 18px',
+              borderRadius: 8,
+              background: '#111',
               color: '#fff',
               textDecoration: 'none',
-              fontSize: 13,
-              fontWeight: 800,
+              fontSize: 14,
+              fontWeight: 700,
             }}
           >
-            발주요청 하기
+            상품 요청하기
           </Link>
         </div>
       ) : (
-        <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <ul
+          style={{
+            listStyle: 'none',
+            margin: 0,
+            padding: 0,
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 12,
+          }}
+        >
           {listings.map((p) => (
-            <li
-              key={p.id}
-              style={{
-                padding: 14,
-                background: '#fff',
-                border: '1px solid #e5e7eb',
-                borderRadius: 14,
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                gap: 12,
-              }}
-            >
-              {p.thumbnail_url?.trim() ? (
-                <img
-                  src={p.thumbnail_url.trim()}
-                  alt=""
-                  width={72}
-                  height={72}
-                  style={{
-                    flexShrink: 0,
-                    objectFit: 'cover',
-                    borderRadius: 10,
-                    background: '#f3f4f6',
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    width: 72,
-                    height: 72,
-                    flexShrink: 0,
-                    borderRadius: 10,
-                    background: '#e5e7eb',
-                  }}
-                  aria-hidden
-                />
-              )}
-              <Link href={`/buy/products/${p.id}`} style={{ textDecoration: 'none', color: 'inherit', flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: '#111827' }}>{p.product_name ?? '상품'}</div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#374151', marginTop: 6 }}>{formatKRW(p.commerce_price)}</div>
+            <li key={p.id} style={{ ...card, display: 'flex', flexDirection: 'column', gap: 8, padding: 12 }}>
+              <Link href={`/buy/products/${p.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                {p.thumbnail_url?.trim() ? (
+                  <img
+                    src={p.thumbnail_url.trim()}
+                    alt=""
+                    width={200}
+                    height={120}
+                    style={{
+                      width: '100%',
+                      height: 120,
+                      objectFit: 'cover',
+                      borderRadius: 8,
+                      background: '#e5e7eb',
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: '100%',
+                      height: 120,
+                      borderRadius: 8,
+                      background: '#e5e7eb',
+                    }}
+                    aria-hidden
+                  />
+                )}
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#111', marginTop: 8, lineHeight: 1.35, minHeight: 36 }}>
+                  {p.product_name ?? '상품'}
+                </div>
               </Link>
-              <CartAddButton listingId={p.id} quantity={1} />
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#111' }}>{formatKRW(p.commerce_price)}</div>
+              <CartAddButton listingId={p.id} quantity={1} compact fullWidth />
             </li>
           ))}
         </ul>
       )}
 
-      <div style={{ marginTop: 24, textAlign: 'center' }}>
+      <div style={{ marginTop: 28, textAlign: 'center' }}>
         <Link href="/buy/orders" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'underline' }}>
           구매 내역 보기
         </Link>
+      </div>
+
+      <div
+        style={{
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 40,
+          background: '#fff',
+          borderTop: '1px solid #eee',
+          boxShadow: '0 -2px 10px rgba(0,0,0,0.06)',
+          padding: '12px 16px calc(12px + env(safe-area-inset-bottom, 0px))',
+        }}
+      >
+        <div style={{ maxWidth: 480, margin: '0 auto', textAlign: 'center' }}>
+          <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 10px' }}>원하는 상품이 없으신가요?</p>
+          <Link
+            href="/rfq/new"
+            style={{
+              display: 'block',
+              padding: '12px 16px',
+              borderRadius: 8,
+              border: '1px solid #ddd',
+              background: '#fff',
+              color: '#111',
+              fontSize: 14,
+              fontWeight: 700,
+              textDecoration: 'none',
+            }}
+          >
+            상품 요청하기
+          </Link>
+        </div>
       </div>
     </main>
   )
