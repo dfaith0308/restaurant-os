@@ -1,7 +1,9 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCart } from '@/actions/buy'
+import { getStorefrontBankTransferForCheckout } from '@/actions/storefront-bank-transfer'
 import BuyCheckoutClient from '@/components/buy/BuyCheckoutClient'
+import type { StorefrontBankTransferSettings } from '@/lib/storefront-bank-transfer'
 
 const shell = { maxWidth: 480, margin: '0 auto', padding: '20px 16px 96px' } as const
 
@@ -21,13 +23,19 @@ export default async function BuyCheckoutPage() {
     redirect('/buy/cart')
   }
 
+  let bankTransfer: StorefrontBankTransferSettings | null = null
+  const bankRes = await getStorefrontBankTransferForCheckout()
+  if (bankRes.success && bankRes.data) {
+    bankTransfer = bankRes.data
+  }
+
   return (
     <main style={shell}>
       <Link href="/buy/cart" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'none', display: 'inline-block', marginBottom: 14 }}>
         ← 장바구니
       </Link>
       <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 16px' }}>결제</h1>
-      <BuyCheckoutClient items={items} />
+      <BuyCheckoutClient items={items} bankTransfer={bankTransfer} />
     </main>
   )
 }

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { createCommerceOrder } from '@/actions/buy'
 import { formatKRW } from '@/lib/utils'
 import { shareTextViaKakao } from '@/lib/kakao-share'
+import type { StorefrontBankTransferSettings } from '@/lib/storefront-bank-transfer'
 import type { CartRow } from '@/lib/buy-types'
 
 type DoneState = {
@@ -14,7 +15,13 @@ type DoneState = {
   kakaoHint: string | null
 }
 
-export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
+export default function BuyCheckoutClient({
+  items,
+  bankTransfer,
+}: {
+  items: CartRow[]
+  bankTransfer: StorefrontBankTransferSettings | null
+}) {
   const router = useRouter()
   const [pending, start] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -98,8 +105,27 @@ export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
 
           {done.payment === 'bank_transfer' ? (
             <div style={{ marginTop: 16, fontSize: 14, color: '#374151', lineHeight: 1.55 }}>
-              <p style={{ margin: 0 }}>계좌로 입금해 주시면 배송이 시작됩니다</p>
-              <p style={{ margin: '8px 0 0', fontSize: 13, color: '#9ca3af' }}>(계좌 정보는 추후 운영자 설정)</p>
+              {bankTransfer ? (
+                <>
+                  <p style={{ margin: 0, fontWeight: 700 }}>입금 계좌</p>
+                  <p style={{ margin: '10px 0 0' }}>
+                    {bankTransfer.bank_name} · {bankTransfer.account_number}
+                    <br />
+                    예금주: {bankTransfer.account_holder}
+                  </p>
+                  {bankTransfer.notice ? (
+                    <p style={{ margin: '12px 0 0', fontSize: 13, color: '#4b5563' }}>{bankTransfer.notice}</p>
+                  ) : (
+                    <p style={{ margin: '12px 0 0', fontSize: 13, color: '#4b5563' }}>
+                      입금 확인 후 배송이 시작됩니다.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p style={{ margin: 0, fontSize: 14, color: '#92400e' }}>
+                  계좌 정보 준비 중입니다. 운영자에게 문의해 주세요.
+                </p>
+              )}
             </div>
           ) : (
             <p style={{ marginTop: 16, fontSize: 14, color: '#374151', lineHeight: 1.55, marginBottom: 0 }}>
