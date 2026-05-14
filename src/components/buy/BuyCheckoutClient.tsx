@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition, type CSSProperties, type ReactNode } from 'react'
+import { useState, useTransition, useRef, type CSSProperties, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createCommerceOrder } from '@/actions/buy'
@@ -19,6 +19,7 @@ export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
   const [pending, start] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<DoneState | null>(null)
+  const checkoutSubmissionIdRef = useRef<string | null>(null)
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -39,7 +40,13 @@ export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
     const pm = payment
 
     start(async () => {
+      if (!checkoutSubmissionIdRef.current) {
+        checkoutSubmissionIdRef.current = crypto.randomUUID()
+      }
+      const checkout_submission_id = checkoutSubmissionIdRef.current
+
       const res = await createCommerceOrder({
+        checkout_submission_id,
         shipping_name: name,
         shipping_phone: phone,
         shipping_address: address,
@@ -51,6 +58,8 @@ export default function BuyCheckoutClient({ items }: { items: CartRow[] }) {
         setError(res.error ?? '주문에 실패했습니다')
         return
       }
+
+      checkoutSubmissionIdRef.current = null
 
       const summary = res.data.kakao_summary
       const orderNumber = res.data.order_number ?? '—'

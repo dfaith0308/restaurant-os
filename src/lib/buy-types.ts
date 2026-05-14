@@ -52,6 +52,8 @@ export type CommerceOrderListRow = {
 }
 
 export interface CreateCommerceOrderInput {
+  /** 주문 제출 시도당 1회 발급 UUID; 재전송·연타 시 동일 주문으로 수령 */
+  checkout_submission_id: string
   shipping_name: string
   shipping_phone: string
   shipping_address: string

@@ -1,5 +1,6 @@
 'use server'
 
+import { createHash } from 'crypto'
 import { revalidatePath } from 'next/cache'
 import { createServerClient, getAuthCtx } from '@/lib/supabase-server'
 import { buildKakaoOrderSummary } from '@/lib/kakao-format'
@@ -59,6 +60,129 @@ function genOrderNumber(): string {
   const day = String(d.getDate()).padStart(2, '0')
   const r = String(Math.floor(Math.random() * 100000)).padStart(5, '0')
   return `ORD-${y}${m}${day}-${r}`
+}
+
+/** 클라이언트가 보낸 checkout UUID (소문자 정규화) */
+function parseCheckoutSubmissionId(raw: unknown): string | null {
+  if (raw == null) return null
+  const s = String(raw).trim().toLowerCase()
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s)) return null
+  return s
+}
+
+function stableCommerceOrderIdempotencyPayload(input: {
+  tenant_id: string
+  user_id: string
+  payment_method: string
+  shipping_name: string
+  shipping_phone: string
+  shipping_address: string
+  delivery_memo: string
+  cart: { listing_id: string; quantity: number }[]
+}): string {
+  const cart = [...input.cart].sort((a, b) => a.listing_id.localeCompare(b.listing_id))
+  return JSON.stringify({
+    v: 1,
+    tenant_id: input.tenant_id,
+    user_id: input.user_id,
+    payment_method: input.payment_method,
+    shipping_name: input.shipping_name,
+    shipping_phone: input.shipping_phone,
+    shipping_address: input.shipping_address,
+    delivery_memo: input.delivery_memo,
+    cart,
+  })
+}
+
+function computeCommerceOrderIdempotencyKey(payloadJson: string, checkoutSubmissionId: string): string {
+  return createHash('sha256').update(`${payloadJson}\n${checkoutSubmissionId}`).digest('hex')
+}
+
+function isPostgresUniqueViolation(err: { code?: string; message?: string } | null | undefined): boolean {
+  if (!err) return false
+  if (err.code === '23505') return true
+  return /duplicate key value violates unique constraint/i.test(err.message ?? '')
+}
+
+type CreateCommerceOrderSuccess = {
+  order_id: string
+  order_number: string | null
+  kakao_summary: string | null
+}
+
+async function tryReturnExistingCommerceOrderBySubmission(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  tenantId: string,
+  checkoutSubmissionId: string,
+  duplicateTag: 'precheck' | 'insert_race',
+): Promise<ActionResult<CreateCommerceOrderSuccess> | null> {
+  const { data: ord, error } = await supabase
+    .from('commerce_orders')
+    .select(
+      'id, order_number, payment_method, total_amount, shipping_name, shipping_phone, shipping_address, delivery_memo',
+    )
+    .eq('tenant_id', tenantId)
+    .eq('checkout_submission_id', checkoutSubmissionId)
+    .maybeSingle()
+
+  if (error) return { success: false, error: error.message }
+  if (!ord) return null
+
+  const oid = ord.id as string
+  const { data: itemRows, error: iErr } = await supabase
+    .from('commerce_order_items')
+    .select('listing_title, quantity, unit_price, total_price')
+    .eq('order_id', oid)
+
+  if (iErr) return { success: false, error: iErr.message }
+
+  const pm = ord.payment_method as 'card' | 'bank_transfer' | 'kakao_manual'
+  const payment_label = pm === 'bank_transfer' ? '무통장입금' : pm === 'kakao_manual' ? '카카오 주문전달' : '카드결제'
+
+  const kakao_summary =
+    pm === 'bank_transfer' || pm === 'kakao_manual'
+      ? buildKakaoOrderSummary({
+          order_number: (ord.order_number as string | null) ?? null,
+          payment_label,
+          total_amount: ord.total_amount as number,
+          shipping_name: ord.shipping_name as string,
+          shipping_phone: ord.shipping_phone as string,
+          shipping_address: ord.shipping_address as string,
+          delivery_memo: (ord.delivery_memo as string | null) ?? null,
+          lines: (itemRows ?? []).map(
+            (it: { listing_title: string; quantity: number; unit_price: number; total_price: number }) => ({
+              title: it.listing_title,
+              quantity: it.quantity,
+              unit_price: it.unit_price,
+              line_total: it.total_price,
+            }),
+          ),
+        })
+      : null
+
+  console.info(
+    '[commerce_order_duplicate_reused]',
+    JSON.stringify({
+      duplicateTag,
+      tenant_id: tenantId,
+      order_id: oid,
+      checkout_submission_id: checkoutSubmissionId,
+    }),
+  )
+
+  revalidatePath('/buy')
+  revalidatePath('/buy/cart')
+  revalidatePath('/buy/checkout')
+  revalidatePath('/buy/orders')
+
+  return {
+    success: true,
+    data: {
+      order_id: oid,
+      order_number: (ord.order_number as string | null) ?? null,
+      kakao_summary,
+    },
+  }
 }
 
 export async function getListings(filters?: {
@@ -499,6 +623,14 @@ export async function createCommerceOrder(
   const ctx = await getAuthCtx(supabase)
   if (!ctx) return { success: false, error: '로그인이 필요합니다' }
 
+  const submissionId = parseCheckoutSubmissionId(input.checkout_submission_id)
+  if (!submissionId) {
+    return {
+      success: false,
+      error: '주문 요청 식별자가 없습니다. 페이지를 새로고침한 뒤 다시 시도해 주세요.',
+    }
+  }
+
   const shipping_name = input.shipping_name.trim()
   const shipping_phone = input.shipping_phone.trim()
   const shipping_address = input.shipping_address.trim()
@@ -511,6 +643,17 @@ export async function createCommerceOrder(
   const pm = input.payment_method
   if (pm !== 'card' && pm !== 'bank_transfer' && pm !== 'kakao_manual') {
     return { success: false, error: '결제 방식이 올바르지 않습니다' }
+  }
+
+  const preExisting = await tryReturnExistingCommerceOrderBySubmission(
+    supabase,
+    ctx.tenant_id,
+    submissionId,
+    'precheck',
+  )
+  if (preExisting) {
+    if (!preExisting.success) return preExisting
+    return preExisting
   }
 
   const { data: cartRows, error: cartErr } = await supabase
@@ -541,6 +684,18 @@ export async function createCommerceOrder(
     })
   }
 
+  const payloadJson = stableCommerceOrderIdempotencyPayload({
+    tenant_id: ctx.tenant_id,
+    user_id: ctx.user_id,
+    payment_method: pm,
+    shipping_name,
+    shipping_phone,
+    shipping_address,
+    delivery_memo: delivery_memo ?? '',
+    cart: lines.map((l) => ({ listing_id: l.listing_id, quantity: l.quantity })),
+  })
+  const idempotency_key = computeCommerceOrderIdempotencyKey(payloadJson, submissionId)
+
   const total_amount = lines.reduce((s, l) => s + l.line_total, 0)
   const order_number = genOrderNumber()
 
@@ -560,11 +715,25 @@ export async function createCommerceOrder(
       shipping_address,
       delivery_memo,
       order_number,
+      checkout_submission_id: submissionId,
+      idempotency_key,
     })
     .select('id, order_number')
     .single()
 
   if (orderErr || !orderIns) {
+    if (isPostgresUniqueViolation(orderErr)) {
+      const raceReuse = await tryReturnExistingCommerceOrderBySubmission(
+        supabase,
+        ctx.tenant_id,
+        submissionId,
+        'insert_race',
+      )
+      if (raceReuse) {
+        if (!raceReuse.success) return raceReuse
+        return raceReuse
+      }
+    }
     return { success: false, error: orderErr?.message ?? '주문 생성에 실패했습니다' }
   }
 
