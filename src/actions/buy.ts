@@ -12,6 +12,12 @@ import type {
   RecentOrderItemRow,
 } from '@/lib/buy-types'
 import type { ActionResult } from '@/types'
+import {
+  applyPricingPolicy,
+  batchApplicablePoliciesByListingId,
+  buildAppliedPolicySnapshot,
+  parsePricingPoliciesFromRpcJson,
+} from '@/lib/pricing-policy-engine'
 
 function normalizeProductName(row: Record<string, unknown>): {
   product_name: string | null
@@ -464,6 +470,96 @@ async function assertListingBuyable(
   return { ok: true, commerce_price: row.commerce_price, product_name }
 }
 
+type ListingCheckoutEnrich = { listing_id: string; product_id: string | null; product_name: string | null }
+
+async function batchLoadListingsForCheckout(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  listing_ids: string[],
+): Promise<
+  | {
+      ok: true
+      map: Map<string, { commerce_price: number; product_name: string }>
+    }
+  | { ok: false; error: string }
+> {
+  if (listing_ids.length === 0) return { ok: true, map: new Map() }
+  const uniq = [...new Set(listing_ids)]
+  const { data, error } = await supabase
+    .from('commerce_product_listings')
+    .select(
+      `
+      id,
+      product_id,
+      commerce_price,
+      status,
+      is_visible,
+      deleted_at,
+      products ( name )
+    `,
+    )
+    .in('id', uniq)
+
+  if (error) return { ok: false, error: error.message }
+
+  const byId = new Map<string, Record<string, unknown>>()
+  for (const row of data ?? []) {
+    byId.set(row.id as string, row as Record<string, unknown>)
+  }
+
+  const namesForEnrich: ListingCheckoutEnrich[] = []
+  for (const id of uniq) {
+    const row = byId.get(id)
+    if (!row) return { ok: false, error: '상품을 찾을 수 없습니다' }
+    if (row.deleted_at) return { ok: false, error: '판매 종료된 상품입니다' }
+    if (row.status !== 'visible' || row.is_visible !== true) {
+      return { ok: false, error: '현재 담을 수 없는 상품입니다' }
+    }
+    const raw = row.products
+    const p = Array.isArray(raw) ? raw[0] : raw
+    const product_name = (p?.name && String(p.name).trim()) || ''
+    namesForEnrich.push({
+      listing_id: id,
+      product_id: (row.product_id as string | null) ?? null,
+      product_name: product_name || null,
+    })
+  }
+
+  const enrichRows = namesForEnrich.map((r) => ({ product_id: r.product_id, product_name: r.product_name }))
+  await enrichProductNamesFromProductsTable(supabase, enrichRows)
+  for (let i = 0; i < namesForEnrich.length; i++) {
+    namesForEnrich[i]!.product_name = enrichRows[i]?.product_name ?? namesForEnrich[i]!.product_name
+  }
+
+  const map = new Map<string, { commerce_price: number; product_name: string }>()
+  for (const r of namesForEnrich) {
+    const row = byId.get(r.listing_id)!
+    let product_name = (r.product_name && r.product_name.trim()) || ''
+    if (!product_name) product_name = '상품'
+    map.set(r.listing_id, {
+      commerce_price: row.commerce_price as number,
+      product_name,
+    })
+  }
+
+  return { ok: true, map }
+}
+
+async function logPricingEngineEvent(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  action_type: 'pricing_policy_lookup_failed' | 'pricing_policy_apply_failed',
+  restaurant_tenant_id: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await supabase.rpc('log_pricing_engine_admin_event', {
+    p_action_type: action_type,
+    p_restaurant_tenant_id: restaurant_tenant_id,
+    p_payload: payload,
+  })
+  if (error) {
+    console.error('[pricing_engine] log_pricing_engine_admin_event failed', error.message)
+  }
+}
+
 export async function addToCart(listing_id: string, quantity: number): Promise<ActionResult<void>> {
   const supabase = await createServerClient()
   const ctx = await getAuthCtx(supabase)
@@ -665,21 +761,100 @@ export async function createCommerceOrder(
   const rows = cartRows ?? []
   if (rows.length === 0) return { success: false, error: '장바구니가 비어 있습니다' }
 
-  type Line = { listing_id: string; quantity: number; unit_price: number; listing_title: string; line_total: number }
+  const listingIds = [...new Set(rows.map((r) => r.listing_id as string))]
+  const batchListings = await batchLoadListingsForCheckout(supabase, listingIds)
+  if (!batchListings.ok) return { success: false, error: batchListings.error }
+
+  const { data: rpcPoliciesRaw, error: rpcPoliciesErr } = await supabase.rpc('fetch_active_pricing_policies_for_checkout', {
+    p_listing_ids: listingIds,
+    p_restaurant_tenant_id: ctx.tenant_id,
+  })
+
+  if (rpcPoliciesErr) {
+    await logPricingEngineEvent(supabase, 'pricing_policy_lookup_failed', ctx.tenant_id, {
+      listing_id: listingIds[0] ?? null,
+      listing_ids: listingIds,
+      restaurant_tenant_id: ctx.tenant_id,
+      policy_id: null,
+      error: rpcPoliciesErr.message,
+    })
+  }
+
+  let policiesPayload: unknown = rpcPoliciesRaw
+  if (typeof rpcPoliciesRaw === 'string') {
+    try {
+      policiesPayload = JSON.parse(rpcPoliciesRaw)
+    } catch (e) {
+      await logPricingEngineEvent(supabase, 'pricing_policy_lookup_failed', ctx.tenant_id, {
+        listing_id: listingIds[0] ?? null,
+        listing_ids: listingIds,
+        restaurant_tenant_id: ctx.tenant_id,
+        policy_id: null,
+        error: e instanceof Error ? e.message : 'pricing_policy_json_parse_failed',
+      })
+      policiesPayload = []
+    }
+  }
+
+  const policies = rpcPoliciesErr ? [] : parsePricingPoliciesFromRpcJson(policiesPayload)
+  const policyByListing = batchApplicablePoliciesByListingId(listingIds, ctx.tenant_id, policies, undefined)
+
+  type Line = {
+    listing_id: string
+    quantity: number
+    unit_price: number
+    base_price: number
+    applied_policy_id: string | null
+    applied_policy_snapshot: Record<string, unknown> | null
+    listing_title: string
+    line_total: number
+  }
   const lines: Line[] = []
 
   for (const row of rows) {
     const listing_id = row.listing_id as string
     const quantity = row.quantity as number
-    const ok = await assertListingBuyable(supabase, listing_id)
-    if (!ok.ok) return { success: false, error: ok.error }
-    const unit_price = ok.commerce_price
+    const got = batchListings.map.get(listing_id)
+    if (!got) return { success: false, error: '상품을 찾을 수 없습니다' }
+
+    const base_price = got.commerce_price
+    const policy = policyByListing.get(listing_id) ?? null
+
+    let unit_price = base_price
+    let applied_policy_id: string | null = null
+    let applied_policy_snapshot: Record<string, unknown> | null = null
+
+    try {
+      unit_price = applyPricingPolicy(base_price, policy)
+      if (!Number.isFinite(unit_price) || unit_price < 0) {
+        throw new Error('가격 계산 결과가 올바르지 않습니다')
+      }
+      if (policy) {
+        applied_policy_id = policy.id
+        applied_policy_snapshot = buildAppliedPolicySnapshot(policy)
+      }
+    } catch (e) {
+      const errMsg = e instanceof Error ? e.message : String(e)
+      await logPricingEngineEvent(supabase, 'pricing_policy_apply_failed', ctx.tenant_id, {
+        listing_id,
+        restaurant_tenant_id: ctx.tenant_id,
+        policy_id: policy?.id ?? null,
+        error: errMsg,
+      })
+      unit_price = base_price
+      applied_policy_id = null
+      applied_policy_snapshot = null
+    }
+
     const line_total = unit_price * quantity
     lines.push({
       listing_id,
       quantity,
       unit_price,
-      listing_title: ok.product_name,
+      base_price,
+      applied_policy_id,
+      applied_policy_snapshot,
+      listing_title: got.product_name,
       line_total,
     })
   }
@@ -747,6 +922,9 @@ export async function createCommerceOrder(
     unit_price: l.unit_price,
     total_price: l.line_total,
     listing_title: l.listing_title,
+    base_price: l.base_price,
+    applied_policy_id: l.applied_policy_id,
+    applied_policy_snapshot: l.applied_policy_snapshot,
   }))
 
   const { error: itemErr } = await supabase.from('commerce_order_items').insert(itemPayload)
