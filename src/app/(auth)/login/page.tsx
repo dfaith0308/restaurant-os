@@ -1,8 +1,8 @@
 'use client'
 
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { signupAction } from '@/actions/signup'
+import { checkSignupEmailAvailable, signupAction } from '@/actions/signup'
 import { createBrowserSupabase } from '@/lib/supabase-browser'
 import AddressSearchButton from '@/components/auth/AddressSearchButton'
 import TermsModal from '@/components/auth/TermsModal'
@@ -11,6 +11,7 @@ import PrivacyModal from '@/components/auth/PrivacyModal'
 type Mode = 'login' | 'signup'
 type BusinessType = 'active' | 'prospective'
 type BizNumberStatus = 'idle' | 'checking' | 'available' | 'duplicate' | 'invalid'
+type EmailCheckStatus = 'idle' | 'checking' | 'invalid' | 'duplicate' | 'available'
 
 const INPUT_STYLE: React.CSSProperties = {
   width: '100%', padding: '12px 14px',
@@ -54,6 +55,10 @@ const LINK_BTN: React.CSSProperties = {
 
 function cleanDigits(value: string): string {
   return value.replace(/\D/g, '')
+}
+
+function isSignupEmailFormatValid(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 }
 
 function formatPhoneInput(raw: string): string {
@@ -102,6 +107,7 @@ type SignupBlockerInput = {
   businessNumber: string
   bizNumberChecked: boolean
   bizNumberStatus: BizNumberStatus
+  emailCheckStatus: EmailCheckStatus
 }
 
 function getSignupBlockers(input: SignupBlockerInput): string[] {
@@ -110,7 +116,17 @@ function getSignupBlockers(input: SignupBlockerInput): string[] {
   if (!input.storeName.trim()) blockers.push('상호명을 입력해주세요')
   if (!input.representativeName.trim()) blockers.push('대표자명을 입력해주세요')
   if (!input.contactPhone.trim()) blockers.push('연락처를 입력해주세요')
-  if (!input.email.trim()) blockers.push('이메일을 입력해주세요')
+  if (!input.email.trim()) {
+    blockers.push('이메일을 입력해주세요')
+  } else if (!isSignupEmailFormatValid(input.email)) {
+    blockers.push('올바른 이메일 형식이 아닙니다')
+  } else if (input.emailCheckStatus === 'duplicate') {
+    blockers.push('이미 가입된 이메일입니다')
+  } else if (input.emailCheckStatus === 'checking') {
+    blockers.push('이메일 확인 중입니다. 잠시만 기다려주세요')
+  } else if (input.emailCheckStatus !== 'available') {
+    blockers.push('이메일 사용 가능 여부를 확인해주세요')
+  }
   if (!input.address.trim()) blockers.push('주소 검색으로 주소를 입력해주세요')
 
   if (input.password.length < 6) {
@@ -165,6 +181,7 @@ export default function LoginPage() {
   const [bizNumberChecked, setBizNumberChecked] = useState(false)
   const [bizNumberStatus, setBizNumberStatus] = useState<BizNumberStatus>('idle')
   const [passwordConfirmTouched, setPasswordConfirmTouched] = useState(false)
+  const [emailCheckStatus, setEmailCheckStatus] = useState<EmailCheckStatus>('idle')
   const submitLockRef = useRef(false)
 
   const showPasswordMismatch =
@@ -188,7 +205,37 @@ export default function LoginPage() {
     businessNumber,
     bizNumberChecked,
     bizNumberStatus,
+    emailCheckStatus,
   })
+
+  useEffect(() => {
+    if (mode !== 'signup') return
+
+    const trimmed = email.trim()
+    if (!trimmed) {
+      setEmailCheckStatus('idle')
+      return
+    }
+    if (!isSignupEmailFormatValid(trimmed)) {
+      setEmailCheckStatus('invalid')
+      return
+    }
+
+    setEmailCheckStatus('checking')
+    let cancelled = false
+    const timer = setTimeout(() => {
+      void (async () => {
+        const result = await checkSignupEmailAvailable(trimmed)
+        if (cancelled || email.trim() !== trimmed) return
+        setEmailCheckStatus(result.status)
+      })()
+    }, 450)
+
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [email, mode])
   const submitDisabled = loading || (mode === 'login' && !loginReady)
   const showSignupBlockers = mode === 'signup' && signupBlockers.length > 0 && !loading
   const needsBizNumberCheck =
@@ -267,6 +314,7 @@ export default function LoginPage() {
         businessNumber,
         bizNumberChecked,
         bizNumberStatus,
+        emailCheckStatus,
       })
       if (blockers.length > 0) {
         setError(blockers[0])
@@ -565,11 +613,54 @@ export default function LoginPage() {
                 <input
                   type="email"
                   value={email}
-                  onChange={e => setEmail(e.target.value)}
+                  onChange={e => {
+                    setEmail(e.target.value)
+                    setEmailCheckStatus('idle')
+                  }}
+                  onBlur={() => {
+                    const trimmed = email.trim()
+                    if (!trimmed) {
+                      setEmailCheckStatus('idle')
+                      return
+                    }
+                    if (!isSignupEmailFormatValid(trimmed)) {
+                      setEmailCheckStatus('invalid')
+                      return
+                    }
+                    if (emailCheckStatus === 'available' || emailCheckStatus === 'duplicate') {
+                      return
+                    }
+                    setEmailCheckStatus('checking')
+                    void checkSignupEmailAvailable(trimmed).then(result => {
+                      if (email.trim() !== trimmed) return
+                      setEmailCheckStatus(result.status)
+                    })
+                  }}
                   placeholder="owner@restaurant.com"
                   autoComplete="email"
                   style={INPUT_STYLE}
                 />
+                {emailCheckStatus !== 'idle' && (
+                  <p
+                    style={{
+                      margin: '6px 0 0',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      lineHeight: 1.45,
+                      color:
+                        emailCheckStatus === 'available'
+                          ? '#15803d'
+                          : emailCheckStatus === 'checking'
+                            ? '#6b7280'
+                            : '#B91C1C',
+                    }}
+                  >
+                    {emailCheckStatus === 'checking' && '이메일 확인 중...'}
+                    {emailCheckStatus === 'invalid' && '올바른 이메일 형식이 아닙니다'}
+                    {emailCheckStatus === 'duplicate' && '이미 가입된 이메일입니다'}
+                    {emailCheckStatus === 'available' && '사용 가능한 이메일입니다'}
+                  </p>
+                )}
                 <div
                   role="note"
                   style={{
