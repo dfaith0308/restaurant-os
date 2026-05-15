@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { checkSignupEmailAvailable, signupAction } from '@/actions/signup'
 import { createBrowserSupabase } from '@/lib/supabase-browser'
@@ -433,7 +434,33 @@ export default function LoginPage() {
     return (
       <Wrapper wide={false}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              minHeight: 60,
+              maxHeight: 60,
+              margin: '0 auto 16px',
+              overflow: 'hidden',
+            }}
+          >
+            <Image
+              src="/logo.png"
+              alt="식식이OS"
+              width={160}
+              height={60}
+              style={{
+                display: 'block',
+                height: 60,
+                maxHeight: 60,
+                width: 'auto',
+                maxWidth: 'min(200px, 72vw)',
+                objectFit: 'contain',
+              }}
+            />
+          </div>
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)', marginBottom: 10 }}>
             가입 완료
           </div>
