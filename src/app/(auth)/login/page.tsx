@@ -8,6 +8,7 @@ import PrivacyModal from '@/components/auth/PrivacyModal'
 
 type Mode = 'login' | 'signup'
 type BusinessType = 'active' | 'prospective'
+type BizNumberStatus = 'idle' | 'checking' | 'available' | 'duplicate' | 'invalid'
 
 const INPUT_STYLE: React.CSSProperties = {
   width: '100%', padding: '12px 14px',
@@ -21,6 +22,20 @@ const BTN: React.CSSProperties = {
   border: 'none', borderRadius: 12,
   fontSize: 15, fontWeight: 700, fontFamily: 'inherit',
   cursor: 'pointer',
+}
+
+const CHECK_BTN: React.CSSProperties = {
+  flexShrink: 0,
+  minWidth: 88,
+  padding: '12px 12px',
+  border: '1.5px solid #e5e7eb',
+  borderRadius: 10,
+  fontSize: 14,
+  fontWeight: 600,
+  fontFamily: 'inherit',
+  background: '#fff',
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
 }
 
 const LINK_BTN: React.CSSProperties = {
@@ -58,6 +73,19 @@ function isValidBusinessNumber(value: string): boolean {
   return cleanDigits(value).length === 10
 }
 
+function bizNumberStatusMessage(status: BizNumberStatus): string | null {
+  if (status === 'invalid') return '올바른 사업자등록번호 형식이 아닙니다'
+  if (status === 'duplicate') return '이미 등록된 사업자등록번호입니다'
+  if (status === 'available') return '사용 가능한 사업자등록번호입니다'
+  return null
+}
+
+function bizNumberStatusColor(status: BizNumberStatus): string {
+  if (status === 'available') return '#15803d'
+  if (status === 'invalid' || status === 'duplicate') return '#B91C1C'
+  return '#6b7280'
+}
+
 export default function LoginPage() {
   const router = useRouter()
 
@@ -80,8 +108,14 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
+  const [bizNumberChecked, setBizNumberChecked] = useState(false)
+  const [bizNumberStatus, setBizNumberStatus] = useState<BizNumberStatus>('idle')
 
   const loginReady = Boolean(email.trim() && password.length >= 6)
+  const bizNumberOk =
+    businessType === 'active'
+      ? bizNumberChecked && isValidBusinessNumber(businessNumber)
+      : !businessNumber.trim() || isValidBusinessNumber(businessNumber)
   const signupReady = Boolean(
     storeName.trim() &&
     representativeName.trim() &&
@@ -92,11 +126,59 @@ export default function LoginPage() {
     password === passwordConfirm &&
     agreeTerms &&
     agreePrivacy &&
-    (businessType === 'prospective'
-      ? !businessNumber.trim() || isValidBusinessNumber(businessNumber)
-      : isValidBusinessNumber(businessNumber)),
+    bizNumberOk,
   )
   const isReady = mode === 'login' ? loginReady : signupReady
+
+  function resetBizNumberCheck() {
+    setBizNumberChecked(false)
+    setBizNumberStatus('idle')
+  }
+
+  function handleBusinessTypeChange(next: BusinessType) {
+    setBusinessType(next)
+    resetBizNumberCheck()
+  }
+
+  function handleBusinessNumberChange(raw: string) {
+    setBusinessNumber(formatBusinessNumberInput(raw))
+    resetBizNumberCheck()
+  }
+
+  async function handleBizNumberCheck() {
+    const cleaned = cleanDigits(businessNumber)
+    if (cleaned.length !== 10) {
+      setBizNumberStatus('invalid')
+      setBizNumberChecked(false)
+      return
+    }
+
+    setBizNumberStatus('checking')
+    setBizNumberChecked(false)
+
+    const supabase = createBrowserSupabase()
+    const { data: dup, error: dupErr } = await supabase
+      .from('tenants')
+      .select('id')
+      .eq('business_number', cleaned)
+      .maybeSingle()
+
+    if (dupErr) {
+      setBizNumberStatus('idle')
+      setBizNumberChecked(false)
+      setError('사업자등록번호 확인에 실패했습니다. 잠시 후 다시 시도해주세요.')
+      return
+    }
+
+    if (dup) {
+      setBizNumberStatus('duplicate')
+      setBizNumberChecked(false)
+      return
+    }
+
+    setBizNumberStatus('available')
+    setBizNumberChecked(true)
+  }
 
   async function handleSubmit() {
     if (!isReady || loading) return
@@ -119,18 +201,20 @@ export default function LoginPage() {
       }
 
       const cleanedBn = cleanDigits(businessNumber)
-      if (businessType === 'active' && cleanedBn.length !== 10) {
-        setError('올바른 사업자등록번호를 입력해주세요')
-        setLoading(false)
-        return
+      if (businessType === 'active') {
+        if (!bizNumberChecked || cleanedBn.length !== 10) {
+          setError('사업자등록번호 중복확인을 해주세요')
+          setLoading(false)
+          return
+        }
       }
       if (businessType === 'prospective' && businessNumber.trim() && cleanedBn.length !== 10) {
-        setError('올바른 사업자등록번호를 입력해주세요')
+        setError('올바른 사업자등록번호 형식이 아닙니다')
         setLoading(false)
         return
       }
 
-      if (cleanedBn.length === 10) {
+      if (cleanedBn.length === 10 && (businessType === 'active' || businessNumber.trim())) {
         const { data: dup } = await supabase
           .from('tenants')
           .select('id')
@@ -138,6 +222,8 @@ export default function LoginPage() {
           .maybeSingle()
         if (dup) {
           setError('이미 등록된 사업자등록번호입니다')
+          setBizNumberStatus('duplicate')
+          setBizNumberChecked(false)
           setLoading(false)
           return
         }
@@ -296,19 +382,71 @@ export default function LoginPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {mode === 'signup' && (
             <>
-              <Field label="사업자 유형" required>
+              <Field label="현재 상태" required>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <SegButton
                     active={businessType === 'active'}
-                    onClick={() => setBusinessType('active')}
-                    label="운영중 사업자"
+                    onClick={() => handleBusinessTypeChange('active')}
+                    label="식당 운영중"
                   />
                   <SegButton
                     active={businessType === 'prospective'}
-                    onClick={() => setBusinessType('prospective')}
+                    onClick={() => handleBusinessTypeChange('prospective')}
                     label="예비 창업자"
                   />
                 </div>
+              </Field>
+
+              <Field label="사업자등록번호" required={businessType === 'active'}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={businessNumber}
+                    onChange={e => handleBusinessNumberChange(e.target.value)}
+                    placeholder="000-00-00000"
+                    style={{ ...INPUT_STYLE, flex: 1, minWidth: 0 }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleBizNumberCheck}
+                    disabled={
+                      bizNumberStatus === 'checking' ||
+                      (businessType === 'prospective' && !businessNumber.trim())
+                    }
+                    style={{
+                      ...CHECK_BTN,
+                      opacity:
+                        bizNumberStatus === 'checking' ||
+                        (businessType === 'prospective' && !businessNumber.trim())
+                          ? 0.55
+                          : 1,
+                      cursor:
+                        bizNumberStatus === 'checking' ||
+                        (businessType === 'prospective' && !businessNumber.trim())
+                          ? 'not-allowed'
+                          : 'pointer',
+                    }}
+                  >
+                    {bizNumberStatus === 'checking' ? '확인중...' : '중복확인'}
+                  </button>
+                </div>
+                {businessType === 'prospective' && (
+                  <p style={{ margin: '6px 0 0', fontSize: 12, color: '#6b7280' }}>
+                    예비창업자는 나중에 등록 가능합니다
+                  </p>
+                )}
+                {bizNumberStatusMessage(bizNumberStatus) && (
+                  <p
+                    style={{
+                      margin: '6px 0 0',
+                      fontSize: 12,
+                      color: bizNumberStatusColor(bizNumberStatus),
+                    }}
+                  >
+                    {bizNumberStatusMessage(bizNumberStatus)}
+                  </p>
+                )}
               </Field>
 
               <Field label="상호명" required>
@@ -350,22 +488,6 @@ export default function LoginPage() {
                   autoComplete="email"
                   style={INPUT_STYLE}
                 />
-              </Field>
-
-              <Field label="사업자등록번호" required={businessType === 'active'}>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={businessNumber}
-                  onChange={e => setBusinessNumber(formatBusinessNumberInput(e.target.value))}
-                  placeholder="000-00-00000"
-                  style={INPUT_STYLE}
-                />
-                {businessType === 'prospective' && (
-                  <p style={{ margin: '6px 0 0', fontSize: 12, color: '#6b7280' }}>
-                    예비창업자는 나중에 등록 가능합니다
-                  </p>
-                )}
               </Field>
 
               <Field label="주소" required>
