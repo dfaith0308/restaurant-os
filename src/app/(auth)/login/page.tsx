@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { signupAction } from '@/actions/signup'
 import { createBrowserSupabase } from '@/lib/supabase-browser'
@@ -165,6 +165,7 @@ export default function LoginPage() {
   const [bizNumberChecked, setBizNumberChecked] = useState(false)
   const [bizNumberStatus, setBizNumberStatus] = useState<BizNumberStatus>('idle')
   const [passwordConfirmTouched, setPasswordConfirmTouched] = useState(false)
+  const submitLockRef = useRef(false)
 
   const showPasswordMismatch =
     passwordConfirmTouched &&
@@ -247,7 +248,7 @@ export default function LoginPage() {
   }
 
   async function handleSubmit() {
-    if (loading) return
+    if (loading || submitLockRef.current) return
 
     if (mode === 'login' && !loginReady) return
 
@@ -273,21 +274,21 @@ export default function LoginPage() {
       }
     }
 
+    submitLockRef.current = true
     setLoading(true)
     setError(null)
 
     const supabase = createBrowserSupabase()
 
+    try {
     if (mode === 'signup') {
       if (!agreeTerms || !agreePrivacy) {
         setError('이용약관 및 개인정보처리방침에 동의해야 가입할 수 있습니다.')
-        setLoading(false)
         return
       }
 
       if (password !== passwordConfirm) {
         setError('비밀번호가 일치하지 않습니다')
-        setLoading(false)
         return
       }
 
@@ -295,13 +296,11 @@ export default function LoginPage() {
       if (businessType === 'active') {
         if (!bizNumberChecked || cleanedBn.length !== 10) {
           setError('사업자등록번호 중복확인을 해주세요')
-          setLoading(false)
           return
         }
       }
       if (businessType === 'prospective' && businessNumber.trim() && cleanedBn.length !== 10) {
         setError('올바른 사업자등록번호 형식이 아닙니다')
-        setLoading(false)
         return
       }
 
@@ -315,7 +314,6 @@ export default function LoginPage() {
           setError('이미 등록된 사업자등록번호입니다')
           setBizNumberStatus('duplicate')
           setBizNumberChecked(false)
-          setLoading(false)
           return
         }
       }
@@ -334,7 +332,6 @@ export default function LoginPage() {
       })
       if (!signupResult.success) {
         setError(signupResult.error ?? '회원가입 실패')
-        setLoading(false)
         return
       }
 
@@ -347,12 +344,10 @@ export default function LoginPage() {
           signInAfterSignupErr.message ??
             '가입은 완료되었으나 로그인에 실패했습니다. 로그인 화면에서 다시 시도해주세요.',
         )
-        setLoading(false)
         return
       }
 
       setDone(true)
-      setLoading(false)
       return
     }
 
@@ -362,7 +357,6 @@ export default function LoginPage() {
     })
     if (signInErr || !data.user) {
       setError(signInErr?.message ?? '로그인 실패. 이메일/비밀번호를 확인해주세요.')
-      setLoading(false)
       return
     }
 
@@ -380,6 +374,10 @@ export default function LoginPage() {
       router.replace('/pending')
     } else {
       router.replace('/today')
+    }
+    } finally {
+      submitLockRef.current = false
+      setLoading(false)
     }
   }
 
