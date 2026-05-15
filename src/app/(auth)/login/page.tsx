@@ -88,6 +88,58 @@ function bizNumberStatusColor(status: BizNumberStatus): string {
   return '#6b7280'
 }
 
+type SignupBlockerInput = {
+  storeName: string
+  representativeName: string
+  contactPhone: string
+  email: string
+  address: string
+  password: string
+  passwordConfirm: string
+  agreeTerms: boolean
+  agreePrivacy: boolean
+  businessType: BusinessType
+  businessNumber: string
+  bizNumberChecked: boolean
+  bizNumberStatus: BizNumberStatus
+}
+
+function getSignupBlockers(input: SignupBlockerInput): string[] {
+  const blockers: string[] = []
+
+  if (!input.storeName.trim()) blockers.push('상호명을 입력해주세요')
+  if (!input.representativeName.trim()) blockers.push('대표자명을 입력해주세요')
+  if (!input.contactPhone.trim()) blockers.push('연락처를 입력해주세요')
+  if (!input.email.trim()) blockers.push('이메일을 입력해주세요')
+  if (!input.address.trim()) blockers.push('주소 검색으로 주소를 입력해주세요')
+
+  if (input.password.length < 6) {
+    blockers.push('비밀번호는 6자리 이상이어야 합니다')
+  } else if (!input.passwordConfirm) {
+    blockers.push('비밀번호 확인을 입력해주세요')
+  } else if (input.password !== input.passwordConfirm) {
+    blockers.push('비밀번호가 일치하지 않습니다')
+  }
+
+  if (!input.agreeTerms || !input.agreePrivacy) {
+    blockers.push('필수 약관에 동의해주세요')
+  }
+
+  if (input.businessType === 'active') {
+    if (!isValidBusinessNumber(input.businessNumber)) {
+      blockers.push('사업자등록번호 10자리를 입력해주세요')
+    } else if (input.bizNumberStatus === 'duplicate') {
+      blockers.push('이미 등록된 사업자등록번호입니다')
+    } else if (!input.bizNumberChecked) {
+      blockers.push('사업자등록번호 중복확인을 해주세요')
+    }
+  } else if (input.businessNumber.trim() && !isValidBusinessNumber(input.businessNumber)) {
+    blockers.push('올바른 사업자등록번호 형식이 아닙니다')
+  }
+
+  return blockers
+}
+
 export default function LoginPage() {
   const router = useRouter()
 
@@ -120,23 +172,29 @@ export default function LoginPage() {
     password !== passwordConfirm
 
   const loginReady = Boolean(email.trim() && password.length >= 6)
-  const bizNumberOk =
-    businessType === 'active'
-      ? bizNumberChecked && isValidBusinessNumber(businessNumber)
-      : !businessNumber.trim() || isValidBusinessNumber(businessNumber)
-  const signupReady = Boolean(
-    storeName.trim() &&
-    representativeName.trim() &&
-    contactPhone.trim() &&
-    email.trim() &&
-    address.trim() &&
-    password.length >= 6 &&
-    password === passwordConfirm &&
-    agreeTerms &&
-    agreePrivacy &&
-    bizNumberOk,
-  )
-  const isReady = mode === 'login' ? loginReady : signupReady
+
+  const signupBlockers = getSignupBlockers({
+    storeName,
+    representativeName,
+    contactPhone,
+    email,
+    address,
+    password,
+    passwordConfirm,
+    agreeTerms,
+    agreePrivacy,
+    businessType,
+    businessNumber,
+    bizNumberChecked,
+    bizNumberStatus,
+  })
+  const submitDisabled = loading || (mode === 'login' && !loginReady)
+  const showSignupBlockers = mode === 'signup' && signupBlockers.length > 0 && !loading
+  const needsBizNumberCheck =
+    businessType === 'active' &&
+    isValidBusinessNumber(businessNumber) &&
+    !bizNumberChecked &&
+    bizNumberStatus !== 'duplicate'
 
   function resetBizNumberCheck() {
     setBizNumberChecked(false)
@@ -189,7 +247,32 @@ export default function LoginPage() {
   }
 
   async function handleSubmit() {
-    if (!isReady || loading) return
+    if (loading) return
+
+    if (mode === 'login' && !loginReady) return
+
+    if (mode === 'signup') {
+      const blockers = getSignupBlockers({
+        storeName,
+        representativeName,
+        contactPhone,
+        email,
+        address,
+        password,
+        passwordConfirm,
+        agreeTerms,
+        agreePrivacy,
+        businessType,
+        businessNumber,
+        bizNumberChecked,
+        bizNumberStatus,
+      })
+      if (blockers.length > 0) {
+        setError(blockers[0])
+        return
+      }
+    }
+
     setLoading(true)
     setError(null)
 
@@ -432,6 +515,11 @@ export default function LoginPage() {
                     예비창업자는 나중에 등록 가능합니다
                   </p>
                 )}
+                {needsBizNumberCheck && (
+                  <p style={{ margin: '6px 0 0', fontSize: 12, color: '#B45309' }}>
+                    입력 후 중복확인 버튼을 눌러주세요
+                  </p>
+                )}
                 {bizNumberStatusMessage(bizNumberStatus) && (
                   <p
                     style={{
@@ -506,6 +594,11 @@ export default function LoginPage() {
                   />
                   <AddressSearchButton onSelect={setAddress} />
                 </div>
+                {!address.trim() && (
+                  <p style={{ margin: '6px 0 0', fontSize: 12, color: '#6b7280' }}>
+                    주소 검색 버튼으로 매장 주소를 입력해주세요
+                  </p>
+                )}
               </Field>
 
               <Field label="상세주소">
@@ -543,6 +636,11 @@ export default function LoginPage() {
                   autoComplete="new-password"
                   style={INPUT_STYLE}
                 />
+                {password.length >= 6 && !passwordConfirm && (
+                  <p style={{ margin: '6px 0 0', fontSize: 12, color: '#6b7280' }}>
+                    비밀번호 확인을 입력해주세요
+                  </p>
+                )}
                 {showPasswordMismatch && (
                   <p style={{ margin: '6px 0 0', fontSize: 12, color: '#B91C1C' }}>
                     비밀번호가 일치하지 않습니다
@@ -608,6 +706,35 @@ export default function LoginPage() {
           )}
         </div>
 
+        {showSignupBlockers && (
+          <div
+            style={{
+              marginTop: 16,
+              padding: '12px 14px',
+              background: '#FFFBEB',
+              border: '1px solid #FDE68A',
+              borderRadius: 8,
+            }}
+          >
+            <p style={{ margin: '0 0 6px', fontSize: 12, fontWeight: 600, color: '#92400E' }}>
+              가입을 완료하려면 아래를 확인해주세요
+            </p>
+            <ul
+              style={{
+                margin: 0,
+                paddingLeft: 18,
+                fontSize: 12,
+                color: '#78350F',
+                lineHeight: 1.55,
+              }}
+            >
+              {signupBlockers.map(item => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         {error && (
           <div
             style={{
@@ -623,12 +750,12 @@ export default function LoginPage() {
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={!isReady || loading}
+          disabled={submitDisabled}
           style={{
             ...BTN, marginTop: 20,
-            background: (!isReady || loading) ? '#d1d5db' : 'var(--color-primary)',
+            background: submitDisabled ? '#d1d5db' : 'var(--color-primary)',
             color: '#fff',
-            cursor: (!isReady || loading) ? 'not-allowed' : 'pointer',
+            cursor: submitDisabled ? 'not-allowed' : 'pointer',
           }}
         >
           {loading ? '처리 중...' : mode === 'login' ? '로그인' : '회원가입'}
