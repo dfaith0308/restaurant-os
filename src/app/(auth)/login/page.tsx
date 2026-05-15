@@ -3,9 +3,11 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserSupabase } from '@/lib/supabase-browser'
-import Link from 'next/link'
+import TermsModal from '@/components/auth/TermsModal'
+import PrivacyModal from '@/components/auth/PrivacyModal'
 
 type Mode = 'login' | 'signup'
+type BusinessType = 'active' | 'prospective'
 
 const INPUT_STYLE: React.CSSProperties = {
   width: '100%', padding: '12px 14px',
@@ -21,21 +23,80 @@ const BTN: React.CSSProperties = {
   cursor: 'pointer',
 }
 
+const LINK_BTN: React.CSSProperties = {
+  background: 'none',
+  border: 'none',
+  color: '#4F46E5',
+  fontSize: 13,
+  fontWeight: 700,
+  cursor: 'pointer',
+  fontFamily: 'inherit',
+  padding: 0,
+  textDecoration: 'none',
+}
+
+function cleanDigits(value: string): string {
+  return value.replace(/\D/g, '')
+}
+
+function formatPhoneInput(raw: string): string {
+  const d = cleanDigits(raw).slice(0, 11)
+  if (d.length <= 3) return d
+  if (d.length <= 7) return `${d.slice(0, 3)}-${d.slice(3)}`
+  if (d.length <= 10) return `${d.slice(0, 3)}-${d.slice(3, 6)}-${d.slice(6)}`
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`
+}
+
+function formatBusinessNumberInput(raw: string): string {
+  const d = cleanDigits(raw).slice(0, 10)
+  if (d.length <= 3) return d
+  if (d.length <= 5) return `${d.slice(0, 3)}-${d.slice(3)}`
+  return `${d.slice(0, 3)}-${d.slice(3, 5)}-${d.slice(5)}`
+}
+
+function isValidBusinessNumber(value: string): boolean {
+  return cleanDigits(value).length === 10
+}
+
 export default function LoginPage() {
   const router = useRouter()
 
-  const [mode,      setMode]     = useState<Mode>('login')
-  const [email,     setEmail]    = useState('')
-  const [password,  setPassword] = useState('')
+  const [mode, setMode] = useState<Mode>('login')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [passwordConfirm, setPasswordConfirm] = useState('')
   const [storeName, setStoreName] = useState('')
+  const [businessType, setBusinessType] = useState<BusinessType>('active')
+  const [businessNumber, setBusinessNumber] = useState('')
+  const [representativeName, setRepresentativeName] = useState('')
+  const [contactPhone, setContactPhone] = useState('')
+  const [address, setAddress] = useState('')
+  const [addressDetail, setAddressDetail] = useState('')
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [agreePrivacy, setAgreePrivacy] = useState(false)
-  const [loading,   setLoading]  = useState(false)
-  const [error,     setError]    = useState<string | null>(null)
-  const [done,      setDone]     = useState(false)   // 회원가입 완료
+  const [marketingAgreed, setMarketingAgreed] = useState(false)
+  const [showTermsModal, setShowTermsModal] = useState(false)
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [done, setDone] = useState(false)
 
-  const isReady = email.trim() && password.length >= 6 &&
-    (mode === 'login' || storeName.trim())
+  const loginReady = Boolean(email.trim() && password.length >= 6)
+  const signupReady = Boolean(
+    storeName.trim() &&
+    representativeName.trim() &&
+    contactPhone.trim() &&
+    email.trim() &&
+    address.trim() &&
+    password.length >= 6 &&
+    password === passwordConfirm &&
+    agreeTerms &&
+    agreePrivacy &&
+    (businessType === 'prospective'
+      ? !businessNumber.trim() || isValidBusinessNumber(businessNumber)
+      : isValidBusinessNumber(businessNumber)),
+  )
+  const isReady = mode === 'login' ? loginReady : signupReady
 
   async function handleSubmit() {
     if (!isReady || loading) return
@@ -51,7 +112,37 @@ export default function LoginPage() {
         return
       }
 
-      // 1. 회원가입
+      if (password !== passwordConfirm) {
+        setError('비밀번호가 일치하지 않습니다')
+        setLoading(false)
+        return
+      }
+
+      const cleanedBn = cleanDigits(businessNumber)
+      if (businessType === 'active' && cleanedBn.length !== 10) {
+        setError('올바른 사업자등록번호를 입력해주세요')
+        setLoading(false)
+        return
+      }
+      if (businessType === 'prospective' && businessNumber.trim() && cleanedBn.length !== 10) {
+        setError('올바른 사업자등록번호를 입력해주세요')
+        setLoading(false)
+        return
+      }
+
+      if (cleanedBn.length === 10) {
+        const { data: dup } = await supabase
+          .from('tenants')
+          .select('id')
+          .eq('business_number', cleanedBn)
+          .maybeSingle()
+        if (dup) {
+          setError('이미 등록된 사업자등록번호입니다')
+          setLoading(false)
+          return
+        }
+      }
+
       const { data, error: signUpErr } = await supabase.auth.signUp({
         email: email.trim(),
         password,
@@ -62,18 +153,30 @@ export default function LoginPage() {
         return
       }
 
-      // 2. tenants 생성 (realmyos DB 단일화 구조)
       const { data: tenant, error: tErr } = await supabase
         .from('tenants')
-        .insert({ name: storeName.trim(), role: 'restaurant', is_approved: false })
-        .select('id').single()
+        .insert({
+          name: storeName.trim(),
+          role: 'restaurant',
+          is_approved: false,
+          business_type: businessType,
+          business_number: cleanedBn.length === 10 ? cleanedBn : null,
+          representative_name: representativeName.trim(),
+          contact_phone: contactPhone.trim(),
+          address: address.trim(),
+          address_detail: addressDetail.trim() || null,
+          verification_status: 'unverified',
+          marketing_agreed: marketingAgreed,
+          marketing_agreed_at: marketingAgreed ? new Date().toISOString() : null,
+        })
+        .select('id')
+        .single()
       if (tErr || !tenant) {
         setError('매장 등록 실패: ' + tErr?.message)
         setLoading(false)
         return
       }
 
-      // 3. users에 tenant 연결
       const { error: uErr } = await supabase
         .from('users')
         .insert({ id: data.user.id, tenant_id: tenant.id, role: 'restaurant' })
@@ -88,7 +191,6 @@ export default function LoginPage() {
       return
     }
 
-    // 로그인
     const { data, error: signInErr } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
@@ -99,7 +201,6 @@ export default function LoginPage() {
       return
     }
 
-    // 승인 체크 (users → tenants 조인)
     const { data: userData } = await supabase
       .from('users')
       .select('tenant_id, tenants(is_approved)')
@@ -117,10 +218,9 @@ export default function LoginPage() {
     }
   }
 
-  // 회원가입 완료 화면
   if (done) {
     return (
-      <Wrapper>
+      <Wrapper wide={false}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 48, marginBottom: 16 }}>✅</div>
           <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-text)', marginBottom: 10 }}>
@@ -131,6 +231,7 @@ export default function LoginPage() {
             로그인 후 승인을 기다려주세요.
           </p>
           <button
+            type="button"
             onClick={() => { setDone(false); setMode('login') }}
             style={{ ...BTN, background: 'var(--color-primary)', color: '#fff' }}
           >
@@ -142,159 +243,387 @@ export default function LoginPage() {
   }
 
   return (
-    <Wrapper>
-      {/* 헤더 */}
-      <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <div style={{ fontSize: 40, marginBottom: 10 }}>🍽️</div>
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: 0 }}>
-          식당OS
-        </h1>
-        <p style={{ fontSize: 13, color: '#9ca3af', margin: '6px 0 0' }}>
-          사장님과 함께 장사하는 파트너
-        </p>
-      </div>
+    <>
+      <Wrapper wide={mode === 'signup'}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <BrandLogo />
+          {mode === 'signup' ? (
+            <>
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '12px 0 0' }}>
+                사업자 계정 만들기
+              </h1>
+              <p style={{ fontSize: 13, color: '#6b7280', margin: '8px 0 0', lineHeight: 1.5 }}>
+                발주·공급망·정산을 하나로 관리하세요
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '12px 0 0' }}>
+                식당OS
+              </h1>
+              <p style={{ fontSize: 13, color: '#9ca3af', margin: '6px 0 0' }}>
+                사장님과 함께 장사하는 파트너
+              </p>
+            </>
+          )}
+        </div>
 
-      {/* 모드 탭 */}
-      <div style={{
-        display: 'flex', background: '#F3F4F6', borderRadius: 10,
-        padding: 4, marginBottom: 24, gap: 4,
-      }}>
-        {(['login', 'signup'] as Mode[]).map(m => (
-          <button key={m} onClick={() => { setMode(m); setError(null) }} style={{
-            flex: 1, padding: '8px',
-            border: 'none', borderRadius: 8,
-            fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-            background: mode === m ? '#fff' : 'transparent',
-            color: mode === m ? 'var(--color-primary)' : '#6b7280',
-            boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
-          }}>
-            {m === 'login' ? '로그인' : '회원가입'}
-          </button>
-        ))}
-      </div>
+        <div
+          style={{
+            display: 'flex', background: '#F3F4F6', borderRadius: 10,
+            padding: 4, marginBottom: 24, gap: 4,
+          }}
+        >
+          {(['login', 'signup'] as Mode[]).map(m => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => { setMode(m); setError(null) }}
+              style={{
+                flex: 1, padding: '8px',
+                border: 'none', borderRadius: 8,
+                fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                background: mode === m ? '#fff' : 'transparent',
+                color: mode === m ? 'var(--color-primary)' : '#6b7280',
+                boxShadow: mode === m ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+              }}
+            >
+              {m === 'login' ? '로그인' : '회원가입'}
+            </button>
+          ))}
+        </div>
 
-      {/* 폼 */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {mode === 'signup' && (
-          <Field label="매장 이름">
-            <input
-              type="text"
-              value={storeName}
-              onChange={e => setStoreName(e.target.value)}
-              placeholder="예: 행복분식"
-              style={INPUT_STYLE}
-            />
-          </Field>
-        )}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {mode === 'signup' && (
+            <>
+              <Field label="사업자 유형" required>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <SegButton
+                    active={businessType === 'active'}
+                    onClick={() => setBusinessType('active')}
+                    label="운영중 사업자"
+                  />
+                  <SegButton
+                    active={businessType === 'prospective'}
+                    onClick={() => setBusinessType('prospective')}
+                    label="예비 창업자"
+                  />
+                </div>
+              </Field>
 
-        <Field label="이메일">
-          <input
-            type="email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="owner@restaurant.com"
-            autoComplete="email"
-            style={INPUT_STYLE}
-          />
-        </Field>
+              <Field label="상호명" required>
+                <input
+                  type="text"
+                  value={storeName}
+                  onChange={e => setStoreName(e.target.value)}
+                  placeholder="예: 행복분식"
+                  style={INPUT_STYLE}
+                />
+              </Field>
 
-        <Field label="비밀번호">
-          <input
-            type="password"
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-            placeholder="6자리 이상"
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            style={INPUT_STYLE}
-          />
-        </Field>
+              <Field label="대표자명" required>
+                <input
+                  type="text"
+                  value={representativeName}
+                  onChange={e => setRepresentativeName(e.target.value)}
+                  placeholder="홍길동"
+                  style={INPUT_STYLE}
+                />
+              </Field>
 
-        {mode === 'signup' && (
-          <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, color: '#374151' }}>
-              <input type="checkbox" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} style={{ marginTop: 3 }} />
-              <span>
-                <b>[필수]</b> 이용약관에 동의합니다.{' '}
-                <Link href="/terms" style={{ color: '#4F46E5', textDecoration: 'none', fontWeight: 700 }}>
-                  보기
-                </Link>
-              </span>
-            </label>
-            <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, color: '#374151' }}>
-              <input type="checkbox" checked={agreePrivacy} onChange={(e) => setAgreePrivacy(e.target.checked)} style={{ marginTop: 3 }} />
-              <span>
-                <b>[필수]</b> 개인정보처리방침에 동의합니다.{' '}
-                <Link href="/privacy" style={{ color: '#4F46E5', textDecoration: 'none', fontWeight: 700 }}>
-                  보기
-                </Link>
-              </span>
-            </label>
+              <Field label="연락처" required>
+                <input
+                  type="tel"
+                  value={contactPhone}
+                  onChange={e => setContactPhone(formatPhoneInput(e.target.value))}
+                  placeholder="010-1234-5678"
+                  style={INPUT_STYLE}
+                />
+              </Field>
+
+              <Field label="이메일" required>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="owner@restaurant.com"
+                  autoComplete="email"
+                  style={INPUT_STYLE}
+                />
+              </Field>
+
+              <Field label="사업자등록번호" required={businessType === 'active'}>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={businessNumber}
+                  onChange={e => setBusinessNumber(formatBusinessNumberInput(e.target.value))}
+                  placeholder="000-00-00000"
+                  style={INPUT_STYLE}
+                />
+                {businessType === 'prospective' && (
+                  <p style={{ margin: '6px 0 0', fontSize: 12, color: '#6b7280' }}>
+                    예비창업자는 나중에 등록 가능합니다
+                  </p>
+                )}
+              </Field>
+
+              <Field label="주소" required>
+                <input
+                  type="text"
+                  value={address}
+                  onChange={e => setAddress(e.target.value)}
+                  placeholder="도로명 주소"
+                  style={INPUT_STYLE}
+                />
+              </Field>
+
+              <Field label="상세주소">
+                <input
+                  type="text"
+                  value={addressDetail}
+                  onChange={e => setAddressDetail(e.target.value)}
+                  placeholder="동·호수 (선택)"
+                  style={INPUT_STYLE}
+                />
+              </Field>
+
+              <Field label="비밀번호" required>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="6자리 이상"
+                  autoComplete="new-password"
+                  style={INPUT_STYLE}
+                />
+              </Field>
+
+              <Field label="비밀번호 확인" required>
+                <input
+                  type="password"
+                  value={passwordConfirm}
+                  onChange={e => setPasswordConfirm(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                  placeholder="비밀번호 재입력"
+                  autoComplete="new-password"
+                  style={INPUT_STYLE}
+                />
+              </Field>
+
+              <ConsentBlock
+                required
+                checked={agreeTerms}
+                onChange={setAgreeTerms}
+                label="이용약관에 동의합니다."
+                onView={() => setShowTermsModal(true)}
+              />
+              <ConsentBlock
+                required
+                checked={agreePrivacy}
+                onChange={setAgreePrivacy}
+                label="개인정보처리방침에 동의합니다."
+                onView={() => setShowPrivacyModal(true)}
+              />
+              <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, color: '#374151' }}>
+                <input
+                  type="checkbox"
+                  checked={marketingAgreed}
+                  onChange={e => setMarketingAgreed(e.target.checked)}
+                  style={{ marginTop: 3 }}
+                />
+                <span>
+                  [선택] 마케팅 수신에 동의합니다.
+                  <span style={{ display: 'block', marginTop: 4, color: '#6b7280', fontSize: 12 }}>
+                    시세·특가·발주 리마인드 알림 포함
+                  </span>
+                </span>
+              </label>
+            </>
+          )}
+
+          {mode === 'login' && (
+            <>
+              <Field label="이메일">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="owner@restaurant.com"
+                  autoComplete="email"
+                  style={INPUT_STYLE}
+                />
+              </Field>
+              <Field label="비밀번호">
+                <input
+                  type="password"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSubmit()}
+                  placeholder="6자리 이상"
+                  autoComplete="current-password"
+                  style={INPUT_STYLE}
+                />
+              </Field>
+            </>
+          )}
+        </div>
+
+        {error && (
+          <div
+            style={{
+              marginTop: 12, padding: '10px 14px',
+              background: '#FEF2F2', border: '1px solid #FCA5A5',
+              borderRadius: 8, fontSize: 13, color: '#B91C1C',
+            }}
+          >
+            {error}
           </div>
         )}
-      </div>
 
-      {error && (
-        <div style={{
-          marginTop: 12, padding: '10px 14px',
-          background: '#FEF2F2', border: '1px solid #FCA5A5',
-          borderRadius: 8, fontSize: 13, color: '#B91C1C',
-        }}>
-          {error}
-        </div>
-      )}
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!isReady || loading}
+          style={{
+            ...BTN, marginTop: 20,
+            background: (!isReady || loading) ? '#d1d5db' : 'var(--color-primary)',
+            color: '#fff',
+            cursor: (!isReady || loading) ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {loading ? '처리 중...' : mode === 'login' ? '로그인' : '회원가입'}
+        </button>
 
-      <button
-        onClick={handleSubmit}
-        disabled={!isReady || loading}
-        style={{
-          ...BTN, marginTop: 20,
-          background: (!isReady || loading) ? '#d1d5db' : 'var(--color-primary)',
-          color: '#fff',
-          cursor: (!isReady || loading) ? 'not-allowed' : 'pointer',
-        }}
-      >
-        {loading ? '처리 중...' : mode === 'login' ? '로그인' : '회원가입'}
-      </button>
+        {mode === 'login' && (
+          <p style={{ textAlign: 'center', fontSize: 12, color: '#9ca3af', marginTop: 16 }}>
+            계정이 없으신가요?{' '}
+            <button
+              type="button"
+              onClick={() => { setMode('signup'); setError(null) }}
+              style={{ ...LINK_BTN, fontSize: 12 }}
+            >
+              회원가입
+            </button>
+          </p>
+        )}
+      </Wrapper>
 
-      {mode === 'login' && (
-        <p style={{ textAlign: 'center', fontSize: 12, color: '#9ca3af', marginTop: 16 }}>
-          계정이 없으신가요?{' '}
-          <button
-            onClick={() => { setMode('signup'); setError(null) }}
-            style={{ background: 'none', border: 'none', color: '#4F46E5', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, padding: 0 }}
-          >
-            회원가입
-          </button>
-        </p>
-      )}
-    </Wrapper>
+      <TermsModal open={showTermsModal} onClose={() => setShowTermsModal(false)} />
+      <PrivacyModal open={showPrivacyModal} onClose={() => setShowPrivacyModal(false)} />
+    </>
   )
 }
 
-function Wrapper({ children }: { children: React.ReactNode }) {
+function BrandLogo() {
+  const [imgErr, setImgErr] = useState(false)
+  if (imgErr) {
+    return (
+      <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text)' }}>
+        식식이OS
+      </div>
+    )
+  }
   return (
-    <div style={{
-      minHeight: '100vh', display: 'flex',
-      alignItems: 'center', justifyContent: 'center',
-      background: '#F9FAFB', padding: 24,
-    }}>
-      <div style={{
-        width: '100%', maxWidth: 380,
-        background: '#fff', borderRadius: 20, padding: '40px 32px',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
-      }}>
+    <img
+      src="/logo.png"
+      alt="식식이OS"
+      onError={() => setImgErr(true)}
+      style={{ height: 44, width: 'auto', objectFit: 'contain' }}
+    />
+  )
+}
+
+function SegButton({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      style={{
+        flex: 1,
+        padding: '10px 8px',
+        border: active ? '1.5px solid var(--color-primary)' : '1.5px solid #e5e7eb',
+        borderRadius: 10,
+        background: active ? '#f0fdf4' : '#fff',
+        color: active ? 'var(--color-primary)' : '#374151',
+        fontSize: 13,
+        fontWeight: 600,
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
+function ConsentBlock({
+  required,
+  checked,
+  onChange,
+  label,
+  onView,
+}: {
+  required?: boolean
+  checked: boolean
+  onChange: (v: boolean) => void
+  label: string
+  onView: () => void
+}) {
+  return (
+    <label style={{ display: 'flex', gap: 10, alignItems: 'flex-start', fontSize: 13, color: '#374151' }}>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={e => onChange(e.target.checked)}
+        style={{ marginTop: 3 }}
+      />
+      <span>
+        <b>{required ? '[필수]' : '[선택]'}</b> {label}{' '}
+        <button type="button" onClick={onView} style={LINK_BTN}>
+          보기
+        </button>
+      </span>
+    </label>
+  )
+}
+
+function Wrapper({ children, wide }: { children: React.ReactNode; wide: boolean }) {
+  return (
+    <div
+      style={{
+        minHeight: '100vh', display: 'flex',
+        alignItems: 'center', justifyContent: 'center',
+        background: '#F9FAFB', padding: '24px 16px',
+      }}
+    >
+      <div
+        style={{
+          width: '100%', maxWidth: wide ? 440 : 380,
+          background: '#fff', borderRadius: 20, padding: '36px 28px',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+        }}
+      >
         {children}
       </div>
     </div>
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+  required,
+}: {
+  label: string
+  children: React.ReactNode
+  required?: boolean
+}) {
   return (
     <div>
       <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 5 }}>
         {label}
+        {required ? <span style={{ color: '#DC2626' }}> *</span> : null}
       </label>
       {children}
     </div>
