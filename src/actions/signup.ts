@@ -28,10 +28,6 @@ function cleanDigits(value: string): string {
   return value.replace(/\D/g, '')
 }
 
-function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase()
-}
-
 function isSignupEmailFormatValid(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())
 }
@@ -61,41 +57,6 @@ async function deleteTenant(admin: SupabaseClient, tenantId: string): Promise<vo
   await admin.from('tenants').delete().eq('id', tenantId)
 }
 
-type AuthAdminGetUserByEmail = {
-  getUserByEmail(email: string): Promise<{
-    data: { user: { id: string; email?: string | null } | null }
-    error: { message: string } | null
-  }>
-}
-
-async function getAuthUserIdForEmail(
-  admin: SupabaseClient,
-  email: string,
-): Promise<string | null> {
-  const normalized = normalizeEmail(email)
-  if (!normalized || !isSignupEmailFormatValid(email)) {
-    return null
-  }
-
-  try {
-    const { data, error } = await (
-      admin.auth.admin as unknown as AuthAdminGetUserByEmail
-    ).getUserByEmail(normalized)
-
-    if (error || !data?.user) {
-      return null
-    }
-
-    if (normalizeEmail(data.user.email ?? '') !== normalized) {
-      return null
-    }
-
-    return data.user.id
-  } catch {
-    return null
-  }
-}
-
 async function appUserExistsForId(admin: SupabaseClient, userId: string): Promise<boolean> {
   const { data } = await admin
     .from('users')
@@ -105,22 +66,12 @@ async function appUserExistsForId(admin: SupabaseClient, userId: string): Promis
   return Boolean(data?.id)
 }
 
-async function isSignupAccountTaken(admin: SupabaseClient, email: string): Promise<boolean> {
-  const authUserId = await getAuthUserIdForEmail(admin, email)
-  if (!authUserId) return false
-  return true
-}
-
 export async function checkSignupEmailAvailable(
   email: string,
 ): Promise<{ status: SignupEmailCheckStatus }> {
   const trimmed = email.trim()
   if (!isSignupEmailFormatValid(trimmed)) {
     return { status: 'invalid' }
-  }
-  const admin = await createSupabaseAdmin()
-  if (await isSignupAccountTaken(admin, trimmed)) {
-    return { status: 'duplicate' }
   }
   return { status: 'available' }
 }
@@ -149,10 +100,6 @@ export async function signupAction(input: SignupInput): Promise<ActionResult> {
   }
 
   const admin = await createSupabaseAdmin()
-
-  if (await isSignupAccountTaken(admin, email)) {
-    return { success: false, error: DUPLICATE_EMAIL_ERROR }
-  }
 
   if (cleanedBn.length === 10) {
     const { data: dup } = await admin
