@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { signupAction } from '@/actions/signup'
 import { createBrowserSupabase } from '@/lib/supabase-browser'
 import AddressSearchButton from '@/components/auth/AddressSearchButton'
 import TermsModal from '@/components/auth/TermsModal'
@@ -236,45 +237,33 @@ export default function LoginPage() {
         }
       }
 
-      const { data, error: signUpErr } = await supabase.auth.signUp({
+      const signupResult = await signupAction({
+        email: email.trim(),
+        password,
+        storeName: storeName.trim(),
+        businessType,
+        businessNumber,
+        representativeName: representativeName.trim(),
+        contactPhone: contactPhone.trim(),
+        address: address.trim(),
+        addressDetail: addressDetail.trim(),
+        marketingAgreed,
+      })
+      if (!signupResult.success) {
+        setError(signupResult.error ?? '회원가입 실패')
+        setLoading(false)
+        return
+      }
+
+      const { error: signInAfterSignupErr } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       })
-      if (signUpErr || !data.user) {
-        setError(signUpErr?.message ?? '회원가입 실패')
-        setLoading(false)
-        return
-      }
-
-      const { data: tenant, error: tErr } = await supabase
-        .from('tenants')
-        .insert({
-          name: storeName.trim(),
-          role: 'restaurant',
-          is_approved: false,
-          business_type: businessType,
-          business_number: cleanedBn.length === 10 ? cleanedBn : null,
-          representative_name: representativeName.trim(),
-          contact_phone: contactPhone.trim(),
-          address: address.trim(),
-          address_detail: addressDetail.trim() || null,
-          verification_status: 'unverified',
-          marketing_agreed: marketingAgreed,
-          marketing_agreed_at: marketingAgreed ? new Date().toISOString() : null,
-        })
-        .select('id')
-        .single()
-      if (tErr || !tenant) {
-        setError('매장 등록 실패: ' + tErr?.message)
-        setLoading(false)
-        return
-      }
-
-      const { error: uErr } = await supabase
-        .from('users')
-        .insert({ id: data.user.id, tenant_id: tenant.id, role: 'restaurant' })
-      if (uErr) {
-        setError('계정 연결 실패: ' + uErr.message)
+      if (signInAfterSignupErr) {
+        setError(
+          signInAfterSignupErr.message ??
+            '가입은 완료되었으나 로그인에 실패했습니다. 로그인 화면에서 다시 시도해주세요.',
+        )
         setLoading(false)
         return
       }
