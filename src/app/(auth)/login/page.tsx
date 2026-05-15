@@ -484,6 +484,9 @@ export default function LoginPage() {
                   autoComplete="email"
                   style={INPUT_STYLE}
                 />
+                <p style={{ margin: '6px 0 0', fontSize: 12, color: '#6b7280', lineHeight: 1.45 }}>
+                  입력한 이메일 주소로 로그인합니다
+                </p>
               </Field>
 
               <Field label="주소" required>
