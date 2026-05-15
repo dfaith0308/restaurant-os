@@ -20,6 +20,7 @@ export interface SignupInput {
 }
 
 const DUPLICATE_EMAIL_ERROR = '이미 가입된 이메일입니다'
+const ACCOUNT_EXISTS_ERROR = '이미 사용 중인 계정입니다'
 
 export type SignupEmailCheckStatus = 'invalid' | 'duplicate' | 'available'
 
@@ -45,8 +46,23 @@ function authUserRecordMatchesEmail(user: unknown, email: string): boolean {
   )
 }
 
+function authUserRecordId(user: unknown): string | null {
+  if (!user || typeof user !== 'object' || !('id' in user)) return null
+  const id = (user as { id?: string }).id
+  return typeof id === 'string' ? id : null
+}
+
 function authUserListContainsEmail(users: unknown[], email: string): boolean {
   return users.some(user => authUserRecordMatchesEmail(user, email))
+}
+
+function findAuthUserIdInList(users: unknown[], email: string): string | null {
+  for (const user of users) {
+    if (authUserRecordMatchesEmail(user, email)) {
+      return authUserRecordId(user)
+    }
+  }
+  return null
 }
 
 function isDuplicateEmailAuthError(error: { message?: string; code?: string }): boolean {
@@ -78,29 +94,34 @@ type AdminAuthApi = {
   getUserByEmail?: (
     email: string,
   ) => Promise<{
-    data: { user: { id: string } | null }
+    data: { user: { id: string; email?: string } | null }
     error: { message: string; status?: number } | null
   }>
 }
 
-async function authUserExistsForEmail(admin: SupabaseClient, email: string): Promise<boolean> {
+async function getAuthUserIdForEmail(
+  admin: SupabaseClient,
+  email: string,
+): Promise<string | null> {
   const normalized = normalizeEmail(email)
-  if (!normalized || !isSignupEmailFormatValid(email)) return false
+  if (!normalized || !isSignupEmailFormatValid(email)) return null
 
   const adminAuth = admin.auth.admin as AdminAuthApi
   if (typeof adminAuth.getUserByEmail === 'function') {
     const { data, error } = await adminAuth.getUserByEmail(email)
-    if (data?.user && authUserRecordMatchesEmail(data.user, email)) return true
+    if (data?.user && authUserRecordMatchesEmail(data.user, email)) {
+      return authUserRecordId(data.user)
+    }
     if (error) {
       const msg = error.message.toLowerCase()
-      if (error.status === 404 || msg.includes('not found')) return false
+      if (error.status === 404 || msg.includes('not found')) return null
     }
-    return false
+    return null
   }
 
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!baseUrl || !serviceKey) return false
+  if (!baseUrl || !serviceKey) return null
 
   const res = await fetch(
     `${baseUrl}/auth/v1/admin/users?email=${encodeURIComponent(email)}`,
@@ -114,17 +135,36 @@ async function authUserExistsForEmail(admin: SupabaseClient, email: string): Pro
     },
   )
 
-  if (res.status === 404) return false
-  if (!res.ok) return false
+  if (res.status === 404) return null
+  if (!res.ok) return null
 
   const body: unknown = await res.json()
-  if (!body || typeof body !== 'object') return false
+  if (!body || typeof body !== 'object') return null
 
   if ('users' in body && Array.isArray((body as { users: unknown[] }).users)) {
-    return authUserListContainsEmail((body as { users: unknown[] }).users, email)
+    return findAuthUserIdInList((body as { users: unknown[] }).users, email)
   }
 
-  return authUserRecordMatchesEmail(body, email)
+  if (authUserRecordMatchesEmail(body, email)) {
+    return authUserRecordId(body)
+  }
+
+  return null
+}
+
+async function appUserExistsForId(admin: SupabaseClient, userId: string): Promise<boolean> {
+  const { data } = await admin
+    .from('users')
+    .select('id')
+    .eq('id', userId)
+    .maybeSingle()
+  return Boolean(data?.id)
+}
+
+async function isSignupAccountTaken(admin: SupabaseClient, email: string): Promise<boolean> {
+  const authUserId = await getAuthUserIdForEmail(admin, email)
+  if (!authUserId) return false
+  return true
 }
 
 export async function checkSignupEmailAvailable(
@@ -135,8 +175,9 @@ export async function checkSignupEmailAvailable(
     return { status: 'invalid' }
   }
   const admin = await createSupabaseAdmin()
-  const exists = await authUserExistsForEmail(admin, trimmed)
-  if (exists) return { status: 'duplicate' }
+  if (await isSignupAccountTaken(admin, trimmed)) {
+    return { status: 'duplicate' }
+  }
   return { status: 'available' }
 }
 
@@ -165,7 +206,7 @@ export async function signupAction(input: SignupInput): Promise<ActionResult> {
 
   const admin = await createSupabaseAdmin()
 
-  if (await authUserExistsForEmail(admin, email)) {
+  if (await isSignupAccountTaken(admin, email)) {
     return { success: false, error: DUPLICATE_EMAIL_ERROR }
   }
 
@@ -195,6 +236,11 @@ export async function signupAction(input: SignupInput): Promise<ActionResult> {
 
   const userId = authData.user.id
 
+  if (await appUserExistsForId(admin, userId)) {
+    await deleteAuthUser(admin, userId)
+    return { success: false, error: ACCOUNT_EXISTS_ERROR }
+  }
+
   const { data: tenant, error: tenantErr } = await admin
     .from('tenants')
     .insert({
@@ -221,17 +267,6 @@ export async function signupAction(input: SignupInput): Promise<ActionResult> {
 
   const tenantId = tenant.id
 
-  const { data: existingAppUser } = await admin
-    .from('users')
-    .select('id')
-    .eq('id', userId)
-    .maybeSingle()
-
-  if (existingAppUser) {
-    await deleteTenant(admin, tenantId)
-    return { success: false, error: DUPLICATE_EMAIL_ERROR }
-  }
-
   const { error: userErr } = await admin.from('users').insert({
     id: userId,
     tenant_id: tenantId,
@@ -242,7 +277,7 @@ export async function signupAction(input: SignupInput): Promise<ActionResult> {
   if (userErr) {
     await deleteTenant(admin, tenantId)
     if (isUsersDuplicateKeyError(userErr.message)) {
-      return { success: false, error: DUPLICATE_EMAIL_ERROR }
+      return { success: false, error: ACCOUNT_EXISTS_ERROR }
     }
     await deleteAuthUser(admin, userId)
     return { success: false, error: '계정 연결에 실패했습니다. 잠시 후 다시 시도해주세요.' }
