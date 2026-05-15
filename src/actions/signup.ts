@@ -20,7 +20,6 @@ export interface SignupInput {
 }
 
 const DUPLICATE_EMAIL_ERROR = '이미 가입된 이메일입니다'
-const ACCOUNT_EXISTS_ERROR = '이미 사용 중인 계정입니다'
 
 export type SignupEmailCheckStatus = 'invalid' | 'duplicate' | 'available'
 
@@ -44,11 +43,6 @@ function isDuplicateEmailAuthError(error: { message?: string; code?: string }): 
   )
 }
 
-function isUsersDuplicateKeyError(message: string): boolean {
-  const m = message.toLowerCase()
-  return m.includes('users_pkey') || m.includes('duplicate key value violates unique constraint')
-}
-
 async function deleteAuthUser(admin: SupabaseClient, userId: string): Promise<void> {
   await admin.auth.admin.deleteUser(userId)
 }
@@ -57,13 +51,54 @@ async function deleteTenant(admin: SupabaseClient, tenantId: string): Promise<vo
   await admin.from('tenants').delete().eq('id', tenantId)
 }
 
-async function appUserExistsForId(admin: SupabaseClient, userId: string): Promise<boolean> {
-  const { data } = await admin
+function isTriggerPlaceholderTenant(
+  tenant: { role: string | null; name: string | null },
+  userRole: string | null,
+): boolean {
+  if (userRole === 'supplier') return true
+  if (tenant.role === 'supplier' || tenant.role === null) return true
+  if (tenant.name === '내 회사') return true
+  return false
+}
+
+async function cleanupTriggerOnboardingArtifacts(
+  admin: SupabaseClient,
+  userId: string,
+): Promise<void> {
+  const { data: existingUser } = await admin
     .from('users')
-    .select('id')
+    .select('tenant_id, role')
     .eq('id', userId)
     .maybeSingle()
-  return Boolean(data?.id)
+
+  if (existingUser?.tenant_id) {
+    const { data: linkedTenant } = await admin
+      .from('tenants')
+      .select('id, role, name')
+      .eq('id', existingUser.tenant_id)
+      .maybeSingle()
+
+    if (
+      linkedTenant &&
+      isTriggerPlaceholderTenant(linkedTenant, existingUser.role ?? null)
+    ) {
+      await admin.from('users').delete().eq('id', userId)
+      await deleteTenant(admin, linkedTenant.id)
+    }
+  }
+
+  const { data: ownerTenants, error: ownerQueryErr } = await admin
+    .from('tenants')
+    .select('id, role, name')
+    .eq('owner_id', userId)
+
+  if (!ownerQueryErr && ownerTenants) {
+    for (const tenant of ownerTenants) {
+      if (isTriggerPlaceholderTenant(tenant, 'supplier')) {
+        await deleteTenant(admin, tenant.id)
+      }
+    }
+  }
 }
 
 export async function checkSignupEmailAvailable(
@@ -116,6 +151,9 @@ export async function signupAction(input: SignupInput): Promise<ActionResult> {
     email,
     password,
     email_confirm: true,
+    user_metadata: {
+      role: 'restaurant',
+    },
   })
 
   if (authErr || !authData.user) {
@@ -127,10 +165,7 @@ export async function signupAction(input: SignupInput): Promise<ActionResult> {
 
   const userId = authData.user.id
 
-  if (await appUserExistsForId(admin, userId)) {
-    await deleteAuthUser(admin, userId)
-    return { success: false, error: ACCOUNT_EXISTS_ERROR }
-  }
+  await cleanupTriggerOnboardingArtifacts(admin, userId)
 
   const { data: tenant, error: tenantErr } = await admin
     .from('tenants')
@@ -158,18 +193,18 @@ export async function signupAction(input: SignupInput): Promise<ActionResult> {
 
   const tenantId = tenant.id
 
-  const { error: userErr } = await admin.from('users').insert({
-    id: userId,
-    tenant_id: tenantId,
-    role: 'restaurant',
-    user_type: 'human',
-  })
+  const { error: userErr } = await admin.from('users').upsert(
+    {
+      id: userId,
+      tenant_id: tenantId,
+      role: 'restaurant',
+      user_type: 'human',
+    },
+    { onConflict: 'id' },
+  )
 
   if (userErr) {
     await deleteTenant(admin, tenantId)
-    if (isUsersDuplicateKeyError(userErr.message)) {
-      return { success: false, error: ACCOUNT_EXISTS_ERROR }
-    }
     await deleteAuthUser(admin, userId)
     return { success: false, error: '계정 연결에 실패했습니다. 잠시 후 다시 시도해주세요.' }
   }
