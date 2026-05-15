@@ -6,6 +6,41 @@ import type { ActionResult } from '@/types'
 import type { Order } from '@/types'
 import { getTenantId } from '@/lib/get-restaurant'
 
+/** `orders` list/detail select() row → `Order` (Supabase 추론과 `Order` 정합) */
+type OrderSelectRow = {
+  id: string
+  buyer_tenant_id: string
+  rfq_id: string | null
+  bid_id: string | null
+  counterparty_name: string | null
+  product_name: string
+  quantity: number
+  unit: string
+  unit_price: number
+  total_amount: number
+  saving_amount: number | null
+  status: string
+  created_at: string
+}
+
+function mapOrderRow(row: OrderSelectRow): Order {
+  return {
+    id: row.id,
+    buyer_tenant_id: row.buyer_tenant_id,
+    rfq_id: row.rfq_id ?? null,
+    bid_id: row.bid_id ?? null,
+    counterparty_name: row.counterparty_name ?? '',
+    product_name: row.product_name,
+    quantity: row.quantity,
+    unit: row.unit,
+    unit_price: row.unit_price,
+    total_amount: row.total_amount,
+    saving_amount: row.saving_amount ?? 0,
+    status: row.status as Order['status'],
+    created_at: row.created_at,
+  }
+}
+
 // ── 납품확인 완료 ─────────────────────────────────────────────
 // orders.status = 'completed'
 // ingredients.current_price 업데이트 (연결된 ingredient 있을 때)
@@ -209,7 +244,7 @@ export async function getPendingDeliveries(
     return {
       order_id:      o.id,
       rfq_id:        o.rfq_id ?? null,
-      counterparty_name: o.counterparty_name,
+      counterparty_name: (o as { counterparty_name: string | null }).counterparty_name ?? '',
       product_name:  o.product_name,
       quantity:      o.quantity,
       unit:          o.unit,
@@ -243,8 +278,8 @@ export async function getOrdersList(
   if (status) query = query.eq('status', status)
 
   const { data, error } = await query
-  if (error) return { success: false, error: error.message, data: [] }
-  return { success: true, data: (data ?? []) as Order[] }
+  if (error) return { success: false, error: error.message }
+  return { success: true, data: (data ?? []).map((row) => mapOrderRow(row as OrderSelectRow)) }
 }
 
 // ── 주문 상세 (orders + restaurant_order_items) ─────────────────
@@ -290,12 +325,15 @@ export async function getOrderDetail(
   if (lineErr) {
     return {
       success: true,
-      data: { order: order as Order, order_lines: [] },
+      data: { order: mapOrderRow(order as OrderSelectRow), order_lines: [] },
       error: '주문 품목을 불러오지 못했어요',
     }
   }
 
-  return { success: true, data: { order: order as Order, order_lines: (lines ?? []) as OrderItemRow[] } }
+  return {
+    success: true,
+    data: { order: mapOrderRow(order as OrderSelectRow), order_lines: (lines ?? []) as OrderItemRow[] },
+  }
 }
 
 // ── 주문 상태 변경 (상세 페이지 버튼용) ───────────────────────────
