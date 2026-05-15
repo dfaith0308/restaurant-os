@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserSupabase } from '@/lib/supabase-browser'
+import AddressSearchButton from '@/components/auth/AddressSearchButton'
 import TermsModal from '@/components/auth/TermsModal'
 import PrivacyModal from '@/components/auth/PrivacyModal'
 
@@ -100,8 +101,8 @@ export default function LoginPage() {
   const [contactPhone, setContactPhone] = useState('')
   const [address, setAddress] = useState('')
   const [addressDetail, setAddressDetail] = useState('')
-  const [agreeTerms, setAgreeTerms] = useState(false)
-  const [agreePrivacy, setAgreePrivacy] = useState(false)
+  const [agreeTerms, setAgreeTerms] = useState(true)
+  const [agreePrivacy, setAgreePrivacy] = useState(true)
   const [marketingAgreed, setMarketingAgreed] = useState(false)
   const [showTermsModal, setShowTermsModal] = useState(false)
   const [showPrivacyModal, setShowPrivacyModal] = useState(false)
@@ -110,6 +111,12 @@ export default function LoginPage() {
   const [done, setDone] = useState(false)
   const [bizNumberChecked, setBizNumberChecked] = useState(false)
   const [bizNumberStatus, setBizNumberStatus] = useState<BizNumberStatus>('idle')
+  const [passwordConfirmTouched, setPasswordConfirmTouched] = useState(false)
+
+  const showPasswordMismatch =
+    passwordConfirmTouched &&
+    passwordConfirm.length > 0 &&
+    password !== passwordConfirm
 
   const loginReady = Boolean(email.trim() && password.length >= 6)
   const bizNumberOk =
@@ -491,13 +498,22 @@ export default function LoginPage() {
               </Field>
 
               <Field label="주소" required>
-                <input
-                  type="text"
-                  value={address}
-                  onChange={e => setAddress(e.target.value)}
-                  placeholder="도로명 주소"
-                  style={INPUT_STYLE}
-                />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+                  <input
+                    type="text"
+                    value={address}
+                    readOnly
+                    placeholder="주소 검색으로 입력"
+                    style={{
+                      ...INPUT_STYLE,
+                      flex: 1,
+                      minWidth: 0,
+                      background: address.trim() ? '#fff' : '#f9fafb',
+                      color: address.trim() ? 'var(--color-text)' : '#9ca3af',
+                    }}
+                  />
+                  <AddressSearchButton onSelect={setAddress} />
+                </div>
               </Field>
 
               <Field label="상세주소">
@@ -525,12 +541,21 @@ export default function LoginPage() {
                 <input
                   type="password"
                   value={passwordConfirm}
-                  onChange={e => setPasswordConfirm(e.target.value)}
+                  onChange={e => {
+                    if (!passwordConfirmTouched) setPasswordConfirmTouched(true)
+                    setPasswordConfirm(e.target.value)
+                  }}
+                  onBlur={() => setPasswordConfirmTouched(true)}
                   onKeyDown={e => e.key === 'Enter' && handleSubmit()}
                   placeholder="비밀번호 재입력"
                   autoComplete="new-password"
                   style={INPUT_STYLE}
                 />
+                {showPasswordMismatch && (
+                  <p style={{ margin: '6px 0 0', fontSize: 12, color: '#B91C1C' }}>
+                    비밀번호가 일치하지 않습니다
+                  </p>
+                )}
               </Field>
 
               <ConsentBlock
