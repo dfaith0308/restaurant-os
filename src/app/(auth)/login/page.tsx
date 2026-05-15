@@ -651,22 +651,59 @@ export default function LoginPage() {
   )
 }
 
+const LOGO_SHELL: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: '100%',
+  minHeight: 40,
+  maxHeight: 40,
+  margin: '0 auto',
+  overflow: 'hidden',
+}
+
+const LOGO_IMG: React.CSSProperties = {
+  display: 'block',
+  height: 40,
+  maxHeight: 40,
+  width: 'auto',
+  maxWidth: 'min(200px, 72vw)',
+  objectFit: 'contain',
+}
+
+const LOGO_FALLBACK: React.CSSProperties = {
+  margin: 0,
+  fontSize: 20,
+  fontWeight: 800,
+  lineHeight: '40px',
+  letterSpacing: '-0.02em',
+  color: 'var(--color-text)',
+  whiteSpace: 'nowrap',
+}
+
 function BrandLogo() {
   const [imgErr, setImgErr] = useState(false)
+
   if (imgErr) {
     return (
-      <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text)' }}>
-        식식이OS
+      <div style={LOGO_SHELL} role="img" aria-label="식식이OS">
+        <span style={LOGO_FALLBACK}>식식이OS</span>
       </div>
     )
   }
+
   return (
-    <img
-      src="/logo.png"
-      alt="식식이OS"
-      onError={() => setImgErr(true)}
-      style={{ height: 44, width: 'auto', objectFit: 'contain' }}
-    />
+    <div style={LOGO_SHELL}>
+      <img
+        src="/logo.png"
+        alt="식식이OS"
+        width={160}
+        height={40}
+        decoding="async"
+        onError={() => setImgErr(true)}
+        style={LOGO_IMG}
+      />
+    </div>
   )
 }
 
