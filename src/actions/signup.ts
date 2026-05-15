@@ -109,6 +109,7 @@ export async function signupAction(input: SignupInput): Promise<ActionResult> {
     id: userId,
     tenant_id: tenantId,
     role: 'restaurant',
+    user_type: 'human',
   })
 
   if (userErr) {

@@ -572,9 +572,60 @@ export default function LoginPage() {
                   autoComplete="email"
                   style={INPUT_STYLE}
                 />
-                <p style={{ margin: '6px 0 0', fontSize: 12, color: '#6b7280', lineHeight: 1.45 }}>
-                  입력한 이메일 주소로 로그인합니다
-                </p>
+                <div
+                  role="note"
+                  style={{
+                    margin: '8px 0 0',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    padding: '10px 12px',
+                    background: '#ecfdf5',
+                    border: '1px solid #a7f3d0',
+                    borderRadius: 10,
+                  }}
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                    style={{ flexShrink: 0, marginTop: 1 }}
+                  >
+                    <path
+                      d="M4 6h16v12H4V6zm0 0 8 6 8-6"
+                      stroke="var(--color-primary)"
+                      strokeWidth="1.75"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                  <div style={{ minWidth: 0 }}>
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: 'var(--color-primary)',
+                        letterSpacing: '-0.01em',
+                      }}
+                    >
+                      로그인 아이디 안내
+                    </p>
+                    <p
+                      style={{
+                        margin: '4px 0 0',
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: '#14532d',
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      입력한 이메일 주소로 로그인합니다
+                    </p>
+                  </div>
+                </div>
               </Field>
 
               <Field label="주소" required>
