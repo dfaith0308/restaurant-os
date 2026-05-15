@@ -1,9 +1,10 @@
-import { getTenantId } from '@/lib/get-restaurant'
+import { getTenantId, requireNetworkApprovedPage } from '@/lib/get-restaurant'
 import { getMoneyDashboard } from '@/actions/money'
 import MoneyClient from '@/components/money/MoneyClient'
 
 export default async function MoneyUpcomingPage() {
   const tenantId = await getTenantId()
+  await requireNetworkApprovedPage()
   const result = await getMoneyDashboard(tenantId)
   const data = result.data ?? {
     due_this_week: 0,

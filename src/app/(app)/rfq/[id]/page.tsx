@@ -1,7 +1,7 @@
 import { getRfqDetail, getOrderByRfqId } from '@/actions/rfq'
 import BidCompareClient from '@/components/rfq/BidCompareClient'
 import Link from 'next/link'
-import { getTenantId } from '@/lib/get-restaurant'
+import { getTenantId, requireNetworkApprovedPage } from '@/lib/get-restaurant'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -10,6 +10,7 @@ interface Props {
 export default async function RfqDetailPage({ params }: Props) {
   const { id } = await params
   const tenant_id = await getTenantId()
+  await requireNetworkApprovedPage()
   const result = await getRfqDetail(id, tenant_id)
 
   if (!result.success || !result.data) {

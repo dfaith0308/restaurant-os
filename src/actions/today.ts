@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { fetchHistoriesForIngredients } from '@/lib/personalized-price'
 import { getRestaurantBehaviorProfile } from '@/lib/behavior-profile'
 import { isSimilarForGrouping } from '@/lib/sku'
-import { getTenantId } from '@/lib/get-restaurant'
+import { getTenantId, isTenantApprovedForNetwork, networkApprovalErrorIfBlocked } from '@/lib/get-restaurant'
 import type { ActionResult, TodayDashboard, SavingOpportunity } from '@/types'
 import { getPendingDeliveries, type PendingDelivery } from '@/actions/orders'
 import { markPaymentPaid as markPaymentPaidMoney } from './money'
@@ -16,6 +16,8 @@ export async function getTodayDashboard(
   tenant_id: string,
 ): Promise<ActionResult<TodayDashboard>> {
   const supabase = await createServerClient()
+
+  const networkOk = await isTenantApprovedForNetwork()
 
   const in3days = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10)
   const month   = new Date().toISOString().slice(0, 7)
@@ -199,36 +201,61 @@ export async function getTodayDashboard(
   const paymentDue3days = (payments3d ?? []).reduce((s, p) => s + p.amount, 0)
   const paymentTotal    = (allPayments ?? []).reduce((s, p) => s + p.amount, 0)
 
-  // 납품 대기 주문 (confirmed 상태) — 별도 조회
-  const pendingDeliveriesResult = await getPendingDeliveries(tenant_id)
-  const pending_deliveries: PendingDelivery[] = pendingDeliveriesResult.data ?? []
+  // 납품 대기 주문 (confirmed 상태) — 별도 조회 (승인 전에는 네트워크 기능 비활성 → 조회 생략)
+  const pendingDeliveriesResult = networkOk
+    ? await getPendingDeliveries(tenant_id)
+    : { success: true as const, data: [] as PendingDelivery[] }
+  let pending_deliveries: PendingDelivery[] = pendingDeliveriesResult.data ?? []
 
   // 전체 누적 절약액 + 완료 횟수 (savings_stats 전월 합산)
   const { data: allStats } = await supabase
     .from('savings_stats')
     .select('total_saving, order_count')
     .eq('tenant_id', tenant_id)
-  const total_saving_ever  = (allStats ?? []).reduce((s, r) => s + r.total_saving, 0)
-  const total_orders_ever  = (allStats ?? []).reduce((s, r) => s + r.order_count, 0)
+  const total_saving_ever_raw  = (allStats ?? []).reduce((s, r) => s + r.total_saving, 0)
+  const total_orders_ever_raw  = (allStats ?? []).reduce((s, r) => s + r.order_count, 0)
+
+  let paymentDue3daysOut = paymentDue3days
+  let paymentTotalOut = paymentTotal
+  let paymentUrgentOut = payments3d ?? []
+  let notificationsOut = notifications ?? []
+  let openRfqsCountOut = openRfqsCount ?? 0
+  let rfqTotalOut = rfqTotal ?? 0
+  let monthlySavingOut = savingsThisMonth?.total_saving ?? 0
+  let pendingDeliveriesOut = pending_deliveries
+  let totalSavingEverOut = total_saving_ever_raw
+  let totalOrdersEverOut = total_orders_ever_raw
+
+  if (!networkOk) {
+    paymentDue3daysOut = 0
+    paymentTotalOut = 0
+    paymentUrgentOut = []
+    notificationsOut = []
+    openRfqsCountOut = 0
+    rfqTotalOut = 0
+    monthlySavingOut = 0
+    totalSavingEverOut = 0
+    totalOrdersEverOut = 0
+  }
 
   return {
     success: true,
     data: {
-      payment_due_3days:    paymentDue3days,
-      payment_total:        paymentTotal,
-      payment_urgent:       payments3d ?? [],
+      payment_due_3days:    paymentDue3daysOut,
+      payment_total:        paymentTotalOut,
+      payment_urgent:       paymentUrgentOut,
       saving_opportunities: savingOpportunities,
-      monthly_saving:       savingsThisMonth?.total_saving ?? 0,
-      notifications:        notifications ?? [],
-      open_rfqs:            openRfqsCount ?? 0,
+      monthly_saving:       monthlySavingOut,
+      notifications:        notificationsOut,
+      open_rfqs:            openRfqsCountOut,
       behavior_profile,
       ingredient_count:     ingList.length,
       ingredient_priced:    ingList.filter(i => i.current_price).length,
       fixed_cost_count:     fixedCostCount ?? 0,
-      rfq_total:            rfqTotal ?? 0,
-      pending_deliveries,
-      total_saving_ever,
-      total_orders_ever,
+      rfq_total:            rfqTotalOut,
+      pending_deliveries:   pendingDeliveriesOut,
+      total_saving_ever:    totalSavingEverOut,
+      total_orders_ever:    totalOrdersEverOut,
     },
   }
 }
@@ -236,6 +263,8 @@ export async function getTodayDashboard(
 // ── 지급 완료 처리 ────────────────────────────────────────────
 // 단일 구현은 actions/money.ts의 markPaymentPaid(payment_id, tenant_id)로 통일.
 export async function markPaymentPaid(payment_id: string): Promise<ActionResult> {
+  const err = await networkApprovalErrorIfBlocked()
+  if (err) return { success: false, error: err }
   const tenant_id = await getTenantId()
   return markPaymentPaidMoney(payment_id, tenant_id)
 }

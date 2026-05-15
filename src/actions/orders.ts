@@ -4,7 +4,7 @@ import { createServerClient } from '@/lib/supabase-server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types'
 import type { Order } from '@/types'
-import { getTenantId } from '@/lib/get-restaurant'
+import { getTenantId, networkApprovalErrorIfBlocked } from '@/lib/get-restaurant'
 
 /** `orders` list/detail select() row → `Order` (Supabase 추론과 `Order` 정합) */
 type OrderSelectRow = {
@@ -50,6 +50,9 @@ export async function markOrderDelivered(
   tenant_id: string,
   order_id: string,
 ): Promise<ActionResult> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
   const supabase = await createServerClient()
 
   // 주문 조회 (rfq_id 통해 ingredient 연결 찾기 위해)
@@ -139,6 +142,9 @@ export async function cancelOrder(
   order_id: string,
   reason?: string,
 ): Promise<ActionResult> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
   const supabase = await createServerClient()
   const tenant_id = await getTenantId().catch(() => null)
   if (!tenant_id) return { success: false, error: '인증 필요' }
@@ -204,6 +210,9 @@ export interface PendingDelivery {
 export async function getPendingDeliveries(
   tenant_id: string,
 ): Promise<ActionResult<PendingDelivery[]>> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny, data: [] }
+
   const supabase = await createServerClient()
 
   const { data: orders, error } = await supabase
@@ -267,6 +276,9 @@ export async function getOrdersList(
   tenant_id: string,
   status?: OrderStatus,
 ): Promise<ActionResult<Order[]>> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny, data: [] }
+
   const supabase = await createServerClient()
 
   let query = supabase
@@ -300,6 +312,9 @@ export async function getOrderDetail(
   tenant_id: string,
   order_id:  string,
 ): Promise<ActionResult<{ order: Order; order_lines: OrderItemRow[] }>> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
   const supabase = await createServerClient()
 
   // 1) 주문을 tenant 스코프로 먼저 검증 (다른 tenant 주문 절대 노출 금지)
@@ -343,6 +358,9 @@ export async function updateOrderStatus(
   order_id:  string,
   next_status: 'completed',
 ): Promise<ActionResult> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
   const supabase = await createServerClient()
 
   // 다른 tenant 주문 절대 변경 금지: buyer_tenant_id로 스코프 제한

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getTenantId } from '@/lib/get-restaurant'
+import { getTenantId, requireNetworkApprovedPage } from '@/lib/get-restaurant'
 import { createServerClient } from '@/lib/supabase-server'
 import { formatKRW } from '@/lib/utils'
 import type { RfqBid, RfqRequest } from '@/types'
@@ -13,6 +13,7 @@ type BidRow = Pick<RfqBid, 'id' | 'rfq_id' | 'supplier_name' | 'price' | 'delive
 
 export default async function OrderResultsPage() {
   const tenant_id = await getTenantId()
+  await requireNetworkApprovedPage()
   const supabase = await createServerClient()
 
   const { data: rfqs, error: rfqErr } = await supabase

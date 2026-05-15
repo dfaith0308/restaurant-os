@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createBrowserSupabase } from '@/lib/supabase-browser'
 
@@ -58,9 +59,81 @@ export default function PendingClient() {
           승인되면 바로 사용하실 수 있습니다
         </p>
 
-        <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 32px' }}>
+        <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 20px' }}>
           보통 하루 안에 승인됩니다
         </p>
+
+        <div
+          style={{
+            padding: '14px 16px',
+            background: '#F3F4F6',
+            borderRadius: 12,
+            marginBottom: 20,
+            textAlign: 'left',
+          }}
+        >
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#374151', margin: '0 0 6px' }}>
+            지금 바로 쓸 수 있는 기능
+          </p>
+          <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 14px', lineHeight: 1.55 }}>
+            메뉴 입력, 원가 계산, 쇼핑몰은
+            <br />
+            지금 바로 사용 가능합니다.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <Link
+              href="/settings/menus"
+              style={{
+                display: 'block',
+                textAlign: 'center',
+                padding: '11px 14px',
+                background: '#fff',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--color-primary)',
+                textDecoration: 'none',
+              }}
+            >
+              메뉴 관리
+            </Link>
+            <Link
+              href="/settings/ingredients"
+              style={{
+                display: 'block',
+                textAlign: 'center',
+                padding: '11px 14px',
+                background: '#fff',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--color-primary)',
+                textDecoration: 'none',
+              }}
+            >
+              재료 · 원가
+            </Link>
+            <Link
+              href="/buy"
+              style={{
+                display: 'block',
+                textAlign: 'center',
+                padding: '11px 14px',
+                background: '#fff',
+                border: '1px solid #e5e7eb',
+                borderRadius: 10,
+                fontSize: 13,
+                fontWeight: 600,
+                color: 'var(--color-primary)',
+                textDecoration: 'none',
+              }}
+            >
+              쇼핑몰
+            </Link>
+          </div>
+        </div>
 
         <button
           onClick={handleSignOut}

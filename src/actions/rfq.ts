@@ -3,7 +3,7 @@
 import { createServerClient } from '@/lib/supabase-server'
 import { getAdminSettingNumber } from '@/lib/admin-settings-read'
 import type { ActionResult, RfqRequest, RfqBid } from '@/types'
-import { getTenantId } from '@/lib/get-restaurant'
+import { getTenantId, networkApprovalErrorIfBlocked } from '@/lib/get-restaurant'
 import { getAuthCtx } from '@/lib/supabase-server'
 import { revalidatePath } from 'next/cache'
 
@@ -23,6 +23,9 @@ export interface CreateRfqInput {
 export async function createRfqRequest(
   input: CreateRfqInput,
 ): Promise<ActionResult<{ id: string }>> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
   const supabase = await createServerClient()
   const ctx = await getAuthCtx(supabase)
   if (!ctx) return { success: false, error: '인증 필요' }
@@ -41,7 +44,6 @@ export async function createRfqRequest(
     .gte('created_at', sinceIso)
 
   if (repeatErr) {
-    console.error('[createRfqRequest] repeat check', repeatErr)
     return { success: false, error: repeatErr.message }
   }
   if ((recentRepeatCount ?? 0) >= repeatLimit) {
@@ -73,7 +75,6 @@ export async function createRfqRequest(
     .single()
 
   if (error || !data) {
-    console.error('[createRfqRequest]', error)
     return { success: false, error: error?.message ?? '발주요청 생성 실패' }
   }
 
@@ -112,6 +113,9 @@ export async function getRfqList(
   tenant_id: string,
   status?: string,
 ): Promise<ActionResult<RfqRequest[]>> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny, data: [] }
+
   const supabase = await createServerClient()
 
   let query = supabase
@@ -133,6 +137,9 @@ export async function getRfqDetail(
   rfq_id: string,
   tenant_id: string,
 ): Promise<ActionResult<{ rfq: RfqRequest; bids: RfqBid[] }>> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
   const supabase = await createServerClient()
 
   const [{ data: rfq, error: rfqErr }, { data: bids, error: bidErr }] = await Promise.all([
@@ -172,6 +179,9 @@ export interface CreateBidInput {
 export async function createBid(
   input: CreateBidInput,
 ): Promise<ActionResult<{ id: string }>> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
   const supabase = await createServerClient()
 
   const tenant_id = await getTenantId().catch(() => null)
@@ -193,7 +203,6 @@ export async function createBid(
     .single()
 
   if (error || !data) {
-    console.error('[createBid]', error)
     return { success: false, error: error?.message ?? '입찰 등록 실패' }
   }
 
@@ -209,6 +218,9 @@ export async function acceptBidAndCreateOrder(
   tenant_id: string,
   session_id?: string,
 ): Promise<ActionResult<{ order_id: string }>> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
   const supabase = await createServerClient()
 
   const { data: rpcData, error: rpcErr } = await supabase
@@ -260,9 +272,7 @@ export async function acceptBidAndCreateOrder(
   try {
     const { notifyRfqBidOutcomesAfterAccept } = await import('@/lib/rfq-notify-suppliers')
     await notifyRfqBidOutcomesAfterAccept(supabase, rfq_id, tenant_id)
-  } catch (e) {
-    console.error('[acceptBidAndCreateOrder] notifyRfqBidOutcomesAfterAccept', e)
-  }
+  } catch { /* 알림 실패는 주문 확정 결과에 영향 없음 */ }
 
   return { success: true, data: { order_id } }
 }
@@ -288,6 +298,9 @@ export interface LinkedOrder {
 export async function getOrderByRfqId(
   rfq_id: string,
 ): Promise<ActionResult<LinkedOrder | null>> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
   const supabase = await createServerClient()
   const tenant_id = await getTenantId().catch(() => null)
   if (!tenant_id) return { success: false, error: '인증 필요' }
@@ -310,6 +323,9 @@ export async function closeRfq(
   rfq_id: string,
   reason: string,
 ): Promise<ActionResult> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
   const supabase = await createServerClient()
   const tenant_id = await getTenantId().catch(() => null)
   if (!tenant_id) return { success: false, error: '인증 필요' }

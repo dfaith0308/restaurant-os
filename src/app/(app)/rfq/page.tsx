@@ -1,7 +1,7 @@
 import { getRfqList } from '@/actions/rfq'
 import RfqListClient from '@/components/rfq/RfqListClient'
 import Link from 'next/link'
-import { getTenantId } from '@/lib/get-restaurant'
+import { getTenantId, requireNetworkApprovedPage } from '@/lib/get-restaurant'
 
 const ALLOWED_STATUS = new Set(['open', 'ordered', 'closed'])
 
@@ -11,6 +11,7 @@ export default async function RfqPage({
   searchParams?: Promise<{ status?: string }>
 }) {
   const tenant_id = await getTenantId()
+  await requireNetworkApprovedPage()
   const sp = (await searchParams) ?? {}
   const status = sp.status && ALLOWED_STATUS.has(sp.status) ? (sp.status as 'open' | 'ordered' | 'closed') : undefined
 

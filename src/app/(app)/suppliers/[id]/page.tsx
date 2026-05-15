@@ -1,9 +1,11 @@
 import { getSupplierDetail } from '@/actions/suppliers'
+import { requireNetworkApprovedPage } from '@/lib/get-restaurant'
 import Link from 'next/link'
 import { formatKRW } from '@/lib/utils'
 
 export default async function SupplierDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  await requireNetworkApprovedPage()
   const result = await getSupplierDetail(id)
   if (!result.success || !result.data) {
     return <main style={{ padding: 40, textAlign: 'center', color: '#9ca3af' }}>거래처를 찾을 수 없어요</main>

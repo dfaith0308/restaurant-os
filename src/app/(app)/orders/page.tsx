@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getTenantId } from '@/lib/get-restaurant'
+import { getTenantId, requireNetworkApprovedPage } from '@/lib/get-restaurant'
 import { getOrdersList, type OrderStatus } from '@/actions/orders'
 import type { Order } from '@/types'
 import { formatKRW } from '@/lib/utils'
@@ -12,6 +12,7 @@ export default async function OrdersPage({
   searchParams?: Promise<{ status?: string }>
 }) {
   const tenant_id = await getTenantId()
+  await requireNetworkApprovedPage()
   const sp = (await searchParams) ?? {}
 
   const status = sp.status && ALLOWED_STATUS.has(sp.status as OrderStatus)

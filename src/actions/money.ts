@@ -3,6 +3,7 @@
 import { createServerClient } from '@/lib/supabase-server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult, PaymentOutgoing } from '@/types'
+import { networkApprovalErrorIfBlocked } from '@/lib/get-restaurant'
 
 // ── 돈관리 대시보드 (payments 테이블 — realmyos DB 단일화 구조) ─
 
@@ -24,6 +25,9 @@ export interface SupplierBalance {
 export async function getSupplierBalances(
   tenant_id: string,
 ): Promise<SupplierBalance[]> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return []
+
   const supabase = await createServerClient()
 
   const { data, error } = await supabase.rpc('get_supplier_balances', {
@@ -48,6 +52,9 @@ export async function getSupplierBalances(
 export async function getMoneyDashboard(
   tenant_id: string,
 ): Promise<ActionResult<MoneyDashboard>> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
   const supabase = await createServerClient()
 
   const today    = new Date()
@@ -87,6 +94,9 @@ export async function markPaymentPaid(
   payment_id: string,
   tenant_id: string,
 ): Promise<ActionResult> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
   const supabase = await createServerClient()
 
   const { error } = await supabase
@@ -125,6 +135,9 @@ export async function addManualPayment(
   if (!Number.isInteger(amount)) return { success: false, error: '금액은 정수(원)만 입력할 수 있습니다' }
   if (amount <= 0) return { success: false, error: '금액은 1원 이상이어야 합니다' }
   if (amount > 999_999_999) return { success: false, error: '금액이 너무 큽니다 (최대 999,999,999원)' }
+
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
 
   const supabase = await createServerClient()
   const { data, error } = await supabase

@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getTenantId } from '@/lib/get-restaurant'
+import { getTenantId, requireNetworkApprovedPage } from '@/lib/get-restaurant'
 import { getOrderDetail, type OrderStatus } from '@/actions/orders'
 import { formatKRW } from '@/lib/utils'
 import OrderCompleteButton from '@/components/orders/OrderCompleteButton'
@@ -11,6 +11,7 @@ interface Props {
 export default async function OrderDetailPage({ params }: Props) {
   const { id } = await params
   const tenant_id = await getTenantId()
+  await requireNetworkApprovedPage()
 
   const result = await getOrderDetail(tenant_id, id)
   if (!result.success || !result.data) {

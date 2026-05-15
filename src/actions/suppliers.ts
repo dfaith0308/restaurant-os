@@ -4,6 +4,7 @@ import { createServerClient } from '@/lib/supabase-server'
 import { revalidatePath } from 'next/cache'
 import type { ActionResult } from '@/types'
 import { getAuthCtx } from '@/lib/supabase-server'
+import { networkApprovalErrorIfBlocked } from '@/lib/get-restaurant'
 
 // ── 거래처 목록 (최근 거래 포함) ──────────────────────────────
 
@@ -21,6 +22,9 @@ export interface SupplierListItem {
 export async function getSuppliers(
   tenant_id: string,
 ): Promise<ActionResult<SupplierListItem[]>> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny, data: [] }
+
   const supabase = await createServerClient()
 
   const { data: suppliers, error } = await supabase
@@ -79,6 +83,9 @@ export async function createSupplier(
 ): Promise<ActionResult<{ id: string }>> {
   if (!input.name.trim()) return { success: false, error: '거래처명을 입력해주세요' }
 
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
   const supabase = await createServerClient()
   const ctx = await getAuthCtx(supabase)
   if (!ctx) return { success: false, error: '인증 필요' }
@@ -122,6 +129,9 @@ export interface SupplierDetail {
 export async function getSupplierDetail(
   id: string,
 ): Promise<ActionResult<SupplierDetail>> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
   const supabase = await createServerClient()
   const ctx = await getAuthCtx(supabase)
   if (!ctx) return { success: false, error: '인증 필요' }
