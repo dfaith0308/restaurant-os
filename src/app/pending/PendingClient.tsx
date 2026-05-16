@@ -161,8 +161,9 @@ export default function PendingClient() {
 
         <p
           style={{
-            fontSize: 12,
-            color: '#9ca3af',
+            fontSize: 14,
+            color: '#2b2b2b',
+            fontWeight: 500,
             margin: '0 0 12px',
           }}
         >
@@ -214,6 +215,54 @@ export default function PendingClient() {
           </span>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden style={{ flexShrink: 0 }}>
             <path d="M9 6l6 6-6 6" stroke="#F97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </a>
+
+        <a
+          href="sms:01049456662"
+          style={{
+            ...contactRowStyle,
+            background: '#f0f9ff',
+            border: '1px solid #bae6fd',
+          }}
+        >
+          <span
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: '#3b82f6',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M20 2H4a2 2 0 00-2 2v12a2 2 0 002 2h3l4 4 4-4h5a2 2 0 002-2V4a2 2 0 00-2-2z"
+                fill="#ffffff"
+              />
+            </svg>
+          </span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span
+              style={{
+                display: 'block',
+                color: '#3b82f6',
+                fontSize: 15,
+                fontWeight: 500,
+                lineHeight: 1.3,
+              }}
+            >
+              010-4945-6662
+            </span>
+            <span style={{ display: 'block', color: '#9ca3af', fontSize: 12, marginTop: 2 }}>
+              문자 보내기
+            </span>
+          </span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden style={{ flexShrink: 0 }}>
+            <path d="M9 6l6 6-6 6" stroke="#3b82f6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </a>
 
@@ -282,11 +331,10 @@ export default function PendingClient() {
         >
           <p
             style={{
-              fontSize: 11,
-              color: '#86efac',
-              letterSpacing: '0.5px',
-              margin: '0 0 8px',
+              fontSize: 14,
+              color: '#ffffff',
               fontWeight: 600,
+              margin: '0 0 8px',
             }}
           >
             지금 바로 사용 가능
