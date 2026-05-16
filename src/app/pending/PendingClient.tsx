@@ -5,19 +5,27 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createBrowserSupabase } from '@/lib/supabase-browser'
 
-const actionLinkStyle = {
+const contactRowStyle = {
+  display: 'flex',
+  alignItems: 'center' as const,
+  gap: 12,
+  padding: '14px 16px',
+  borderRadius: 14,
+  textDecoration: 'none',
+  marginBottom: 10,
+}
+
+const greenActionLinkStyle = {
   display: 'block',
   textAlign: 'center' as const,
-  background: '#F97316',
-  color: '#ffffff',
-  border: 'none',
-  borderRadius: 12,
-  fontWeight: 800,
-  fontSize: 14,
+  background: 'rgba(255,255,255,0.12)',
+  border: '0.5px solid rgba(255,255,255,0.2)',
+  borderRadius: 10,
   padding: '13px 16px',
+  color: '#ffffff',
+  fontSize: 14,
+  fontWeight: 500,
   textDecoration: 'none',
-  boxShadow: '0 4px 14px rgba(249,115,22,0.25)',
-  transition: 'opacity 0.15s ease',
 }
 
 export default function PendingClient() {
@@ -58,44 +66,73 @@ export default function PendingClient() {
       style={{
         minHeight: '100vh',
         display: 'flex',
+        flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         background: '#f7f6f2',
-        padding: 24,
+        padding: '32px 24px 40px',
+        fontFamily: 'inherit',
       }}
     >
+      <img
+        src="/logo.png"
+        alt="식식이OS"
+        style={{
+          height: 44,
+          width: 'auto',
+          objectFit: 'contain',
+          marginBottom: 32,
+        }}
+        onError={e => {
+          e.currentTarget.style.display = 'none'
+        }}
+      />
+
       <div
         style={{
           width: '100%',
           maxWidth: 360,
           background: '#ffffff',
           borderRadius: 24,
-          padding: '48px 32px',
-          boxShadow: '0 12px 40px rgba(0,0,0,0.10)',
-          textAlign: 'center',
+          padding: '36px 28px 28px',
+          border: '0.5px solid #e8e5de',
+          marginBottom: 12,
         }}
       >
-        <img
-          src="/logo.png"
-          alt="식식이OS"
+        <div
           style={{
-            height: 56,
-            width: 'auto',
-            objectFit: 'contain',
-            marginBottom: 24,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            background: '#edf7f1',
+            color: '#1f5d3a',
+            fontSize: 12,
+            fontWeight: 600,
+            padding: '6px 12px',
+            borderRadius: 999,
+            marginBottom: 16,
           }}
-          onError={e => {
-            e.currentTarget.style.display = 'none'
-          }}
-        />
+        >
+          <span
+            style={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              background: '#1f5d3a',
+              flexShrink: 0,
+            }}
+          />
+          검토 중
+        </div>
 
         <h1
           style={{
-            fontSize: 28,
-            fontWeight: 800,
+            fontSize: 26,
+            fontWeight: 500,
             color: '#2b2b2b',
-            lineHeight: 1.3,
-            margin: '0 0 12px',
+            letterSpacing: '-0.5px',
+            lineHeight: 1.35,
+            margin: '0 0 10px',
           }}
         >
           담당자가 곧 안내드리겠습니다
@@ -103,133 +140,199 @@ export default function PendingClient() {
 
         <p
           style={{
-            fontSize: 16,
-            color: '#2b2b2b',
-            fontWeight: 500,
-            margin: '0 0 10px',
-            lineHeight: 1.5,
+            fontSize: 14,
+            color: '#6b6b6b',
+            lineHeight: 1.55,
+            margin: '0 0 24px',
           }}
         >
-          담당자 안내 후
+          담당자 안내 후 공급자 연결,
           <br />
-          더 많은 것을 사용하실 수 있습니다
+          발주, 정산 기능을 사용하실 수 있습니다
         </p>
+
+        <div
+          style={{
+            height: 1,
+            background: '#ebe8e1',
+            marginBottom: 20,
+          }}
+        />
 
         <p
           style={{
-            fontSize: 15,
-            color: '#2b2b2b',
-            fontWeight: 500,
-            margin: '0 0 24px',
-            lineHeight: 1.55,
+            fontSize: 12,
+            color: '#9ca3af',
+            margin: '0 0 12px',
           }}
         >
-          더 빨리 사용하고 싶으시면
-          <br />
-          <a
-            href="tel:01049456662"
+          더 빠른 시작을 원하시면
+        </p>
+
+        <a
+          href="tel:01049456662"
+          style={{
+            ...contactRowStyle,
+            background: '#fff8f3',
+            border: '1px solid #ffe4cc',
+          }}
+        >
+          <span
             style={{
-              color: '#F97316',
-              fontWeight: 800,
-              fontSize: 16,
-              textDecoration: 'none',
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: '#F97316',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
             }}
           >
-            010-4945-6662
-          </a>
-          로 연락주세요
-        </p>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path
+                d="M6.62 10.79a15.05 15.05 0 006.59 6.59l2.2-2.2a1 1 0 011.01-.24c1.12.37 2.33.57 3.58.57a1 1 0 011 1V20a1 1 0 01-1 1C10.85 21 3 13.15 3 3a1 1 0 011-1h3.5a1 1 0 011 1c0 1.25.2 2.46.57 3.58a1 1 0 01-.24 1.01l-2.2 2.2z"
+                fill="#ffffff"
+              />
+            </svg>
+          </span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span
+              style={{
+                display: 'block',
+                color: '#F97316',
+                fontSize: 15,
+                fontWeight: 500,
+                lineHeight: 1.3,
+              }}
+            >
+              010-4945-6662
+            </span>
+            <span style={{ display: 'block', color: '#9ca3af', fontSize: 12, marginTop: 2 }}>
+              전화 연결
+            </span>
+          </span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden style={{ flexShrink: 0 }}>
+            <path d="M9 6l6 6-6 6" stroke="#F97316" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </a>
+
+        <a
+          href="http://pf.kakao.com/_IMXeK/chat"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '14px 16px',
+            borderRadius: 14,
+            textDecoration: 'none',
+            marginBottom: 24,
+            background: '#fffde8',
+            border: '1px solid #f5e642',
+          }}
+        >
+          <span
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: '50%',
+              background: '#FAE100',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <svg width="20" height="18" viewBox="0 0 24 22" fill="none" aria-hidden>
+              <path
+                d="M12 2C6.48 2 2 5.58 2 10.02c0 2.91 1.92 5.47 4.84 6.96L5.5 21l4.28-2.35c.7.1 1.42.15 2.22.15 5.52 0 10-3.58 10-8.02S17.52 2 12 2z"
+                fill="#3A1D1D"
+              />
+            </svg>
+          </span>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span
+              style={{
+                display: 'block',
+                color: '#5a4a00',
+                fontSize: 15,
+                fontWeight: 500,
+                lineHeight: 1.3,
+              }}
+            >
+              카카오톡 상담
+            </span>
+            <span style={{ display: 'block', color: '#9ca3af', fontSize: 12, marginTop: 2 }}>
+              채널 채팅으로 연결
+            </span>
+          </span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden style={{ flexShrink: 0 }}>
+            <path d="M9 6l6 6-6 6" stroke="#b8a200" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </a>
 
         <div
           style={{
             background: '#1f5d3a',
             borderRadius: 18,
-            padding: '18px 20px',
-            color: '#f7f6f2',
-            marginBottom: 24,
-            textAlign: 'left',
+            padding: '20px 20px 16px',
           }}
         >
           <p
             style={{
-              fontSize: 14,
-              fontWeight: 800,
-              color: '#ffffff',
+              fontSize: 11,
+              color: '#86efac',
+              letterSpacing: '0.5px',
               margin: '0 0 8px',
+              fontWeight: 600,
             }}
           >
-            지금 바로 쓸 수 있는 기능
+            지금 바로 사용 가능
           </p>
           <p
             style={{
-              fontSize: 13,
-              color: '#d1fae5',
-              margin: '0 0 16px',
+              fontSize: 14,
+              color: '#ffffff',
+              fontWeight: 500,
               lineHeight: 1.55,
+              margin: '0 0 16px',
             }}
           >
-            메뉴 입력, 원가 계산, 쇼핑몰은
+            메뉴 입력부터 원가 계산,
             <br />
-            지금 바로 사용 가능합니다.
+            쇼핑몰 구매까지 시작하세요
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Link
-              href="/settings/menus"
-              style={actionLinkStyle}
-              onMouseEnter={e => {
-                e.currentTarget.style.opacity = '0.88'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.opacity = '1'
-              }}
-            >
-              메뉴 관리
+            <Link href="/settings/menus" style={greenActionLinkStyle}>
+              메뉴 원가 자동 계산
             </Link>
-            <Link
-              href="/settings/ingredients"
-              style={actionLinkStyle}
-              onMouseEnter={e => {
-                e.currentTarget.style.opacity = '0.88'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.opacity = '1'
-              }}
-            >
-              재료 · 원가
+            <Link href="/settings/ingredients" style={greenActionLinkStyle}>
+              현재 사용 식자재 등록
             </Link>
-            <Link
-              href="/buy"
-              style={actionLinkStyle}
-              onMouseEnter={e => {
-                e.currentTarget.style.opacity = '0.88'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.opacity = '1'
-              }}
-            >
+            <Link href="/buy" style={greenActionLinkStyle}>
               쇼핑몰
             </Link>
           </div>
         </div>
-
-        <button
-          type="button"
-          onClick={handleSignOut}
-          style={{
-            width: '100%',
-            padding: '12px',
-            background: 'transparent',
-            border: '1px solid #e5e7eb',
-            borderRadius: 10,
-            fontSize: 13,
-            color: '#9ca3af',
-            cursor: 'pointer',
-            fontFamily: 'inherit',
-          }}
-        >
-          로그아웃
-        </button>
       </div>
+
+      <button
+        type="button"
+        onClick={handleSignOut}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          fontSize: 13,
+          color: '#b0b0b0',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+          padding: '8px 12px',
+        }}
+      >
+        로그아웃
+      </button>
     </div>
   )
 }
