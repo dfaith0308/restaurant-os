@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useState, useTransition, type FocusEvent } from 'react'
 import Link from 'next/link'
 import { formatKRW } from '@/lib/utils'
 import {
@@ -41,6 +41,45 @@ function marginBadge(rate: number | null): { label: string; bg: string; color: s
   return null
 }
 
+function hasNoReliableCost(m: MenuWithCost): boolean {
+  return m.ingredients.length === 0 || m.calculated_cost == null || m.calculated_cost === 0
+}
+
+function getMenuCardDisplay(
+  m: MenuWithCost,
+  directCostByMenuId: Record<string, string>,
+): {
+  showMetrics: boolean
+  grossProfit: string
+  marginRate: number | null
+  costForRow: number
+} {
+  const priceNum = m.price ?? 0
+  const directStr = directCostByMenuId[m.id]?.trim() ?? ''
+  const directNum = directStr ? parseInt(directStr.replace(/[^0-9]/g, ''), 10) : NaN
+
+  if (directStr && Number.isFinite(directNum) && directNum > 0) {
+    const marginRate = priceNum > 0 ? ((priceNum - directNum) / priceNum) * 100 : null
+    return {
+      showMetrics: true,
+      grossProfit: formatGrossProfit(priceNum, directNum),
+      marginRate,
+      costForRow: directNum,
+    }
+  }
+
+  if (hasNoReliableCost(m)) {
+    return { showMetrics: false, grossProfit: '-', marginRate: null, costForRow: 0 }
+  }
+
+  return {
+    showMetrics: true,
+    grossProfit: formatGrossProfit(priceNum, m.calculated_cost),
+    marginRate: m.margin_rate,
+    costForRow: m.calculated_cost ?? 0,
+  }
+}
+
 const costEstimateRowStyle = {
   display: 'flex',
   justifyContent: 'space-between',
@@ -51,6 +90,36 @@ const costEstimateRowStyle = {
   fontSize: 12,
   color: '#6b7280',
 } as const
+
+const formInputStyle = {
+  width: '100%',
+  padding: '12px 14px',
+  border: '0.5px solid #e8e5de',
+  borderRadius: 10,
+  background: '#f7f6f2',
+  fontSize: 14,
+  color: '#2b2b2b',
+  boxSizing: 'border-box' as const,
+  fontFamily: 'inherit',
+}
+
+const formLabelStyle = {
+  fontSize: 13,
+  fontWeight: 600,
+  color: '#2b2b2b',
+  marginBottom: 6,
+  display: 'block',
+}
+
+function onFormInputFocus(e: FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
+  e.currentTarget.style.borderColor = '#1f5d3a'
+  e.currentTarget.style.boxShadow = '0 0 0 2px rgba(31, 93, 58, 0.12)'
+}
+
+function onFormInputBlur(e: FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) {
+  e.currentTarget.style.borderColor = '#e8e5de'
+  e.currentTarget.style.boxShadow = 'none'
+}
 
 export default function MenusClient(props: {
   menus: MenuWithCost[]
@@ -74,6 +143,11 @@ export default function MenusClient(props: {
   const [ingId, setIngId] = useState('')
   const [ingQty, setIngQty] = useState('1')
   const [ingUnit, setIngUnit] = useState('')
+
+  const [costInputTab, setCostInputTab] = useState<'direct' | 'ingredient'>('ingredient')
+  const [directCost, setDirectCost] = useState('')
+  const [directCostByMenuId, setDirectCostByMenuId] = useState<Record<string, string>>({})
+  const [priceFocused, setPriceFocused] = useState(false)
 
   const [estimate, setEstimate] = useState<{
     menu_name: string
@@ -116,6 +190,9 @@ export default function MenusClient(props: {
     setIngQty('1')
     setIngUnit('')
     setEstimate(null)
+    setCostInputTab('ingredient')
+    setDirectCost('')
+    setPriceFocused(false)
   }
 
   function openCreate() {
@@ -131,8 +208,37 @@ export default function MenusClient(props: {
     setCategory(m.category ?? '')
     setIsRep(!!m.is_representative)
     setMemo(m.memo ?? '')
+    setDirectCost(directCostByMenuId[m.id] ?? '')
+    setCostInputTab('ingredient')
+    setPriceFocused(false)
     setShowForm(true)
   }
+
+  function syncDirectCostForMenu(menuId: string, value: string) {
+    setDirectCost(value)
+    setDirectCostByMenuId((prev) => {
+      const trimmed = value.trim()
+      if (!trimmed) {
+        const next = { ...prev }
+        delete next[menuId]
+        return next
+      }
+      return { ...prev, [menuId]: value }
+    })
+  }
+
+  const formPriceNum = parseInt((price || '0').replace(/[^0-9]/g, ''), 10)
+  const formDirectCostNum = parseInt((directCost || '').replace(/[^0-9]/g, ''), 10)
+  const formDirectMargin =
+    formPriceNum > 0 && Number.isFinite(formDirectCostNum) && formDirectCostNum > 0
+      ? ((formPriceNum - formDirectCostNum) / formPriceNum) * 100
+      : null
+
+  const priceDisplay = priceFocused
+    ? price
+    : price
+      ? Number(price).toLocaleString('ko-KR')
+      : ''
 
   const currentMenu = useMemo(() => {
     if (!editingId) return null
@@ -324,89 +430,137 @@ export default function MenusClient(props: {
       )}
 
       {showForm && (
-        <div style={{ background: '#F9FAFB', border: '1px solid #e5e7eb', borderRadius: 14, padding: 16, marginBottom: 16 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 900, color: 'var(--color-text)' }}>
+        <div style={{ background: '#ffffff', border: '0.5px solid #e8e5de', borderRadius: 18, padding: 20, marginBottom: 16, boxSizing: 'border-box' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b' }}>
               {editingId ? '메뉴 수정' : '메뉴 등록'}
             </div>
             {editingId && (
               <button
+                type="button"
                 onClick={() => handleDeactivate(editingId)}
                 disabled={isPending}
-                style={{ background: 'transparent', border: 'none', color: '#b91c1c', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                style={{ background: 'transparent', border: 'none', color: '#b91c1c', fontSize: 13, fontWeight: 600, cursor: 'pointer', minHeight: 44, padding: '10px 8px', fontFamily: 'inherit' }}
               >
                 비활성화
               </button>
             )}
           </div>
 
-          <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 140px', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 4 }}>메뉴명 *</div>
+              <label style={formLabelStyle}>메뉴명 *</label>
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="예: 김치볶음밥"
-                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 10, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }}
+                style={formInputStyle}
+                onFocus={onFormInputFocus}
+                onBlur={onFormInputBlur}
               />
             </div>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 4 }}>판매가 *</div>
+              <label style={formLabelStyle}>판매가 *</label>
               <input
-                value={price}
+                value={priceDisplay}
                 onChange={(e) => setPrice(e.target.value.replace(/[^0-9]/g, ''))}
+                onFocus={(e) => {
+                  setPriceFocused(true)
+                  onFormInputFocus(e)
+                }}
+                onBlur={(e) => {
+                  setPriceFocused(false)
+                  onFormInputBlur(e)
+                }}
                 inputMode="numeric"
                 placeholder="예: 9000"
-                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 10, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }}
+                style={formInputStyle}
               />
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14, marginTop: 14 }}>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 4 }}>카테고리 (선택)</div>
+              <label style={formLabelStyle}>카테고리 (선택)</label>
               <input
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                placeholder="예: 식사, 사이드"
-                style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 10, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }}
+                placeholder="예: 식사, 사이드, 주류, 점심메뉴, 세트메뉴"
+                style={formInputStyle}
+                onFocus={onFormInputFocus}
+                onBlur={onFormInputBlur}
               />
             </div>
-            <label style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-              <input type="checkbox" checked={isRep} onChange={(e) => setIsRep(e.target.checked)} />
-              <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--color-text)' }}>
-                대표메뉴 (최대 3개)
-              </span>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 44, cursor: 'pointer' }}>
+              <input type="checkbox" checked={isRep} onChange={(e) => setIsRep(e.target.checked)} style={{ width: 18, height: 18 }} />
+              <span style={{ fontSize: 14, fontWeight: 500, color: '#2b2b2b' }}>대표메뉴 (최대 3개)</span>
             </label>
           </div>
 
-          <div style={{ marginTop: 10 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 4 }}>메모 (선택)</div>
+          <div style={{ marginTop: 14 }}>
+            <label style={formLabelStyle}>메모 (선택)</label>
             <textarea
               value={memo}
               onChange={(e) => setMemo(e.target.value)}
-              placeholder="예: 점심특선"
-              style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 10, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', resize: 'none', height: 64 }}
+              placeholder="예: 점심특선 / 시그니처 메뉴 / 3월 한정 테스트 메뉴"
+              style={{ ...formInputStyle, resize: 'none', height: 72 }}
+              onFocus={onFormInputFocus}
+              onBlur={onFormInputBlur}
             />
           </div>
-
           {editingId && (
-            <div style={{ marginTop: 14, borderTop: '1px solid #e5e7eb', paddingTop: 14 }}>
-              <div style={{ fontSize: 12, fontWeight: 900, color: 'var(--color-text)', marginBottom: 8 }}>식재료 구성 (1인분 기준)</div>
+            <div style={{ marginTop: 18, borderTop: '0.5px solid #e8e5de', paddingTop: 18 }}>
+              <p style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', margin: '0 0 12px' }}>원가를 알고 계시면 직접 입력하세요</p>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                <button type="button" onClick={() => setCostInputTab('direct')} style={{
+                  flex: 1, minHeight: 44, padding: '10px 12px', borderRadius: 10,
+                  border: costInputTab === 'direct' ? '1.5px solid #1f5d3a' : '0.5px solid #e8e5de',
+                  background: costInputTab === 'direct' ? '#edf7f1' : '#f7f6f2',
+                  color: costInputTab === 'direct' ? '#1f5d3a' : '#6b7280',
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                }}>직접 입력</button>
+                <button type="button" onClick={() => setCostInputTab('ingredient')} style={{
+                  flex: 1, minHeight: 44, padding: '10px 12px', borderRadius: 10,
+                  border: costInputTab === 'ingredient' ? '1.5px solid #1f5d3a' : '0.5px solid #e8e5de',
+                  background: costInputTab === 'ingredient' ? '#edf7f1' : '#f7f6f2',
+                  color: costInputTab === 'ingredient' ? '#1f5d3a' : '#6b7280',
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
+                }}>식자재로 계산</button>
+              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 110px 90px', gap: 8, alignItems: 'end' }}>
+              {costInputTab === 'direct' ? (
+                <div style={{ marginBottom: 8 }}>
+                  <label style={formLabelStyle}>원가 (1인분)</label>
+                  <input value={directCost} onChange={(e) => syncDirectCostForMenu(editingId, e.target.value.replace(/[^0-9]/g, ''))}
+                    inputMode="numeric" placeholder="예: 4500" style={formInputStyle} onFocus={onFormInputFocus} onBlur={onFormInputBlur} />
+                  <p style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.5, margin: '10px 0 0' }}>
+                    직접 입력한 원가는 저장되지 않습니다.<br />정확한 계산을 위해 식자재를 입력해주세요.
+                  </p>
+                  {formDirectMargin != null && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
+                      <div style={{ background: '#f7f6f2', borderRadius: 12, padding: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280' }}>예상 남는 금액</div>
+                        <div style={{ marginTop: 6, fontSize: 16, fontWeight: 700, color: '#1f5d3a' }}>{formatGrossProfit(formPriceNum, formDirectCostNum)}</div>
+                      </div>
+                      <div style={{ background: '#f7f6f2', borderRadius: 12, padding: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280' }}>예상 마진율</div>
+                        <div style={{ marginTop: 6, fontSize: 16, fontWeight: 700, color: '#1f5d3a' }}>{pct(formDirectMargin)}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', marginBottom: 10 }}>식재료 구성 (1인분 기준)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 4 }}>식자재</div>
-                  <select
-                    value={ingId}
-                    onChange={(e) => {
+                  <label style={{ ...formLabelStyle, fontSize: 12 }}>식자재</label>
+                  <select value={ingId} onChange={(e) => {
                       const id = e.target.value
                       setIngId(id)
                       const ing = props.ingredients.find((x) => x.id === id)
                       setIngUnit(ing?.unit ?? '')
-                    }}
-                    style={{ width: '100%', padding: '9px 10px', border: '1px solid #e5e7eb', borderRadius: 10, fontSize: 13, fontFamily: 'inherit' }}
-                  >
+                    }} style={{ ...formInputStyle, minHeight: 44 }} onFocus={onFormInputFocus} onBlur={onFormInputBlur}>
                     <option value="">선택…</option>
                     {props.ingredients.map((i) => (
                       <option key={i.id} value={i.id}>
@@ -415,124 +569,85 @@ export default function MenusClient(props: {
                     ))}
                   </select>
                 </div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 4 }}>수량</div>
-                  <input
-                    value={ingQty}
-                    onChange={(e) => setIngQty(e.target.value.replace(/[^0-9.]/g, ''))}
-                    inputMode="decimal"
-                    placeholder="예: 0.2"
-                    style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 10, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }}
-                  />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <label style={{ ...formLabelStyle, fontSize: 12 }}>수량</label>
+                    <input value={ingQty} onChange={(e) => setIngQty(e.target.value.replace(/[^0-9.]/g, ''))}
+                      inputMode="decimal" placeholder="예: 0.2" style={formInputStyle} onFocus={onFormInputFocus} onBlur={onFormInputBlur} />
+                  </div>
+                  <div>
+                    <label style={{ ...formLabelStyle, fontSize: 12 }}>단위</label>
+                    <input value={ingUnit} onChange={(e) => setIngUnit(e.target.value)}
+                      placeholder={selectedIngredient?.unit ?? '예: kg'} style={formInputStyle} onFocus={onFormInputFocus} onBlur={onFormInputBlur} />
+                  </div>
                 </div>
-                <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', marginBottom: 4 }}>단위</div>
-                  <input
-                    value={ingUnit}
-                    onChange={(e) => setIngUnit(e.target.value)}
-                    placeholder={selectedIngredient?.unit ?? '예: kg'}
-                    style={{ width: '100%', padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 10, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }}
-                  />
-                </div>
-                <button
-                  onClick={handleAddIngredient}
-                  disabled={isPending || !ingId || !(Number(ingQty) > 0)}
-                  style={{ padding: '10px 10px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
-                >
+                <button type="button" onClick={handleAddIngredient} disabled={isPending || !ingId || !(Number(ingQty) > 0)}
+                  style={{ width: '100%', minHeight: 44, padding: '12px', background: '#1f5d3a', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                   추가
                 </button>
               </div>
-
-              <div style={{ marginTop: 10, fontSize: 12, color: '#6b7280' }}>
-                원가 계산: \u03A3(현재가 × 수량). 계산값은 저장하지 않습니다.
+              <div style={{ marginTop: 10, fontSize: 12, color: '#9ca3af', lineHeight: 1.5 }}>
+                원가 계산: Σ(현재가 × 수량). 계산값은 저장하지 않습니다.
               </div>
-
-              <div style={{ marginTop: 10, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px 90px 70px', background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                  {['식자재', '수량', '현재가', ''].map((h) => (
-                    <div key={h} style={{ padding: '10px 10px', fontSize: 11, fontWeight: 900, color: '#6b7280' }}>{h}</div>
-                  ))}
-                </div>
+              <div style={{ marginTop: 10, background: '#f7f6f2', border: '0.5px solid #e8e5de', borderRadius: 12, overflow: 'hidden' }}>
                 {(currentMenu?.ingredients ?? []).length === 0 ? (
-                  <div style={{ padding: 12, fontSize: 13, color: '#9ca3af' }}>
+                  <div style={{ padding: 14, fontSize: 13, color: '#9ca3af', lineHeight: 1.5 }}>
                     식재료를 입력하면 원가가 계산됩니다.
-                    <div style={{ marginTop: 8 }}>
-                      <button
-                        onClick={handleFetchEstimate}
-                        disabled={isPending || !name.trim()}
-                        style={{ padding: '8px 10px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
-                      >
+                    <div style={{ marginTop: 10 }}>
+                      <button type="button" onClick={handleFetchEstimate} disabled={isPending || !name.trim()}
+                        style={{ minHeight: 44, padding: '10px 16px', background: '#1f5d3a', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
                         AI 추정 원가 조회
                       </button>
                     </div>
                     {estimate?.estimated_cost != null && (
-                      <div style={{ marginTop: 10, color: 'var(--color-text)', fontWeight: 800 }}>
+                      <div style={{ marginTop: 10, color: '#2b2b2b', fontWeight: 600, fontSize: 13 }}>
                         예상 원가 약 {formatKRW(estimate.estimated_cost)} (±15% 오차)
                       </div>
                     )}
                     {estimate && estimate.estimated_cost == null && (
-                      <div style={{ marginTop: 10 }}>
-                        추정 데이터가 없습니다. 식재료를 입력하면 원가가 계산됩니다.
-                      </div>
+                      <div style={{ marginTop: 10 }}>추정 데이터가 없습니다. 식재료를 입력하면 원가가 계산됩니다.</div>
                     )}
                   </div>
                 ) : (
                   currentMenu!.ingredients.map((r) => (
-                    <div key={r.id} style={{ display: 'grid', gridTemplateColumns: '1fr 80px 90px 70px', borderBottom: '1px solid #f3f4f6' }}>
-                      <div style={{ padding: '10px 10px', fontSize: 13, fontWeight: 800, color: 'var(--color-text)' }}>
-                        {r.ingredient_name}
-                        <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, marginTop: 2 }}>
-                          {r.unit || r.ingredient_unit || ''}
+                    <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, padding: '12px 14px', borderBottom: '0.5px solid #e8e5de' }}>
+                      <div>
+                        <div style={{ fontSize: 14, fontWeight: 600, color: '#2b2b2b' }}>{r.ingredient_name}</div>
+                        <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
+                          {r.quantity} {r.unit || r.ingredient_unit || ''} · {r.ingredient_current_price != null ? formatKRW(r.ingredient_current_price) : '-'}
                         </div>
                       </div>
-                      <div style={{ padding: '10px 10px', fontSize: 13, color: 'var(--color-text)' }}>{r.quantity}</div>
-                      <div style={{ padding: '10px 10px', fontSize: 13, color: 'var(--color-text)' }}>
-                        {r.ingredient_current_price != null ? formatKRW(r.ingredient_current_price) : '-'}
-                      </div>
-                      <div style={{ padding: '10px 10px', display: 'flex', justifyContent: 'flex-end' }}>
-                        <button
-                          onClick={() => handleRemoveIngredient(r.id)}
-                          disabled={isPending}
-                          style={{ background: 'transparent', border: 'none', color: '#b91c1c', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}
-                        >
-                          제외
-                        </button>
-                      </div>
+                      <button type="button" onClick={() => handleRemoveIngredient(r.id)} disabled={isPending}
+                        style={{ background: 'transparent', border: 'none', color: '#b91c1c', fontSize: 13, fontWeight: 600, cursor: 'pointer', minHeight: 44, padding: '8px', fontFamily: 'inherit' }}>
+                        제외
+                      </button>
                     </div>
                   ))
                 )}
               </div>
-
-              <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
-                  <div style={{ fontSize: 11, fontWeight: 900, color: '#6b7280' }}>현재 원가</div>
-                  <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900, color: 'var(--color-text)' }}>
-                    {formatKRW(liveCost ?? 0)}
-                  </div>
+              {currentMenu && !hasNoReliableCost(currentMenu) && (
+              <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ background: '#f7f6f2', borderRadius: 12, padding: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280' }}>현재 원가</div>
+                  <div style={{ marginTop: 6, fontSize: 16, fontWeight: 700, color: '#2b2b2b' }}>{formatKRW(liveCost ?? 0)}</div>
                 </div>
-                <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
-                  <div style={{ fontSize: 11, fontWeight: 900, color: '#6b7280' }}>마진율</div>
-                  <div style={{ marginTop: 6, fontSize: 16, fontWeight: 900, color: 'var(--color-text)' }}>
-                    {pct(liveMargin)}
-                  </div>
+                <div style={{ background: '#f7f6f2', borderRadius: 12, padding: 12 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280' }}>마진율</div>
+                  <div style={{ marginTop: 6, fontSize: 16, fontWeight: 700, color: '#1f5d3a' }}>{pct(liveMargin)}</div>
                 </div>
               </div>
+              )}
+                </>
+              )}
             </div>
           )}
-
-          <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-            <button
-              onClick={handleSaveMenu}
-              disabled={isPending || !name.trim() || !String(price).trim()}
-              style={{ flex: 2, padding: '11px', background: 'var(--color-primary)', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 900, cursor: 'pointer' }}
-            >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 18 }}>
+            <button type="button" onClick={handleSaveMenu} disabled={isPending || !name.trim() || !String(price).trim()}
+              style={{ width: '100%', minHeight: 44, padding: '12px', background: '#1f5d3a', color: '#ffffff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
               {isPending ? '저장 중…' : '저장'}
             </button>
-            <button
-              onClick={() => { setShowForm(false); resetForm() }}
-              disabled={isPending}
-              style={{ flex: 1, padding: '11px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: 'pointer', color: '#6b7280' }}
-            >
+            <button type="button" onClick={() => { setShowForm(false); resetForm() }} disabled={isPending}
+              style={{ width: '100%', minHeight: 44, padding: '12px', background: '#ffffff', border: '0.5px solid #e8e5de', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', color: '#9ca3af', fontFamily: 'inherit' }}>
               닫기
             </button>
           </div>
@@ -585,9 +700,11 @@ export default function MenusClient(props: {
         <p style={{ fontSize: 14, color: '#9ca3af', textAlign: 'center', padding: '24px 0' }}>검색 결과가 없습니다.</p>
       ) : (
         filtered.map((m) => {
-          const badge = marginBadge(m.margin_rate)
+          const display = getMenuCardDisplay(m, directCostByMenuId)
+          const badge = display.showMetrics ? marginBadge(display.marginRate) : null
+          const editLabel = m.ingredients.length === 0 ? '원가 입력하기' : '식자재 수정'
           return (
-            <div key={m.id} className="menus-card-hover" style={{ background: '#ffffff', borderRadius: 16, border: '0.5px solid #e8e5de', padding: '16px 18px', marginBottom: 10 }}>
+            <div key={m.id} className="menus-card-hover" style={{ background: '#ffffff', borderRadius: 16, border: '0.5px solid #e8e5de', padding: '16px 18px', marginBottom: 10, boxSizing: 'border-box' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 500, color: '#2b2b2b' }}>{m.name}</div>
@@ -595,20 +712,34 @@ export default function MenusClient(props: {
                 </div>
                 {badge && <span style={{ fontSize: 11, fontWeight: 600, background: badge.bg, color: badge.color, padding: '4px 10px', borderRadius: 999, flexShrink: 0 }}>{badge.label}</span>}
               </div>
+              {display.showMetrics ? (
+                <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
                 <div>
                   <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 4 }}>재료 원가 제외</div>
-                  <div style={{ fontSize: 24, fontWeight: 700, color: '#1f5d3a', lineHeight: 1.1 }}>{formatGrossProfit(m.price, m.calculated_cost)}</div>
+                  <div style={{ fontSize: 24, fontWeight: 700, color: '#1f5d3a', lineHeight: 1.1 }}>{display.grossProfit}</div>
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: '#1f5d3a' }}>{pct(m.margin_rate)}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#1f5d3a' }}>{pct(display.marginRate)}</div>
               </div>
               <div style={{ ...costEstimateRowStyle, marginBottom: 12 }}>
                 <span>판매가 {formatKRW(m.price ?? 0)}</span>
-                <span>재료 원가 {formatKRW(m.calculated_cost ?? 0)}</span>
+                <span>재료 원가 {formatKRW(display.costForRow)}</span>
               </div>
-              <div style={{ display: 'flex', gap: 16, borderTop: '1px solid #f3f4f6', paddingTop: 10 }}>
-                <button type="button" onClick={() => openEdit(m)} style={{ background: 'transparent', border: 'none', color: '#1f5d3a', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>편집</button>
-                <button type="button" onClick={() => handleDeactivate(m.id)} disabled={isPending} style={{ background: 'transparent', border: 'none', color: '#b91c1c', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>비활성화</button>
+                </>
+              ) : (
+                <div style={{ marginBottom: 14 }}>
+                  <p style={{ fontSize: 12, lineHeight: 1.5, color: '#9ca3af', textAlign: 'left', margin: '0 0 12px' }}>
+                    식자재를 입력하면<br />원가와 마진율이 계산됩니다
+                  </p>
+                  <button type="button" onClick={() => openEdit(m)}
+                    style={{ background: '#1f5d3a', color: '#ffffff', border: 'none', borderRadius: 10, padding: '10px 16px', fontSize: 13, fontWeight: 600, minHeight: 44, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    원가 입력하기
+                  </button>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 16, borderTop: '1px solid #f3f4f6', paddingTop: 10, flexWrap: 'wrap' }}>
+                <button type="button" onClick={() => openEdit(m)} style={{ background: 'transparent', border: 'none', color: '#1f5d3a', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '10px 0', minHeight: 44, fontFamily: 'inherit' }}>{editLabel}</button>
+                <button type="button" onClick={() => handleDeactivate(m.id)} disabled={isPending} style={{ background: 'transparent', border: 'none', color: '#b91c1c', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '10px 0', minHeight: 44, fontFamily: 'inherit' }}>비활성화</button>
               </div>
             </div>
           )
