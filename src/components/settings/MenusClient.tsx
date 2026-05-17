@@ -91,56 +91,112 @@ const costEstimateRowStyle = {
   color: '#6b7280',
 } as const
 
-const costStatusRowStyle = {
-  display: 'flex',
-  background: '#f7f6f2',
-  borderRadius: 10,
-  overflow: 'hidden',
-  marginBottom: 12,
-  border: '0.5px solid #ece7df',
-} as const
-
-const costStatusCellStyle = {
-  flex: 1,
-  padding: '14px 10px',
-  textAlign: 'center' as const,
+function MenuMetricsHero(props: { grossProfit: string; marginRate: number | null }) {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-end',
+        marginBottom: 12,
+      }}
+    >
+      <div>
+        <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>재료 제외 금액</div>
+        <div style={{ fontSize: 32, fontWeight: 500, color: '#1f5d3a', lineHeight: 1.1 }}>{props.grossProfit}</div>
+      </div>
+      <div style={{ textAlign: 'right' }}>
+        <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>예상 마진</div>
+        <div style={{ fontSize: 20, fontWeight: 500, color: '#1f5d3a' }}>{pct(props.marginRate)}</div>
+      </div>
+    </div>
+  )
 }
 
-const costStatusLabelStyle = {
-  fontSize: 11,
-  color: '#9ca3af',
-  marginBottom: 4,
+function MenuPriceCostRow(props: { price: number; cost: number }) {
+  return (
+    <div
+      style={{
+        background: '#f7f6f2',
+        borderRadius: 10,
+        padding: '10px 12px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        marginBottom: 12,
+        fontSize: 12,
+        color: '#6b7280',
+      }}
+    >
+      <span>판매가 {formatKRW(props.price)}</span>
+      <span>재료 원가 {formatKRW(props.cost)}</span>
+    </div>
+  )
 }
 
-function costStatusValueStyle(muted?: boolean) {
-  return {
-    fontSize: 14,
-    fontWeight: 600,
-    color: muted ? '#c0bdb8' : '#2b2b2b',
-  }
+function HiddenCostNotice() {
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 4,
+        marginBottom: 12,
+        fontSize: 11,
+        color: '#9ca3af',
+        lineHeight: 1.4,
+      }}
+    >
+      <svg width="12" height="12" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24" aria-hidden>
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" y1="16" x2="12" y2="12" />
+        <line x1="12" y1="8" x2="12.01" y2="8" />
+      </svg>
+      <span>숨은 원가(임대료·인건비·기본반찬 등)는 포함되지 않아요</span>
+    </div>
+  )
 }
 
-function MenuCostStatusRow(props: {
+function MenuUnconfiguredBox(props: {
   price: number | null | undefined
-  costText: string
-  costMuted?: boolean
-  marginLabel: string
-  marginText: string
-  marginMuted?: boolean
+  onConfigure: () => void
 }) {
   return (
-    <div style={costStatusRowStyle}>
-      <div style={{ ...costStatusCellStyle, borderRight: '0.5px solid #ece7df' }}>
-        <div style={costStatusLabelStyle}>판매가</div>
-        <div style={costStatusValueStyle()}>{formatKRW(props.price ?? 0)}</div>
-      </div>
-      <div style={{ ...costStatusCellStyle, borderRight: '0.5px solid #ece7df' }}>
-        <div style={costStatusLabelStyle}>재료 원가</div>
-        <div style={costStatusValueStyle(props.costMuted)}>{props.costText}</div>
-      </div>
-      <div style={costStatusCellStyle}>
-        <div style={costStatusLabelStyle}>{props.marginLabel}</div>
-        <div style={costStatusValueStyle(props.marginMuted)}>{props.marginText}</div>
+    <div
+      style={{
+        background: '#f7f6f2',
+        borderRadius: 10,
+        padding: '14px 16px',
+        marginBottom: 12,
+      }}
+    >
+      <p style={{ fontSize: 13, fontWeight: 500, color: '#2b2b2b', margin: '0 0 4px', lineHeight: 1.4 }}>
+        재료 구성하면 예상 마진을 볼 수 있어요
+      </p>
+      <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 12px', lineHeight: 1.5 }}>
+        대략적인 양만 입력해도 계산됩니다
+      </p>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <span style={{ fontSize: 13, color: '#6b7280', whiteSpace: 'nowrap' }}>
+          판매가 {formatKRW(props.price ?? 0)}
+        </span>
+        <button
+          type="button"
+          onClick={props.onConfigure}
+          style={{
+            flexShrink: 0,
+            background: '#1f5d3a',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: 8,
+            padding: '8px 16px',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          재료 구성하기
+        </button>
       </div>
     </div>
   )
@@ -739,26 +795,21 @@ export default function MenusClient(props: {
               <span style={{ fontSize: 16, fontWeight: 500, color: '#2b2b2b' }}>김치찌개</span>
               <span style={{ fontSize: 11, fontWeight: 600, background: '#edf7f1', color: '#1f5d3a', padding: '4px 10px', borderRadius: 999 }}>마진 우수</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
-              <div>
-                <div style={{ fontSize: 10, color: '#9ca3af', marginBottom: 4 }}>재료 제외 금액</div>
-                <div style={{ fontSize: 36, fontWeight: 700, color: '#1f5d3a', lineHeight: 1 }}>+6,300원</div>
-              </div>
-              <div style={{ fontSize: 26, fontWeight: 700, color: '#1f5d3a' }}>70%</div>
-            </div>
-            <div style={costEstimateRowStyle}><span>판매가 9,000원</span><span>재료 원가 2,700원</span></div>
+                        <MenuMetricsHero grossProfit="+6,300원" marginRate={70} />
+            <MenuPriceCostRow price={9000} cost={2700} />
+            <HiddenCostNotice />
+
           </div>
           <div className="menus-fade-up menus-anim-card2 menus-card-hover" style={{ background: '#ffffff', border: '0.5px solid #e8e5de', borderRadius: 16, padding: '16px 18px 12px', marginBottom: 10, opacity: 0.7 }}>
             <div style={{ fontSize: 15, fontWeight: 500, color: '#2b2b2b', marginBottom: 10 }}>제육볶음</div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 10 }}>
-              <span style={{ fontSize: 20, fontWeight: 700, color: '#6b7280' }}>+5,500원</span>
-              <span style={{ fontSize: 18, fontWeight: 700, color: '#6b7280' }}>55%</span>
-            </div>
-            <div style={costEstimateRowStyle}><span>판매가 10,000원</span><span>원가 4,500원</span></div>
+                        <MenuMetricsHero grossProfit="+5,500원" marginRate={55} />
+            <MenuPriceCostRow price={10000} cost={4500} />
+
           </div>
-          <div className="menus-fade-up menus-anim-card3" style={{ background: '#ffffff', border: '0.5px solid #e8e5de', borderRadius: 16, padding: '16px 18px', opacity: 0.25, filter: 'blur(2px)', pointerEvents: 'none' }}>
-            <div style={{ fontSize: 15, fontWeight: 500, color: '#2b2b2b', marginBottom: 8 }}>된장찌개</div>
-            <span style={{ fontSize: 20, fontWeight: 700, color: '#F97316' }}>+2,400원</span>
+          <div className="menus-fade-up menus-anim-card3" style={{ background: '#ffffff', border: '0.5px solid #e8e5de', borderRadius: 16, padding: '16px 18px 12px', opacity: 0.25, filter: 'blur(2px)', pointerEvents: 'none' }}>
+            <div style={{ fontSize: 15, fontWeight: 500, color: '#2b2b2b', marginBottom: 10 }}>된장찌개</div>
+            <MenuMetricsHero grossProfit="+2,400원" marginRate={40} />
+            <MenuPriceCostRow price={8000} cost={5600} />
           </div>
         </>
       ) : filtered.length === 0 ? (
@@ -767,7 +818,6 @@ export default function MenusClient(props: {
         filtered.map((m) => {
           const display = getMenuCardDisplay(m, directCostByMenuId)
           const badge = display.showMetrics ? marginBadge(display.marginRate) : null
-          const editLabel = m.ingredients.length === 0 ? '재료 구성하기' : '식자재 수정'
           return (
             <div key={m.id} className="menus-card-hover" style={{ background: '#ffffff', borderRadius: 16, border: '0.5px solid #e8e5de', padding: '16px 18px', marginBottom: 10, boxSizing: 'border-box' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
@@ -779,97 +829,37 @@ export default function MenusClient(props: {
               </div>
               {display.showMetrics ? (
                 <>
-                  <MenuCostStatusRow
-                    price={m.price}
-                    costText={formatKRW(display.costForRow)}
-                    marginLabel="재료 제외 금액"
-                    marginText={display.grossProfit}
-                  />
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      background: '#edf7f1',
-                      borderRadius: 10,
-                      padding: '12px 14px',
-                      marginBottom: 12,
-                    }}
-                  >
-                    <span style={{ fontSize: 11, color: '#6b7280' }}>예상 마진</span>
-                    <span style={{ fontSize: 24, fontWeight: 700, color: '#1f5d3a' }}>{pct(display.marginRate)}</span>
-                  </div>
+                  <MenuMetricsHero grossProfit={display.grossProfit} marginRate={display.marginRate} />
+                  <MenuPriceCostRow price={m.price ?? 0} cost={display.costForRow} />
+                  <HiddenCostNotice />
                 </>
               ) : (
-                <>
-                  <MenuCostStatusRow
-                    price={m.price}
-                    costText="미입력"
-                    costMuted
-                    marginLabel="예상 마진"
-                    marginText="-"
-                    marginMuted
-                  />
-                  <div
-                    style={{
-                      border: '1px dashed #e8e5de',
-                      borderRadius: 12,
-                      padding: '16px 14px',
-                      textAlign: 'center',
-                      marginBottom: 14,
-                    }}
-                  >
-                    <p style={{ fontSize: 14, fontWeight: 600, color: '#2b2b2b', margin: '0 0 8px', lineHeight: 1.4 }}>
-                      재료 구성하면 예상 마진을 볼 수 있어요
-                    </p>
-                    <p style={{ fontSize: 12, lineHeight: 1.5, color: '#9ca3af', margin: '0 0 14px' }}>
-                      이 메뉴에 들어가는 재료를 알려주세요.
-                      <br />
-                      대략적인 양만 입력해도 계산됩니다.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => openEdit(m)}
-                      style={{
-                        width: '100%',
-                        background: '#1f5d3a',
-                        color: '#ffffff',
-                        border: 'none',
-                        borderRadius: 10,
-                        padding: '12px 16px',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        minHeight: 44,
-                        cursor: 'pointer',
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      재료 구성하기
-                    </button>
-                  </div>
-                </>
+                <MenuUnconfiguredBox price={m.price} onConfigure={() => openEdit(m)} />
               )}
 
               <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: 10 }}>
                 {confirmHideMenuId !== m.id && (
-                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <button
-                      type="button"
-                      onClick={() => openEdit(m)}
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#1f5d3a',
-                        fontSize: 13,
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        padding: '10px 0',
-                        minHeight: 44,
-                        fontFamily: 'inherit',
-                      }}
-                    >
-                      {editLabel}
-                    </button>
+                  <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {display.showMetrics && (
+                      <button
+                        type="button"
+                        onClick={() => openEdit(m)}
+                        style={{
+                          background: 'transparent',
+                          border: '1px solid #1f5d3a',
+                          color: '#1f5d3a',
+                          borderRadius: 8,
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          padding: '8px 14px',
+                          minHeight: 44,
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        원가 수정
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="menu-hide-btn"
@@ -878,6 +868,7 @@ export default function MenusClient(props: {
                       style={{
                         background: 'transparent',
                         border: 'none',
+                        color: '#9ca3af',
                         fontSize: 13,
                         fontWeight: 500,
                         cursor: 'pointer',
