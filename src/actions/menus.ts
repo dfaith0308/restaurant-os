@@ -136,6 +136,75 @@ export async function getMenus(): Promise<ActionResult<MenuWithCost[]>> {
   return { success: true, data: result }
 }
 
+export async function getInactiveMenus(): Promise<ActionResult<MenuWithCost[]>> {
+  const supabase = await createServerClient()
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id) return { success: false, error: '인증 필요', data: [] }
+
+  const { data: menusRaw, error: menusErr } = await supabase
+    .from('menus')
+    .select('id, tenant_id, name, price, category, memo, is_representative, is_active, created_at, updated_at')
+    .eq('tenant_id', tenant_id)
+    .eq('is_active', false)
+    .order('is_representative', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  if (menusErr) return { success: false, error: menusErr.message, data: [] }
+  const menus = (menusRaw ?? []) as any[]
+  const ids = menus.map((m) => m.id).filter(Boolean)
+  if (ids.length === 0) return { success: true, data: [] }
+
+  const { data: miRaw, error: miErr } = await supabase
+    .from('menu_ingredients')
+    .select('id, menu_id, ingredient_id, quantity, unit, ingredients(name, unit, current_price)')
+    .eq('tenant_id', tenant_id)
+    .in('menu_id', ids)
+
+  if (miErr) return { success: false, error: miErr.message, data: [] }
+
+  const byMenu = new Map<string, MenuIngredientRow[]>()
+  for (const row of (miRaw ?? []) as any[]) {
+    const ingRaw = row.ingredients
+    const ing = (Array.isArray(ingRaw) ? ingRaw[0] : ingRaw) as any | null
+    const quantityNum = typeof row.quantity === 'number' ? row.quantity : Number(row.quantity ?? 0)
+    const item: MenuIngredientRow = {
+      id: row.id,
+      ingredient_id: row.ingredient_id,
+      ingredient_name: ing?.name ?? '(삭제됨)',
+      ingredient_unit: ing?.unit ?? null,
+      ingredient_current_price: ing?.current_price ?? null,
+      quantity: Number.isFinite(quantityNum) ? quantityNum : 0,
+      unit: row.unit ?? null,
+    }
+    const arr = byMenu.get(row.menu_id) ?? []
+    if (item.quantity > 0) arr.push(item)
+    byMenu.set(row.menu_id, arr)
+  }
+
+  const result: MenuWithCost[] = menus.map((m) => {
+    const ingredients = byMenu.get(m.id) ?? []
+    const calculated_cost = computeCost(ingredients)
+    const margin_rate = computeMarginRate(m.price ?? 0, calculated_cost)
+    return {
+      id: m.id,
+      tenant_id: m.tenant_id,
+      name: m.name,
+      price: m.price ?? 0,
+      category: m.category ?? null,
+      memo: m.memo ?? null,
+      is_representative: !!m.is_representative,
+      is_active: !!m.is_active,
+      created_at: m.created_at,
+      updated_at: m.updated_at ?? null,
+      ingredients,
+      calculated_cost,
+      margin_rate,
+    }
+  })
+
+  return { success: true, data: result }
+}
+
 export async function createMenu(input: {
   name: string
   category?: string | null
@@ -231,6 +300,22 @@ export async function deactivateMenu(id: string): Promise<ActionResult> {
   const { error } = await supabase
     .from('menus')
     .update({ is_active: false, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .eq('tenant_id', tenant_id)
+
+  if (error) return { success: false, error: error.message }
+  revalidatePath('/settings/menus')
+  return { success: true }
+}
+
+export async function activateMenu(id: string): Promise<ActionResult> {
+  const supabase = await createServerClient()
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id) return { success: false, error: '인증 필요' }
+
+  const { error } = await supabase
+    .from('menus')
+    .update({ is_active: true, updated_at: new Date().toISOString() })
     .eq('id', id)
     .eq('tenant_id', tenant_id)
 

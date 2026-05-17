@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition, type FocusEvent } from 'react'
 import Link from 'next/link'
 import { formatKRW } from '@/lib/utils'
 import {
+  activateMenu,
   addMenuIngredient,
   createMenu,
   deactivateMenu,
@@ -234,10 +235,12 @@ function onFormInputBlur(e: FocusEvent<HTMLInputElement | HTMLTextAreaElement | 
 
 export default function MenusClient(props: {
   menus: MenuWithCost[]
+  inactiveMenus: MenuWithCost[]
   ingredients: Ingredient[]
   error: string | null
 }) {
   const [menus, setMenus] = useState<MenuWithCost[]>(props.menus)
+  const [inactiveMenus, setInactiveMenus] = useState<MenuWithCost[]>(props.inactiveMenus)
   const [isPending, startTr] = useTransition()
 
   const [query, setQuery] = useState('')
@@ -402,6 +405,13 @@ export default function MenusClient(props: {
     })
   }
 
+  async function refreshMenuLists() {
+    const menusMod = await import('@/actions/menus')
+    const [next, inactive] = await Promise.all([menusMod.getMenus(), menusMod.getInactiveMenus()])
+    if (next.success) setMenus(next.data ?? [])
+    if (inactive.success) setInactiveMenus(inactive.data ?? [])
+  }
+
   function handleDeactivate(menuId: string) {
     startTr(async () => {
       const res = await deactivateMenu(menuId)
@@ -410,8 +420,18 @@ export default function MenusClient(props: {
         return
       }
       setConfirmHideMenuId(null)
-      const next = await import('@/actions/menus').then((m) => m.getMenus())
-      if (next.success) setMenus(next.data ?? [])
+      await refreshMenuLists()
+    })
+  }
+
+  function handleActivate(menuId: string) {
+    startTr(async () => {
+      const res = await activateMenu(menuId)
+      if (!res.success) {
+        alert(res.error ?? '처리 실패')
+        return
+      }
+      await refreshMenuLists()
     })
   }
 
@@ -498,6 +518,8 @@ export default function MenusClient(props: {
         .menus-card-hover:hover { transform: translateY(-2px); }
         .menu-hide-btn { color: #9ca3af; transition: color 150ms ease; }
         .menu-hide-btn:hover:not(:disabled) { color: #6b7280; }
+        .menu-restore-btn { transition: opacity 150ms ease; }
+        .menu-restore-btn:hover:not(:disabled) { opacity: 0.8; }
       `}</style>
       <main style={{ maxWidth: 520, margin: '0 auto', padding: '20px 16px 80px', background: '#f7f6f2', minHeight: '100vh', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -942,6 +964,54 @@ export default function MenusClient(props: {
             </div>
           )
         })
+      )}
+
+      {inactiveMenus.length > 0 && (
+        <div
+          style={{
+            background: '#f7f6f2',
+            border: '0.5px solid #e8e5de',
+            borderRadius: 16,
+            padding: 16,
+            marginTop: 24,
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#9ca3af', marginBottom: 12 }}>
+            숨긴 메뉴 ({inactiveMenus.length}개)
+          </div>
+          {inactiveMenus.map((m, i) => (
+            <div
+              key={m.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '10px 0',
+                borderBottom: i < inactiveMenus.length - 1 ? '0.5px solid #e8e5de' : undefined,
+              }}
+            >
+              <span style={{ fontSize: 14, color: '#6b7280', fontWeight: 500 }}>{m.name}</span>
+              <button
+                type="button"
+                onClick={() => handleActivate(m.id)}
+                disabled={isPending}
+                className="menu-restore-btn"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#1f5d3a',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  padding: 0,
+                  fontFamily: 'inherit',
+                }}
+              >
+                다시 표시
+              </button>
+            </div>
+          ))}
+        </div>
       )}
     </main>
     </>
