@@ -203,6 +203,7 @@ export default function MenusClient(props: {
   const [directCost, setDirectCost] = useState('')
   const [directCostByMenuId, setDirectCostByMenuId] = useState<Record<string, string>>({})
   const [priceFocused, setPriceFocused] = useState(false)
+  const [confirmHideMenuId, setConfirmHideMenuId] = useState<string | null>(null)
 
   const [estimate, setEstimate] = useState<{
     menu_name: string
@@ -346,10 +347,13 @@ export default function MenusClient(props: {
   }
 
   function handleDeactivate(menuId: string) {
-    if (!confirm('비활성화할까요?')) return
     startTr(async () => {
       const res = await deactivateMenu(menuId)
-      if (!res.success) alert(res.error ?? '처리 실패')
+      if (!res.success) {
+        alert(res.error ?? '처리 실패')
+        return
+      }
+      setConfirmHideMenuId(null)
       const next = await import('@/actions/menus').then((m) => m.getMenus())
       if (next.success) setMenus(next.data ?? [])
     })
@@ -436,6 +440,8 @@ export default function MenusClient(props: {
         .menus-anim-cta { animation: menusPulse 2.5s ease-in-out infinite; animation-delay: 1.2s; }
         .menus-card-hover { transition: transform 200ms ease; }
         .menus-card-hover:hover { transform: translateY(-2px); }
+        .menu-hide-btn { color: #9ca3af; transition: color 150ms ease; }
+        .menu-hide-btn:hover:not(:disabled) { color: #6b7280; }
       `}</style>
       <main style={{ maxWidth: 520, margin: '0 auto', padding: '20px 16px 80px', background: '#f7f6f2', minHeight: '100vh', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -493,11 +499,15 @@ export default function MenusClient(props: {
             {editingId && (
               <button
                 type="button"
-                onClick={() => handleDeactivate(editingId)}
+                onClick={() => {
+                  if (editingId) setConfirmHideMenuId(editingId)
+                  setShowForm(false)
+                  resetForm()
+                }}
                 disabled={isPending}
-                style={{ background: 'transparent', border: 'none', color: '#b91c1c', fontSize: 13, fontWeight: 600, cursor: 'pointer', minHeight: 44, padding: '10px 8px', fontFamily: 'inherit' }}
+                style={{ background: 'transparent', border: 'none', color: '#9ca3af', fontSize: 13, fontWeight: 500, cursor: 'pointer', minHeight: 44, padding: '10px 8px', fontFamily: 'inherit' }}
               >
-                비활성화
+                메뉴 숨기기
               </button>
             )}
           </div>
@@ -786,7 +796,7 @@ export default function MenusClient(props: {
                       marginBottom: 12,
                     }}
                   >
-                    <span style={{ fontSize: 11, color: '#6b7280' }}>재료 기준</span>
+                    <span style={{ fontSize: 11, color: '#6b7280' }}>예상 마진</span>
                     <span style={{ fontSize: 24, fontWeight: 700, color: '#1f5d3a' }}>{pct(display.marginRate)}</span>
                   </div>
                 </>
@@ -834,15 +844,109 @@ export default function MenusClient(props: {
                         fontFamily: 'inherit',
                       }}
                     >
-                      재료 구성 시작하기
+                      재료 구성하기
                     </button>
                   </div>
                 </>
               )}
 
-              <div style={{ display: 'flex', gap: 16, borderTop: '1px solid #f3f4f6', paddingTop: 10, flexWrap: 'wrap' }}>
-                <button type="button" onClick={() => openEdit(m)} style={{ background: 'transparent', border: 'none', color: '#1f5d3a', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '10px 0', minHeight: 44, fontFamily: 'inherit' }}>{editLabel}</button>
-                <button type="button" onClick={() => handleDeactivate(m.id)} disabled={isPending} style={{ background: 'transparent', border: 'none', color: '#b91c1c', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '10px 0', minHeight: 44, fontFamily: 'inherit' }}>비활성화</button>
+              <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: 10 }}>
+                {confirmHideMenuId !== m.id && (
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => openEdit(m)}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#1f5d3a',
+                        fontSize: 13,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        padding: '10px 0',
+                        minHeight: 44,
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      {editLabel}
+                    </button>
+                    <button
+                      type="button"
+                      className="menu-hide-btn"
+                      onClick={() => setConfirmHideMenuId(m.id)}
+                      disabled={isPending}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        fontSize: 13,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        padding: '10px 0',
+                        minHeight: 44,
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      메뉴 숨기기
+                    </button>
+                  </div>
+                )}
+                {confirmHideMenuId === m.id && (
+                  <div
+                    style={{
+                      background: '#f7f6f2',
+                      border: '0.5px solid #ece7df',
+                      borderRadius: 12,
+                      padding: 12,
+                    }}
+                  >
+                    <p style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', margin: '0 0 6px' }}>
+                      이 메뉴를 숨길까요?
+                    </p>
+                    <p style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.5, margin: '0 0 12px' }}>
+                      숨겨진 메뉴는 언제든 다시 표시할 수 있어요.
+                    </p>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmHideMenuId(null)}
+                        disabled={isPending}
+                        style={{
+                          flex: 1,
+                          background: 'transparent',
+                          border: '0.5px solid #e8e5de',
+                          color: '#6b7280',
+                          borderRadius: 8,
+                          padding: '8px 12px',
+                          fontSize: 13,
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeactivate(m.id)}
+                        disabled={isPending}
+                        style={{
+                          flex: 1,
+                          background: '#1f5d3a',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: 8,
+                          padding: '8px 12px',
+                          fontSize: 13,
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        숨기기
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )
