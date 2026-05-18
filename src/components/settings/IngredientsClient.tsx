@@ -12,6 +12,8 @@ const BRAND_GREEN = '#1f5d3a'
 
 const UNITS = ['kg', 'g', 'L', 'ml', '개', '봉', '묶음', '팩', '캔'] as const
 
+type RegisterMode = 'select' | 'manual' | 'product' | 'invoice' | null
+
 const INPUT_STYLE: React.CSSProperties = {
   width: '100%',
   padding: '11px 14px',
@@ -97,27 +99,89 @@ function CurrencyField({
   )
 }
 
-function BarcodeIcon() {
+function ModeChevron() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M4 6v12M7 6v12M10 4v16M13 6v12M16 6v12M19 4v16M22 6v12" stroke="#fff" strokeWidth="2" strokeLinecap="round" />
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden style={{ flexShrink: 0 }}>
+      <path d="M9 6l6 6-6 6" stroke="#c0bdb8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
 
-function ChevronRight() {
+function RegisterModeCard({
+  icon,
+  iconBg,
+  title,
+  description,
+  badge,
+  badgeStyle,
+  onClick,
+}: {
+  icon: string
+  iconBg: string
+  title: string
+  description: string
+  badge?: string
+  badgeStyle?: React.CSSProperties
+  onClick: () => void
+}) {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M9 6l6 6-6 6" stroke={BRAND_ORANGE} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
+    <button
+      type="button"
+      className="reg-mode-card"
+      onClick={onClick}
+      style={{
+        width: '100%',
+        background: '#ffffff',
+        border: '0.5px solid #e8e5de',
+        borderRadius: 14,
+        padding: '14px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        cursor: 'pointer',
+        textAlign: 'left',
+        fontFamily: 'inherit',
+        transition: 'border-color 0.15s ease',
+        marginBottom: 10,
+      }}
+    >
+      <span
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 12,
+          background: iconBg,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 22,
+          flexShrink: 0,
+        }}
+      >
+        {icon}
+      </span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 2 }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: '#2b2b2b' }}>{title}</span>
+          {badge ? (
+            <span style={badgeStyle}>{badge}</span>
+          ) : null}
+        </span>
+        <span style={{ display: 'block', fontSize: 12, color: '#9ca3af', lineHeight: 1.45 }}>
+          {description}
+        </span>
+      </span>
+      <ModeChevron />
+    </button>
   )
 }
 
 export default function IngredientsClient({ ingredients: init, restaurantId: _restaurantId }: Props) {
-  const [list, setList]         = useState(init)
+  const [list, setList] = useState(init)
   const [showForm, setShowForm] = useState(false)
+  const [registerMode, setRegisterMode] = useState<RegisterMode>(null)
   const [barcodeToolsOpen, setBarcodeToolsOpen] = useState(false)
-  const [isPending, startTr]    = useTransition()
+  const [isPending, startTr] = useTransition()
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [name, setName] = useState('')
@@ -165,6 +229,10 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     return keys.map((k) => ({ category: k, items: map.get(k)! }))
   }, [filtered])
 
+  const registrationOpen = registerMode !== null
+  const showManualForm =
+    showForm && (registerMode === 'manual' || registerMode === 'product')
+
   function resetForm() {
     setEditingId(null)
     setName('')
@@ -175,6 +243,12 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     setMemo('')
     setBarcode('')
     setBarcodeToolsOpen(false)
+  }
+
+  function closeRegistration() {
+    setShowForm(false)
+    setRegisterMode(null)
+    resetForm()
   }
 
   const applyBarcodeHints = useCallback((h: IngredientBarcodeApplyHints) => {
@@ -245,8 +319,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
             },
           ])
         }
-        resetForm()
-        setShowForm(false)
+        closeRegistration()
       }
     })
   }
@@ -259,6 +332,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
   }
 
   function openEdit(i: Ingredient) {
+    closeRegistration()
     setEditingId(i.id)
     setName(i.name)
     setUnit(UNITS.includes(i.unit as (typeof UNITS)[number]) ? i.unit : 'kg')
@@ -267,17 +341,16 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     setTargetPrice(i.target_price != null ? String(i.target_price) : '')
     setMemo(i.memo ?? '')
     setBarcode(i.barcode ?? '')
-    setBarcodeToolsOpen(false)
+    setRegisterMode('manual')
     setShowForm(true)
   }
 
-  function openAddForm() {
-    if (showForm) {
-      resetForm()
-      setShowForm(false)
+  function openAddFlow() {
+    if (registrationOpen) {
+      closeRegistration()
     } else {
       resetForm()
-      setShowForm(true)
+      setRegisterMode('select')
     }
   }
 
@@ -290,6 +363,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
         }
         .fade-up { opacity: 0; animation: fadeUp 0.4s ease forwards; }
         .fade-up-delay-1 { animation-delay: 0.1s; }
+        .reg-mode-card:hover { border-color: #F97316 !important; }
       `}</style>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -298,7 +372,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
         </Link>
         <button
           type="button"
-          onClick={openAddForm}
+          onClick={openAddFlow}
           style={{
             padding: '8px 14px',
             background: BRAND_GREEN,
@@ -322,7 +396,6 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
         현재 사용하는 식자재를 등록하세요
       </h1>
 
-      {/* 검색/필터 */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <input
           value={query}
@@ -342,205 +415,327 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
         </select>
       </div>
 
-      {showForm && (
-        <>
+      {registerMode === 'select' && (
+        <div
+          className="fade-up"
+          style={{
+            background: '#ffffff',
+            borderRadius: 18,
+            border: '0.5px solid #e8e5de',
+            padding: 20,
+            marginBottom: 18,
+          }}
+        >
+          <p style={{ fontSize: 15, fontWeight: 600, color: '#2b2b2b', margin: '0 0 4px' }}>
+            어떻게 등록하실 건가요?
+          </p>
+          <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 16px' }}>
+            식당 운영 방식에 맞게 선택하세요
+          </p>
+
+          <RegisterModeCard
+            icon="✍️"
+            iconBg="#edf7f1"
+            title="직접 입력하기"
+            description="식자재명, 단가, 단위를 직접 입력해요"
+            onClick={() => {
+              setRegisterMode('manual')
+              setShowForm(true)
+            }}
+          />
+
+          <RegisterModeCard
+            icon="📦"
+            iconBg="#fff8f3"
+            title="제품 사진 찍기"
+            description="제품 뒷면이나 바코드를 찍으면 정보를 가져올 수 있어요"
+            badge="바코드 인식 지원"
+            badgeStyle={{
+              background: '#fff8f3',
+              color: BRAND_ORANGE,
+              borderRadius: 999,
+              padding: '3px 8px',
+              fontSize: 10,
+              fontWeight: 500,
+            }}
+            onClick={() => {
+              setRegisterMode('product')
+              setShowForm(true)
+              setBarcodeToolsOpen(true)
+            }}
+          />
+
+          <RegisterModeCard
+            icon="📄"
+            iconBg="#eff6ff"
+            title="거래명세서 사진 찍기"
+            description="명세서 한 장으로 여러 식자재를 한번에 등록해요"
+            badge="곧 지원 예정"
+            badgeStyle={{
+              background: '#f3f4f6',
+              color: '#9ca3af',
+              borderRadius: 999,
+              padding: '3px 8px',
+              fontSize: 10,
+              fontWeight: 500,
+            }}
+            onClick={() => setRegisterMode('invoice')}
+          />
+
           <button
             type="button"
-            className="fade-up"
-            onClick={() => setBarcodeToolsOpen(true)}
+            onClick={() => setRegisterMode(null)}
             style={{
+              display: 'block',
               width: '100%',
-              background: '#fff8f3',
-              border: '1px solid #fde8d4',
-              borderRadius: 14,
-              padding: '14px 16px',
-              marginBottom: 12,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
+              marginTop: 12,
+              padding: 0,
+              border: 'none',
+              background: 'transparent',
+              fontSize: 13,
+              color: '#9ca3af',
               cursor: 'pointer',
-              textAlign: 'left',
               fontFamily: 'inherit',
+              textAlign: 'center',
             }}
           >
+            취소
+          </button>
+        </div>
+      )}
+
+      {registerMode === 'invoice' && (
+        <div
+          className="fade-up"
+          style={{
+            background: '#ffffff',
+            borderRadius: 18,
+            border: '0.5px solid #e8e5de',
+            padding: 24,
+            marginBottom: 18,
+            textAlign: 'center',
+          }}
+        >
+          <div style={{ fontSize: 38, marginBottom: 12 }}>📄</div>
+          <p style={{ fontSize: 16, fontWeight: 600, color: '#2b2b2b', margin: '0 0 10px' }}>
+            거래명세서 자동 등록
+          </p>
+          <p style={{ fontSize: 13, color: '#9ca3af', lineHeight: 1.7, margin: '0 0 4px' }}>
+            거래명세서 사진 한 장으로
+            <br />
+            여러 식자재를 한번에 등록하는 기능이에요.
+          </p>
+          <p style={{ fontSize: 13, color: '#9ca3af', lineHeight: 1.7, margin: '0 0 10px' }}>
+            공급가·수량·날짜를 자동으로 분석해서
+            <br />
+            운영 데이터로 변환합니다.
+          </p>
+          <p style={{ fontSize: 12, color: BRAND_ORANGE, marginTop: 10, marginBottom: 20, fontWeight: 500 }}>
+            현재 준비 중입니다
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => {
+                resetForm()
+                setRegisterMode('manual')
+                setShowForm(true)
+              }}
+              style={{
+                width: '100%',
+                padding: 13,
+                background: BRAND_GREEN,
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: 10,
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              직접 입력하기
+            </button>
+            <button
+              type="button"
+              onClick={() => setRegisterMode('select')}
+              style={{
+                width: '100%',
+                padding: 13,
+                background: 'transparent',
+                border: '0.5px solid #e8e5de',
+                color: '#6b7280',
+                borderRadius: 10,
+                fontSize: 14,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              돌아가기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {registerMode === 'product' && (
+        <div className="fade-up" style={{ marginBottom: 12 }}>
+          <IngredientBarcodeSection onApply={applyBarcodeHints} />
+        </div>
+      )}
+
+      {showManualForm && (
+        <div
+          className="fade-up fade-up-delay-1"
+          style={{
+            background: '#ffffff',
+            borderRadius: 18,
+            border: '0.5px solid #e8e5de',
+            padding: 20,
+            marginBottom: 12,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
             <span
               style={{
                 width: 40,
                 height: 40,
                 borderRadius: 10,
-                background: BRAND_ORANGE,
+                background: registerMode === 'product' ? '#fff8f3' : '#edf7f1',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                fontSize: 20,
                 flexShrink: 0,
               }}
             >
-              <BarcodeIcon />
+              {registerMode === 'product' ? '📦' : '🥬'}
             </span>
-            <span style={{ flex: 1, minWidth: 0 }}>
-              <span style={{ display: 'block', fontSize: 14, fontWeight: 500, color: '#2b2b2b' }}>
-                바코드로 빠르게 등록
-              </span>
-              <span style={{ display: 'block', fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
-                카메라 또는 바코드 번호로 식자재 정보를 가져와요
-              </span>
-            </span>
-            <ChevronRight />
-          </button>
-
-          {barcodeToolsOpen && (
-            <div className="fade-up" style={{ marginBottom: 12 }}>
-              <IngredientBarcodeSection onApply={applyBarcodeHints} />
+            <div>
+              <p style={{ fontSize: 14, fontWeight: 500, color: '#2b2b2b', margin: 0 }}>
+                {editingId
+                  ? '식자재 수정'
+                  : registerMode === 'product'
+                    ? '제품 정보 확인 후 저장'
+                    : '새 식자재 등록'}
+              </p>
+              <p style={{ fontSize: 11, color: '#9ca3af', margin: '4px 0 0' }}>
+                {registerMode === 'product'
+                  ? '스캔한 정보를 확인하고 저장하세요'
+                  : '단가를 입력하면 메뉴 원가가 자동 계산돼요'}
+              </p>
             </div>
-          )}
+          </div>
+          <div style={{ height: 0.5, background: '#f0ede8', marginBottom: 18 }} />
 
-          <div
-            className="fade-up fade-up-delay-1"
-            style={{
-              background: '#ffffff',
-              borderRadius: 18,
-              border: '0.5px solid #e8e5de',
-              padding: 20,
-              marginBottom: 12,
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-              <span
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 10,
-                  background: '#edf7f1',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 20,
-                  flexShrink: 0,
-                }}
-              >
-                🥬
-              </span>
-              <div>
-                <p style={{ fontSize: 14, fontWeight: 500, color: '#2b2b2b', margin: 0 }}>
-                  {editingId ? '식자재 수정' : '새 식자재 등록'}
-                </p>
-                <p style={{ fontSize: 11, color: '#9ca3af', margin: '4px 0 0' }}>
-                  단가를 입력하면 메뉴 원가가 자동 계산돼요
-                </p>
-              </div>
-            </div>
-            <div style={{ height: 0.5, background: '#f0ede8', marginBottom: 18 }} />
+          <div style={{ marginBottom: 10 }}>
+            <FormLabel required>식자재명</FormLabel>
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="예: 고춧가루"
+              style={INPUT_STYLE}
+            />
+          </div>
 
-            <div style={{ marginBottom: 10 }}>
-              <FormLabel required>식자재명</FormLabel>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
+            <div>
+              <FormLabel>카테고리</FormLabel>
               <input
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="예: 고춧가루"
+                value={category}
+                onChange={e => setCategory(e.target.value)}
+                placeholder="예: 채소, 육류"
                 style={INPUT_STYLE}
               />
             </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-              <div>
-                <FormLabel>카테고리</FormLabel>
-                <input
-                  value={category}
-                  onChange={e => setCategory(e.target.value)}
-                  placeholder="예: 채소, 육류"
-                  style={INPUT_STYLE}
-                />
-              </div>
-              <div>
-                <FormLabel required>단위</FormLabel>
-                <select
-                  value={unit}
-                  onChange={e => setUnit(e.target.value)}
-                  style={INPUT_STYLE}
-                >
-                  {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
-                  {!UNITS.includes(unit as (typeof UNITS)[number]) && unit ? (
-                    <option value={unit}>{unit}</option>
-                  ) : null}
-                </select>
-              </div>
-            </div>
-
-            <CurrencyField
-              label="현재 구매가"
-              value={price}
-              onChange={setPrice}
-              placeholder="예: 35000"
-            />
-
-            <CurrencyField
-              label="목표가"
-              value={targetPrice}
-              onChange={setTargetPrice}
-              placeholder="예: 30000"
-              hint="목표가 입력 시 가격 비교 알림이 활성화돼요"
-            />
-
-            <div style={{ marginBottom: 16 }}>
-              <FormLabel>메모</FormLabel>
-              <textarea
-                value={memo}
-                onChange={e => setMemo(e.target.value)}
-                placeholder="예: 특정 브랜드만 사용, 냉동 보관"
-                style={{ ...INPUT_STYLE, resize: 'none', height: 72 }}
-              />
-            </div>
-
-            {barcode.trim() ? (
-              <p style={{ fontSize: 11, color: '#9ca3af', margin: '-8px 0 14px' }}>
-                바코드 {barcode} · 스캔으로 불러온 값
-              </p>
-            ) : null}
-
-            <div style={{ height: 0.5, background: '#f0ede8', marginBottom: 14 }} />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                onClick={handleAdd}
-                disabled={isPending || !name.trim() || !unit.trim()}
-                style={{
-                  flex: 2,
-                  padding: 13,
-                  background: isPending || !name.trim() || !unit.trim() ? '#9ca3af' : BRAND_GREEN,
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 10,
-                  fontSize: 14,
-                  fontWeight: 500,
-                  cursor: isPending || !name.trim() || !unit.trim() ? 'not-allowed' : 'pointer',
-                  fontFamily: 'inherit',
-                }}
+            <div>
+              <FormLabel required>단위</FormLabel>
+              <select
+                value={unit}
+                onChange={e => setUnit(e.target.value)}
+                style={INPUT_STYLE}
               >
-                저장
-              </button>
-              <button
-                type="button"
-                onClick={() => { setShowForm(false); resetForm() }}
-                style={{
-                  flex: 1,
-                  padding: 13,
-                  background: 'transparent',
-                  border: '0.5px solid #e8e5de',
-                  color: '#9ca3af',
-                  borderRadius: 10,
-                  fontSize: 14,
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                }}
-              >
-                취소
-              </button>
+                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                {!UNITS.includes(unit as (typeof UNITS)[number]) && unit ? (
+                  <option value={unit}>{unit}</option>
+                ) : null}
+              </select>
             </div>
           </div>
-        </>
+
+          <CurrencyField
+            label="현재 구매가"
+            value={price}
+            onChange={setPrice}
+            placeholder="예: 35000"
+          />
+
+          <CurrencyField
+            label="목표가"
+            value={targetPrice}
+            onChange={setTargetPrice}
+            placeholder="예: 30000"
+            hint="목표가 입력 시 가격 비교 알림이 활성화돼요"
+          />
+
+          <div style={{ marginBottom: 16 }}>
+            <FormLabel>메모</FormLabel>
+            <textarea
+              value={memo}
+              onChange={e => setMemo(e.target.value)}
+              placeholder="예: 특정 브랜드만 사용, 냉동 보관"
+              style={{ ...INPUT_STYLE, resize: 'none', height: 72 }}
+            />
+          </div>
+
+          {barcode.trim() ? (
+            <p style={{ fontSize: 11, color: '#9ca3af', margin: '-8px 0 14px' }}>
+              바코드 {barcode} · 스캔으로 불러온 값
+            </p>
+          ) : null}
+
+          <div style={{ height: 0.5, background: '#f0ede8', marginBottom: 14 }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              type="button"
+              onClick={handleAdd}
+              disabled={isPending || !name.trim() || !unit.trim()}
+              style={{
+                flex: 2,
+                padding: 13,
+                background: isPending || !name.trim() || !unit.trim() ? '#9ca3af' : BRAND_GREEN,
+                color: '#fff',
+                border: 'none',
+                borderRadius: 10,
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: isPending || !name.trim() || !unit.trim() ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              저장
+            </button>
+            <button
+              type="button"
+              onClick={closeRegistration}
+              style={{
+                flex: 1,
+                padding: 13,
+                background: 'transparent',
+                border: '0.5px solid #e8e5de',
+                color: '#9ca3af',
+                borderRadius: 10,
+                fontSize: 14,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              취소
+            </button>
+          </div>
+        </div>
       )}
 
-      {list.length === 0 && !showForm ? (
+      {list.length === 0 && !registrationOpen ? (
         <div style={{ textAlign: 'center', padding: '40px 0', color: '#9ca3af', fontSize: 14 }}>
           <div style={{ fontSize: 36, marginBottom: 12 }}>🥬</div>
           자주 사는 식자재를 입력해주세요<br />
