@@ -4,7 +4,10 @@ import { useState, useTransition, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateRestaurant } from '@/actions/restaurant'
 import type { RestaurantInfo } from '@/actions/restaurant'
+import { fetchNaverPlaceInfo } from '@/lib/naver-place-parser'
 import Link from 'next/link'
+
+const BRAND_ORANGE = '#F97316'
 
 const INPUT_BASE: React.CSSProperties = {
   width: '100%', padding: '11px 14px',
@@ -24,8 +27,67 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
     restaurant.business_hours_text ?? '',
   )
   const [workingDays, setWorkingDays] = useState(restaurant.working_days_per_month ?? 25)
+  const [placeUrl, setPlaceUrl] = useState('')
+  const [placeFetching, setPlaceFetching] = useState(false)
+  const [placeFetchResult, setPlaceFetchResult] =
+    useState<'success' | 'partial' | 'failed' | null>(null)
   const [status,    setStatus]    = useState<'idle' | 'dirty' | 'saved'>('idle')
   const [isPending, startTr]      = useTransition()
+
+  async function handleFetchPlace() {
+    const trimmed = placeUrl.trim()
+    if (!trimmed) {
+      setPlaceFetchResult('failed')
+      return
+    }
+
+    setPlaceFetching(true)
+    setPlaceFetchResult(null)
+
+    try {
+      const info = await fetchNaverPlaceInfo(trimmed)
+      if (!info) {
+        setPlaceFetchResult('failed')
+        return
+      }
+
+      const hydrated: boolean[] = []
+
+      if (info.name?.trim()) {
+        setName(info.name.trim())
+        hydrated.push(true)
+      }
+      if (info.address?.trim()) {
+        setRegion(info.address.trim())
+        hydrated.push(true)
+      }
+      if (info.phone?.trim()) {
+        setPhone(info.phone.trim())
+        hydrated.push(true)
+      }
+      if (info.business_hours_text?.trim()) {
+        setBusinessHoursText(info.business_hours_text.trim())
+        hydrated.push(true)
+      }
+
+      // 향후: 메뉴/가격 hydrate 추가 가능 (info.menus)
+
+      const filledCount = hydrated.length
+      if (filledCount === 0) {
+        setPlaceFetchResult('failed')
+      } else if (filledCount === 4) {
+        setPlaceFetchResult('success')
+        setStatus('dirty')
+      } else {
+        setPlaceFetchResult('partial')
+        setStatus('dirty')
+      }
+    } catch {
+      setPlaceFetchResult('failed')
+    } finally {
+      setPlaceFetching(false)
+    }
+  }
 
   // dirty 감지 — 초기값과 비교
   const isDirty =
@@ -96,6 +158,102 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
       <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-text)', margin: '16px 0 20px' }}>
         매장 정보
       </h1>
+
+      <style>{'@keyframes naverPlaceSpin { to { transform: rotate(360deg); } }'}</style>
+
+      <div style={{
+        background: '#f7f6f2',
+        borderRadius: 12,
+        padding: '14px 16px',
+        marginBottom: 20,
+        border: '0.5px solid #e8e5de',
+      }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', margin: 0 }}>
+          네이버 플레이스 주소로 자동 입력
+        </p>
+        <p style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.5, marginTop: 4, marginBottom: 12 }}>
+          플레이스 URL을 붙여넣으면 가능한 정보를 자동으로 가져옵니다.
+          일부 정보는 직접 수정이 필요할 수 있어요.
+        </p>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+          <input
+            value={placeUrl}
+            onChange={e => {
+              setPlaceUrl(e.target.value)
+              if (placeFetchResult) setPlaceFetchResult(null)
+            }}
+            placeholder="https://map.naver.com/..."
+            disabled={placeFetching}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              padding: '9px 12px',
+              border: '0.5px solid #e8e5de',
+              borderRadius: 10,
+              fontSize: 13,
+              background: '#ffffff',
+              boxSizing: 'border-box',
+              fontFamily: 'inherit',
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleFetchPlace}
+            disabled={placeFetching || !placeUrl.trim()}
+            style={{
+              flexShrink: 0,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              background: BRAND_ORANGE,
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: 10,
+              padding: '9px 14px',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: placeFetching || !placeUrl.trim() ? 'not-allowed' : 'pointer',
+              opacity: placeFetching || !placeUrl.trim() ? 0.65 : 1,
+              fontFamily: 'inherit',
+            }}
+          >
+            {placeFetching && (
+              <span
+                aria-hidden
+                style={{
+                  display: 'inline-block',
+                  width: 12,
+                  height: 12,
+                  border: '2px solid rgba(255,255,255,0.35)',
+                  borderTopColor: '#ffffff',
+                  borderRadius: '50%',
+                  animation: 'naverPlaceSpin 0.7s linear infinite',
+                }}
+              />
+            )}
+            {placeFetching ? '정보 분석 중...' : '가져오기'}
+          </button>
+        </div>
+        {placeFetchResult === 'success' && (
+          <p style={{ fontSize: 12, color: '#1f5d3a', marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
+            매장 정보를 가져왔어요.
+            아래 내용을 확인하고 저장하세요.
+          </p>
+        )}
+        {placeFetchResult === 'partial' && (
+          <p style={{ fontSize: 12, color: BRAND_ORANGE, marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
+            일부 정보를 가져왔어요.
+            비어있는 항목은 직접 입력해주세요.
+          </p>
+        )}
+        {placeFetchResult === 'failed' && (
+          <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
+            정보를 가져오지 못했어요.
+            URL을 확인하거나 아래 항목을 직접 입력해주세요.
+          </p>
+        )}
+      </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <Field label="매장 이름 *">
