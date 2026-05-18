@@ -65,6 +65,47 @@ async function insertIngredientPriceHistory(
   return !error
 }
 
+// 메뉴 원가는 현재 가격이 아니라
+// 계산 기준일 당시 가격 기준으로 계산한다.
+// 과거 원가 분석 보호 목적.
+export async function getIngredientPriceAtDate(
+  ingredientId: string,
+  targetDate: string,
+): Promise<number | null> {
+  const supabase = await createServerClient()
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id || !ingredientId) return null
+  if (!isValidEffectiveDate(targetDate)) return null
+
+  const { data: historyRow, error: historyError } = await supabase
+    .from('ingredient_price_history')
+    .select('price')
+    .eq('tenant_id', tenant_id)
+    .eq('ingredient_id', ingredientId)
+    .lte('effective_from', targetDate)
+    .order('effective_from', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (!historyError && historyRow?.price != null) {
+    const historyPrice = Number(historyRow.price)
+    return Number.isFinite(historyPrice) ? historyPrice : null
+  }
+
+  const { data: ingredient, error: ingredientError } = await supabase
+    .from('ingredients')
+    .select('current_price')
+    .eq('tenant_id', tenant_id)
+    .eq('id', ingredientId)
+    .maybeSingle()
+
+  if (ingredientError || !ingredient) return null
+  if (ingredient.current_price == null) return null
+
+  const fallbackPrice = Number(ingredient.current_price)
+  return Number.isFinite(fallbackPrice) ? fallbackPrice : null
+}
+
 export async function getIngredients(): Promise<ActionResult<IngredientRow[]>> {
   const supabase = await createServerClient()
   const tenant_id = await getTenantId().catch(() => null)

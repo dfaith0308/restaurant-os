@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createServerClient } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/get-restaurant'
+import { getIngredientPriceAtDate } from '@/actions/ingredients'
 import type { ActionResult } from '@/types'
 
 export interface MenuIngredientRow {
@@ -31,10 +32,29 @@ export interface MenuWithCost {
   margin_rate: number | null
 }
 
+function isValidCalculationDate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+  const [y, m, d] = value.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  return (
+    dt.getFullYear() === y &&
+    dt.getMonth() === m - 1 &&
+    dt.getDate() === d
+  )
+}
+
+function resolveMenuCalculationDate(calculationDate?: string): string {
+  if (calculationDate && isValidCalculationDate(calculationDate)) {
+    return calculationDate
+  }
+  return new Date().toISOString().slice(0, 10)
+}
+
 function computeCost(rows: MenuIngredientRow[]): number {
   let sum = 0
   for (const r of rows) {
-    const p = r.ingredient_current_price ?? 0
+    const p = r.ingredient_current_price
+    if (p == null) continue
     const q = Number.isFinite(r.quantity) ? r.quantity : 0
     sum += Math.round(p * q)
   }
@@ -44,6 +64,77 @@ function computeCost(rows: MenuIngredientRow[]): number {
 function computeMarginRate(price: number, cost: number): number | null {
   if (!Number.isFinite(price) || price <= 0) return null
   return ((price - cost) / price) * 100
+}
+
+type MenuIngredientJoinRow = {
+  id: string
+  menu_id: string
+  ingredient_id: string
+  quantity: number | string | null
+  unit: string | null
+  ingredients:
+    | { name?: string | null; unit?: string | null }
+    | Array<{ name?: string | null; unit?: string | null }>
+    | null
+}
+
+async function buildMenuIngredientsWithPrices(
+  miRaw: MenuIngredientJoinRow[] | null | undefined,
+  calculationDate: string,
+): Promise<Map<string, MenuIngredientRow[]>> {
+  const drafts: Array<{
+    menu_id: string
+    row: Omit<MenuIngredientRow, 'ingredient_current_price'>
+  }> = []
+
+  for (const row of miRaw ?? []) {
+    const ingRaw = row.ingredients
+    const ing = (Array.isArray(ingRaw) ? ingRaw[0] : ingRaw) as {
+      name?: string | null
+      unit?: string | null
+    } | null
+    const quantityNum =
+      typeof row.quantity === 'number' ? row.quantity : Number(row.quantity ?? 0)
+    const quantity = Number.isFinite(quantityNum) ? quantityNum : 0
+    if (!(quantity > 0)) continue
+
+    drafts.push({
+      menu_id: row.menu_id,
+      row: {
+        id: row.id,
+        ingredient_id: row.ingredient_id,
+        ingredient_name: ing?.name ?? '(삭제됨)',
+        ingredient_unit: ing?.unit ?? null,
+        quantity,
+        unit: row.unit ?? null,
+      },
+    })
+  }
+
+  const uniqueIngredientIds = [
+    ...new Set(drafts.map((d) => d.row.ingredient_id).filter(Boolean)),
+  ]
+  const priceByIngredient = new Map<string, number | null>()
+  await Promise.all(
+    uniqueIngredientIds.map(async (ingredientId) => {
+      const price = await getIngredientPriceAtDate(ingredientId, calculationDate)
+      priceByIngredient.set(ingredientId, price)
+    }),
+  )
+
+  const byMenu = new Map<string, MenuIngredientRow[]>()
+  for (const { menu_id, row } of drafts) {
+    const item: MenuIngredientRow = {
+      ...row,
+      ingredient_current_price:
+        priceByIngredient.get(row.ingredient_id) ?? null,
+    }
+    const arr = byMenu.get(menu_id) ?? []
+    arr.push(item)
+    byMenu.set(menu_id, arr)
+  }
+
+  return byMenu
 }
 
 async function assertRepresentativeLimit(supabase: any, tenant_id: string, nextIsRepresentative: boolean, excludingMenuId?: string) {
@@ -83,34 +174,20 @@ export async function getMenus(): Promise<ActionResult<MenuWithCost[]>> {
   const ids = menus.map((m) => m.id).filter(Boolean)
   if (ids.length === 0) return { success: true, data: [] }
 
-  // menu_ingredients join ingredients (current_price)
+  const calculationDate = resolveMenuCalculationDate()
+
   const { data: miRaw, error: miErr } = await supabase
     .from('menu_ingredients')
-    .select('id, menu_id, ingredient_id, quantity, unit, ingredients(name, unit, current_price)')
+    .select('id, menu_id, ingredient_id, quantity, unit, ingredients(name, unit)')
     .eq('tenant_id', tenant_id)
     .in('menu_id', ids)
 
   if (miErr) return { success: false, error: miErr.message, data: [] }
 
-  const byMenu = new Map<string, MenuIngredientRow[]>()
-  for (const row of (miRaw ?? []) as any[]) {
-    const ingRaw = row.ingredients
-    const ing = (Array.isArray(ingRaw) ? ingRaw[0] : ingRaw) as any | null
-    const quantityNum = typeof row.quantity === 'number' ? row.quantity : Number(row.quantity ?? 0)
-    const item: MenuIngredientRow = {
-      id: row.id,
-      ingredient_id: row.ingredient_id,
-      ingredient_name: ing?.name ?? '(삭제됨)',
-      ingredient_unit: ing?.unit ?? null,
-      ingredient_current_price: ing?.current_price ?? null,
-      quantity: Number.isFinite(quantityNum) ? quantityNum : 0,
-      unit: row.unit ?? null,
-    }
-    const arr = byMenu.get(row.menu_id) ?? []
-    // RULE-10 대체: quantity=0인 행은 "삭제 처리"로 간주
-    if (item.quantity > 0) arr.push(item)
-    byMenu.set(row.menu_id, arr)
-  }
+  const byMenu = await buildMenuIngredientsWithPrices(
+    (miRaw ?? []) as MenuIngredientJoinRow[],
+    calculationDate,
+  )
 
   const result: MenuWithCost[] = menus.map((m) => {
     const ingredients = byMenu.get(m.id) ?? []
@@ -154,32 +231,20 @@ export async function getInactiveMenus(): Promise<ActionResult<MenuWithCost[]>> 
   const ids = menus.map((m) => m.id).filter(Boolean)
   if (ids.length === 0) return { success: true, data: [] }
 
+  const calculationDate = resolveMenuCalculationDate()
+
   const { data: miRaw, error: miErr } = await supabase
     .from('menu_ingredients')
-    .select('id, menu_id, ingredient_id, quantity, unit, ingredients(name, unit, current_price)')
+    .select('id, menu_id, ingredient_id, quantity, unit, ingredients(name, unit)')
     .eq('tenant_id', tenant_id)
     .in('menu_id', ids)
 
   if (miErr) return { success: false, error: miErr.message, data: [] }
 
-  const byMenu = new Map<string, MenuIngredientRow[]>()
-  for (const row of (miRaw ?? []) as any[]) {
-    const ingRaw = row.ingredients
-    const ing = (Array.isArray(ingRaw) ? ingRaw[0] : ingRaw) as any | null
-    const quantityNum = typeof row.quantity === 'number' ? row.quantity : Number(row.quantity ?? 0)
-    const item: MenuIngredientRow = {
-      id: row.id,
-      ingredient_id: row.ingredient_id,
-      ingredient_name: ing?.name ?? '(삭제됨)',
-      ingredient_unit: ing?.unit ?? null,
-      ingredient_current_price: ing?.current_price ?? null,
-      quantity: Number.isFinite(quantityNum) ? quantityNum : 0,
-      unit: row.unit ?? null,
-    }
-    const arr = byMenu.get(row.menu_id) ?? []
-    if (item.quantity > 0) arr.push(item)
-    byMenu.set(row.menu_id, arr)
-  }
+  const byMenu = await buildMenuIngredientsWithPrices(
+    (miRaw ?? []) as MenuIngredientJoinRow[],
+    calculationDate,
+  )
 
   const result: MenuWithCost[] = menus.map((m) => {
     const ingredients = byMenu.get(m.id) ?? []
