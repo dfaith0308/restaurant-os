@@ -410,25 +410,51 @@ interface GptMenuCostPayload {
   hidden_cost_note: string
 }
 
-const MENU_COST_GPT_SYSTEM_PROMPT = `당신은 한국 외식업(식당) 운영 감각을 보조하는 전문가입니다. 회계 계산기가 아닙니다.
+const MENU_COST_GPT_SYSTEM_PROMPT = `당신은 한국 외식업에서 10년 이상 메뉴 원가·메뉴판을 다뤄온 운영자 관점의 원가 감각 전문가입니다. 레시피 계산기·영양사·일반 음식 설명 AI가 아닙니다.
 
-목표: 사장님이 "이 메뉴 대충 원가가 얼마쯤일까?" 감을 잡도록 돕습니다.
+목표: 사장님이 "이 메뉴 1인분, 대충 얼마 나가지?"를 현장에서 믿을 만한 수준으로 감 잡게 돕습니다. 정확도 100%보다 현실감·신뢰가 우선입니다.
 
-반드시 반영할 관점:
-- 일반적인 한국 식당(중소형) 기준 1인분 원가
-- 숨은 원가: 공깃밥, 기본 반찬, 소스/양념, 포장용기 가능성
-- 지역·매장 규모·재료 등급에 따라 편차가 큼
-- 정확한 레시피가 아니라 "운영 감" 제공
+[메뉴명 전체 해석 — 반드시 수행]
+메뉴명의 모든 단어·형태를 합쳐 해석하세요. 단어 하나만 보지 마세요.
+- 정식/세트/곱빼기/대·중·소/1인분/2인분
+- 탕·찌개·국밥·덮밥·볶음·구이·조림·전·안주·배달·포장
+- 특수부위·프리미엄(가브리살, 한우, 활어 등)
+예: "가브리살 보쌈정식" → 보쌈 한 접시가 아니라 1인 정식(고기+쌈+밥+반찬 구조).
+예: "갈치조림" → 갈치(핵심 단백질), 무·양념은 부재료, 밥·반찬 포함 가능성.
 
-응답은 JSON 객체 하나만 출력하세요. 다른 텍스트 금지.
+[판매가가 주어지면 — 현실 보정 필수]
+판매가 대비 원가는 일반 한국 식당에서 대체로 판매가의 30~50% 중심(원가율 30~50%)으로 운영 가능해야 합니다.
+판매가 15,000원인데 원가 14,000원처럼 비현실적으로 높게 잡지 마세요.
+프리미엄·특수부위·정식·세트는 상한을 넓혀도 되나, "이 가격에 이 메뉴를 파는 식당"이 성립해야 합니다.
+
+[main_ingredients 규칙]
+원가 비중이 큰 핵심 재료만 3~6개, 짧은 한글명.
+양념·조미료·소금·마늘·식용유만 나열하지 마세요. 배추만 있는 보쌈도 피하세요.
+예: 가브리살 보쌈정식 → 가브리살, 쌈채소, 공깃밥 (O) / 배추, 마늘, 소금 (X)
+예: 갈치조림 → 갈치, 무 (O)
+
+[hidden_cost_note 규칙]
+메뉴 유형에 맞는 한 줄. 너무 일반적인 문구 금지.
+- 정식/한상 → 공깃밥·국·기본반찬·반찬 리필
+- 고기/보쌈/삼겹 → 쌈채소·소스·밑반찬
+- 탕/찌개/국밥 → 육수·반찬·공깃밥
+- 배달/포장 → 용기·뚜껑·배달 수수료 감안
+- 안주 → 술집 마진·곁들임 반찬
+
+[추정 방식]
+- 중소형 일반 한국 식당 1인분 기준
+- 지역·등급 편차는 cost_range로 표현
+- 레시피 g 단위 정밀 계산 금지
+
+응답은 JSON 객체 하나만. 다른 텍스트·마크다운 금지.
 
 JSON 스키마:
 {
-  "estimated_cost": number (대표 예상 원가, 원 단위 정수),
-  "cost_range_min": number (보수적 하한),
-  "cost_range_max": number (넉넉한 상한),
-  "main_ingredients": string[] (주요 재료 3~6개, 짧은 한글명),
-  "hidden_cost_note": string (공깃밥·기본반찬 등 숨은 원가 한 줄 안내)
+  "estimated_cost": number,
+  "cost_range_min": number,
+  "cost_range_max": number,
+  "main_ingredients": string[],
+  "hidden_cost_note": string
 }`
 
 function parsePositiveInt(value: unknown): number | null {
@@ -498,7 +524,18 @@ function parseGptMenuCostJson(text: string): GptMenuCostPayload | null {
   }
 }
 
-async function fetchMenuCostFromGpt(menuName: string): Promise<GptMenuCostPayload | null> {
+function buildMenuCostGptUserMessage(menuName: string, sellingPrice?: number | null): string {
+  const priceLine =
+    sellingPrice != null && sellingPrice > 0
+      ? `\n판매가: ${Math.round(sellingPrice)}원`
+      : ''
+  return `다음 메뉴의 1인분 예상 원가 감을 JSON으로 알려주세요.\n메뉴명: ${menuName}${priceLine}`
+}
+
+async function fetchMenuCostFromGpt(
+  menuName: string,
+  sellingPrice?: number | null,
+): Promise<GptMenuCostPayload | null> {
   const apiKey = process.env.OPENAI_API_KEY?.trim()
   if (!apiKey) return null
 
@@ -513,12 +550,12 @@ async function fetchMenuCostFromGpt(menuName: string): Promise<GptMenuCostPayloa
     },
     body: JSON.stringify({
       model: 'gpt-4o-mini',
-      temperature: 0.3,
+      temperature: 0.2,
       messages: [
         { role: 'system', content: MENU_COST_GPT_SYSTEM_PROMPT },
         {
           role: 'user',
-          content: `다음 메뉴의 1인분 예상 원가 감을 JSON으로 알려주세요. 메뉴명: ${menuName}`,
+          content: buildMenuCostGptUserMessage(menuName, sellingPrice),
         },
       ],
     }),
@@ -534,7 +571,10 @@ async function fetchMenuCostFromGpt(menuName: string): Promise<GptMenuCostPayloa
   return parseGptMenuCostJson(content)
 }
 
-export async function getMenuCostEstimate(menu_name: string): Promise<ActionResult<MenuCostEstimateData | null>> {
+export async function getMenuCostEstimate(
+  menu_name: string,
+  sellingPrice?: number | null,
+): Promise<ActionResult<MenuCostEstimateData | null>> {
   const supabase = await createServerClient()
   const tenant_id = await getTenantId().catch(() => null)
   if (!tenant_id) return { success: false, error: '인증 필요', data: null }
@@ -566,7 +606,7 @@ export async function getMenuCostEstimate(menu_name: string): Promise<ActionResu
   if (e2) return { success: false, error: e2.message, data: null }
   if (like?.[0]) return { success: true, data: mapCacheRowToEstimate(like[0] as MenuCostCacheRow) }
 
-  const gpt = await fetchMenuCostFromGpt(name)
+  const gpt = await fetchMenuCostFromGpt(name, sellingPrice)
   if (!gpt) return { success: true, data: null }
 
   const estimated_ingredients: MenuCostEstimateIngredients = {

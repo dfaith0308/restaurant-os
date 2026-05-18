@@ -480,7 +480,8 @@ export default function MenusClient(props: {
     setEstimateLoading(true)
     startTr(async () => {
       try {
-        const res = await getMenuCostEstimate(n)
+        const sellingPrice = formPriceNum > 0 ? formPriceNum : undefined
+        const res = await getMenuCostEstimate(n, sellingPrice)
         if (!res.success) {
           alert(res.error ?? '조회 실패')
           return
