@@ -62,6 +62,15 @@ export interface RfqBid {
 
 // ── 발주/지급 ─────────────────────────────────────────────────
 
+export type OrderOperationCaptureSource = 'kakao' | 'phone' | 'manual' | 'invoice'
+
+/** `orders.product_name`에 인코딩된 비-RFQ 주문 흡수 메타(스키마 변경 없이 저장) */
+export interface OrderOperationCapture {
+  source: OrderOperationCaptureSource
+  counterparty: string
+  body: string
+}
+
 export interface Order {
   id:            string
   buyer_tenant_id: string
@@ -76,6 +85,8 @@ export interface Order {
   saving_amount: number
   status:        'confirmed' | 'completed' | 'cancelled'
   created_at:    string
+  /** 흡수 주문이면 디코딩 결과, RFQ 주문이면 null */
+  operation_capture: OrderOperationCapture | null
 }
 
 export interface PaymentOutgoing {

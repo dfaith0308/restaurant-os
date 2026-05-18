@@ -2,16 +2,23 @@ import Link from 'next/link'
 import { getTodayDashboard } from '@/actions/today'
 import { getMoneyDashboard } from '@/actions/money'
 import { getTodayOperationHubData } from '@/actions/menus'
+import {
+  buildOrderOperationInsights,
+  buildRecentOrderActivities,
+} from '@/lib/order-capture'
+import { getOrdersOperationSlice } from '@/actions/orders'
 import { formatKRW } from '@/lib/utils'
-import type { SavingOpportunity, TodayDashboard } from '@/types'
+import type { Order, SavingOpportunity, TodayDashboard } from '@/types'
 import { getTenantId } from '@/lib/get-restaurant'
 import { TodayOperationInsights } from '@/components/today/TodayOperationInsights'
 import { TodayRiskSection } from '@/components/today/TodayRiskSection'
+import OrderRiskSummary from '@/components/orders/OrderRiskSummary'
+import RecentOrderActivity from '@/components/orders/RecentOrderActivity'
 
 export default async function TodayPage() {
   const tenant_id = await getTenantId()
 
-  const [result, money, hubRes] = await Promise.all([
+  const [result, money, hubRes, orderSliceRes] = await Promise.all([
     getTodayDashboard(tenant_id).catch(() => ({
       success: false as const,
       data: undefined,
@@ -24,10 +31,18 @@ export default async function TodayPage() {
       success: false as const,
       data: undefined,
     })),
+    getOrdersOperationSlice(tenant_id).catch((): { success: true; data: Order[] } => ({
+      success: true,
+      data: [],
+    })),
   ])
 
   const d = result.data
   const hub = hubRes.success && hubRes.data ? hubRes.data : null
+  const orderSlice =
+    orderSliceRes.success && orderSliceRes.data ? orderSliceRes.data : []
+  const orderInsights = buildOrderOperationInsights(orderSlice)
+  const orderRecent = buildRecentOrderActivities(orderSlice, 5)
 
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
@@ -54,6 +69,9 @@ export default async function TodayPage() {
           />
         </>
       ) : null}
+
+      <OrderRiskSummary insights={orderInsights} />
+      <RecentOrderActivity items={orderRecent} compact heading="최근 주문 활동" />
 
       {!d ? (
         <div style={{ padding: 20, borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280' }}>

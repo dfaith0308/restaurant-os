@@ -1,9 +1,18 @@
 'use server'
 
 import { createServerClient } from '@/lib/supabase-server'
+import {
+  encodeOrderCaptureProductName,
+  formatCaptureSourceLabel,
+  tryDecodeOrderCaptureFromProductName,
+} from '@/lib/order-capture'
 import { revalidatePath } from 'next/cache'
-import type { ActionResult } from '@/types'
-import type { Order } from '@/types'
+import type {
+  ActionResult,
+  Order,
+  OrderOperationCapture,
+  OrderOperationCaptureSource,
+} from '@/types'
 import { getTenantId, networkApprovalErrorIfBlocked } from '@/lib/get-restaurant'
 
 /** `orders` list/detail select() row → `Order` (Supabase 추론과 `Order` 정합) */
@@ -12,7 +21,7 @@ type OrderSelectRow = {
   buyer_tenant_id: string
   rfq_id: string | null
   bid_id: string | null
-  counterparty_name: string | null
+  supplier_name: string | null
   product_name: string
   quantity: number
   unit: string
@@ -24,12 +33,31 @@ type OrderSelectRow = {
 }
 
 function mapOrderRow(row: OrderSelectRow): Order {
+  const cap = tryDecodeOrderCaptureFromProductName(row.product_name)
+  if (cap) {
+    return {
+      id: row.id,
+      buyer_tenant_id: row.buyer_tenant_id,
+      rfq_id: row.rfq_id ?? null,
+      bid_id: row.bid_id ?? null,
+      counterparty_name: cap.counterparty.trim() || (row.supplier_name ?? ''),
+      product_name: formatCaptureSourceLabel(cap.source),
+      quantity: row.quantity,
+      unit: row.unit,
+      unit_price: row.unit_price,
+      total_amount: row.total_amount,
+      saving_amount: row.saving_amount ?? 0,
+      status: row.status as Order['status'],
+      created_at: row.created_at,
+      operation_capture: cap,
+    }
+  }
   return {
     id: row.id,
     buyer_tenant_id: row.buyer_tenant_id,
     rfq_id: row.rfq_id ?? null,
     bid_id: row.bid_id ?? null,
-    counterparty_name: row.counterparty_name ?? '',
+    counterparty_name: row.supplier_name ?? '',
     product_name: row.product_name,
     quantity: row.quantity,
     unit: row.unit,
@@ -38,6 +66,7 @@ function mapOrderRow(row: OrderSelectRow): Order {
     saving_amount: row.saving_amount ?? 0,
     status: row.status as Order['status'],
     created_at: row.created_at,
+    operation_capture: null,
   }
 }
 
@@ -67,11 +96,24 @@ export async function markOrderDelivered(
     return { success: false, error: '주문 정보를 찾을 수 없어요' }
   }
 
-  if (order.buyer_tenant_id !== tenant_id) {
+  type RawMarkOrder = {
+    buyer_tenant_id: string
+    status: string
+    unit_price: number
+    unit: string
+    product_name: string
+    rfq_requests: { ingredient_id: string | null } | null
+    supplier_name?: string | null
+    counterparty_name?: string | null
+  }
+  const o = order as RawMarkOrder
+  const supplierLabel = (o.supplier_name ?? o.counterparty_name ?? '').trim()
+
+  if (o.buyer_tenant_id !== tenant_id) {
     return { success: false, error: '권한 없음' }
   }
 
-  if (order.status !== 'confirmed') {
+  if (o.status !== 'confirmed') {
     return { success: false, error: '이미 처리된 주문이에요' }
   }
 
@@ -89,47 +131,41 @@ export async function markOrderDelivered(
     return { success: false, error: '납품 처리에 실패했어요' }
   }
 
-  // 2. ingredient 업데이트 (rfq.ingredient_id 있을 때만)
-  const ingredientId = (order.rfq_requests as { ingredient_id: string | null } | null)?.ingredient_id ?? null
+  // 2. ingredient 업데이트 및 납품가 기록 (RFQ 연결 식자재가 있을 때만)
+  const ingredientId = (o.rfq_requests as { ingredient_id: string | null } | null)?.ingredient_id ?? null
 
   if (ingredientId) {
     await supabase
       .from('ingredients')
       .update({
-        current_price: order.unit_price,
-        supplier_name: order.counterparty_name,
+        current_price: o.unit_price,
+        supplier_name: supplierLabel,
       })
       .eq('id', ingredientId)
-  }
 
-  // 3. price_history: 실 납품가 기록 (AI 개인화 피드백 데이터)
-  let barcode: string | null = null
-  if (ingredientId) {
+    let barcode: string | null = null
     const { data: ing } = await supabase
       .from('ingredients')
       .select('barcode')
       .eq('id', ingredientId)
       .maybeSingle()
     barcode = ing?.barcode ?? null
-  }
 
-  if (!order.buyer_tenant_id) {
-    return { success: false, error: '주문 tenant 정보가 없어요' }
+    await supabase.from('price_history').insert({
+      tenant_id:       o.buyer_tenant_id,
+      ingredient_name: o.product_name,
+      barcode,
+      price:           o.unit_price,
+      unit:            o.unit,
+      supplier_name:   supplierLabel,
+      source:          'delivery',
+      source_ref_id:   order_id,
+    })
   }
-
-  await supabase.from('price_history').insert({
-    tenant_id:       order.buyer_tenant_id,
-    ingredient_name: order.product_name,
-    barcode,
-    price:           order.unit_price,
-    unit:            order.unit,
-    supplier_name:   order.counterparty_name,
-    source:          'delivery',
-    source_ref_id:   order_id,
-  })
 
   revalidatePath('/today')
   revalidatePath('/rfq')
+  revalidatePath('/orders')
 
   return { success: true }
 }
@@ -186,6 +222,7 @@ export async function cancelOrder(
   revalidatePath('/today')
   revalidatePath('/rfq')
   revalidatePath('/money')
+  revalidatePath('/orders')
 
   return { success: true }
 }
@@ -217,7 +254,7 @@ export async function getPendingDeliveries(
 
   const { data: orders, error } = await supabase
     .from('orders')
-    .select('id, rfq_id, bid_id, counterparty_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, created_at')
+    .select('id, rfq_id, bid_id, supplier_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, created_at')
     .eq('buyer_tenant_id', tenant_id)
     .eq('status', 'confirmed')
     .order('created_at', { ascending: true })  // 오래된 순 (먼저 확인해야 할 것부터)
@@ -253,7 +290,7 @@ export async function getPendingDeliveries(
     return {
       order_id:      o.id,
       rfq_id:        o.rfq_id ?? null,
-      counterparty_name: (o as { counterparty_name: string | null }).counterparty_name ?? '',
+      counterparty_name: (o as { supplier_name: string | null }).supplier_name ?? '',
       product_name:  o.product_name,
       quantity:      o.quantity,
       unit:          o.unit,
@@ -283,7 +320,7 @@ export async function getOrdersList(
 
   let query = supabase
     .from('orders')
-    .select('id, buyer_tenant_id, rfq_id, bid_id, counterparty_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, status, created_at')
+    .select('id, buyer_tenant_id, rfq_id, bid_id, supplier_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, status, created_at')
     .eq('buyer_tenant_id', tenant_id)
     .order('created_at', { ascending: false })
 
@@ -320,7 +357,7 @@ export async function getOrderDetail(
   // 1) 주문을 tenant 스코프로 먼저 검증 (다른 tenant 주문 절대 노출 금지)
   const { data: order, error: orderErr } = await supabase
     .from('orders')
-    .select('id, buyer_tenant_id, rfq_id, bid_id, counterparty_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, status, created_at')
+    .select('id, buyer_tenant_id, rfq_id, bid_id, supplier_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, status, created_at')
     .eq('id', order_id)
     .eq('buyer_tenant_id', tenant_id)
     .single()
@@ -391,4 +428,115 @@ export async function updateOrderStatus(
   revalidatePath('/orders')
   revalidatePath(`/orders/${order_id}`)
   return { success: true }
+}
+
+// ── 운영 주문 흡수 (비-RFQ, 스키마 변경 없이 product_name 인코딩) ────────
+
+export interface CaptureOperationalOrderInput {
+  source: OrderOperationCaptureSource
+  counterparty_name: string
+  body: string
+}
+
+export async function captureOperationalOrder(
+  input: CaptureOperationalOrderInput,
+): Promise<ActionResult<{ id: string }>> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
+  const supabase = await createServerClient()
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id) return { success: false, error: '인증 필요' }
+
+  const counterparty = (input.counterparty_name ?? '').trim()
+  if (!counterparty) return { success: false, error: '거래처(상호)를 입력해주세요' }
+
+  let body = (input.body ?? '').trim()
+  if (input.source === 'kakao') {
+    if (!body) return { success: false, error: '카카오 주문 내용을 적어주세요' }
+  }
+  if (input.source === 'manual') {
+    if (!body) return { success: false, error: '주문 내용을 적어주세요' }
+  }
+  if (input.source === 'phone' && !body) {
+    body = '(통화 내용 미기재)'
+  }
+  if (input.source === 'invoice' && !body) {
+    body = '(거래명세서 메모 없음)'
+  }
+
+  const capture: OrderOperationCapture = {
+    source: input.source,
+    counterparty,
+    body,
+  }
+  const product_name = encodeOrderCaptureProductName(capture)
+
+  const recentSince = new Date(Date.now() - 30000).toISOString()
+  const { data: dupRow } = await supabase
+    .from('orders')
+    .select('id')
+    .eq('buyer_tenant_id', tenant_id)
+    .eq('product_name', product_name)
+    .gte('created_at', recentSince)
+    .limit(1)
+    .maybeSingle()
+
+  if (dupRow) {
+    return {
+      success: false,
+      error: '같은 내용이 방금 저장된 것 같아요. 잠시 후 다시 시도해주세요',
+    }
+  }
+
+  const { data: row, error: insErr } = await supabase
+    .from('orders')
+    .insert({
+      buyer_tenant_id: tenant_id,
+      rfq_id: null,
+      bid_id: null,
+      supplier_name: counterparty,
+      product_name,
+      quantity: 1,
+      unit: '건',
+      unit_price: 0,
+      total_amount: 0,
+      saving_amount: 0,
+      status: 'confirmed',
+    })
+    .select('id')
+    .single()
+
+  if (insErr || !row) {
+    return { success: false, error: insErr?.message ?? '주문 저장에 실패했어요' }
+  }
+
+  revalidatePath('/orders')
+  revalidatePath('/today')
+  return { success: true, data: { id: row.id as string } }
+}
+
+export async function getOrdersOperationSlice(
+  tenant_id: string,
+  maxRows = 40,
+): Promise<ActionResult<Order[]>> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny, data: [] }
+
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from('orders')
+    .select(
+      'id, buyer_tenant_id, rfq_id, bid_id, supplier_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, status, created_at',
+    )
+    .eq('buyer_tenant_id', tenant_id)
+    .order('created_at', { ascending: false })
+    .limit(maxRows)
+
+  if (error) return { success: false, error: error.message, data: [] }
+  return {
+    success: true,
+    data: (data ?? []).map((r) => mapOrderRow(r as OrderSelectRow)),
+  }
 }

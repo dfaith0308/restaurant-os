@@ -59,12 +59,34 @@ export default async function OrderDetailPage({ params }: Props) {
         </div>
       </div>
 
+      {order.operation_capture ? (
+        <div style={{
+          background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb',
+          padding: '14px 16px', marginBottom: 12,
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: '#6b7280', marginBottom: 8 }}>
+            주문 메모 (원문)
+          </div>
+          <pre style={{
+            margin: 0,
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+            fontSize: 13,
+            lineHeight: 1.5,
+            color: 'var(--color-text)',
+            fontFamily: 'inherit',
+          }}>
+            {order.operation_capture.body}
+          </pre>
+        </div>
+      ) : null}
+
       {/* 요약 카드 */}
       <div style={{
         background: '#fff', borderRadius: 16, border: '1px solid #e5e7eb',
         padding: '14px 16px', marginBottom: 12,
       }}>
-        <Row label="총 금액" value={formatKRW(order.total_amount)} strong />
+        <Row label="총 금액" value={order.total_amount > 0 ? formatKRW(order.total_amount) : '금액 미정'} strong />
         <Row label="수량" value={`${order.quantity}${order.unit}`} />
         <Row label="단가" value={`${formatKRW(order.unit_price)} / ${order.unit}`} />
         <Row label="절약" value={order.saving_amount > 0 ? formatKRW(order.saving_amount) : '-'} color={order.saving_amount > 0 ? '#059669' : '#9ca3af'} />

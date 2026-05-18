@@ -1,8 +1,15 @@
 import Link from 'next/link'
 import { getTenantId, requireNetworkApprovedPage } from '@/lib/get-restaurant'
+import {
+  buildOrderOperationInsights,
+  buildRecentOrderActivities,
+} from '@/lib/order-capture'
 import { getOrdersList, type OrderStatus } from '@/actions/orders'
 import type { Order } from '@/types'
 import { formatKRW } from '@/lib/utils'
+import OrderCaptureCard from '@/components/orders/OrderCaptureCard'
+import RecentOrderActivity from '@/components/orders/RecentOrderActivity'
+import OrderRiskSummary from '@/components/orders/OrderRiskSummary'
 
 const ALLOWED_STATUS = new Set<OrderStatus>(['confirmed', 'completed', 'cancelled'])
 
@@ -33,6 +40,9 @@ export default async function OrdersPage({
     cancelled: allOrders.filter(o => o.status === 'cancelled').length,
   }
 
+  const orderInsights = buildOrderOperationInsights(allOrders)
+  const recentActivities = buildRecentOrderActivities(allOrders, 8)
+
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
       <div style={{
@@ -48,6 +58,12 @@ export default async function OrdersPage({
           </p>
         </div>
       </div>
+
+      <OrderCaptureCard />
+
+      <OrderRiskSummary insights={orderInsights} />
+
+      <RecentOrderActivity items={recentActivities} />
 
       <StatusTabs
         active={status ?? 'all'}
@@ -141,10 +157,24 @@ function OrderCard({ order }: { order: Order }) {
       display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start',
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>
             {order.product_name}
           </span>
+          {order.operation_capture ? (
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 700,
+                padding: '2px 8px',
+                borderRadius: 999,
+                background: '#ecfdf5',
+                color: '#1f5d3a',
+              }}
+            >
+              흡수
+            </span>
+          ) : null}
           <span style={{
             fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10,
             color: cfg.color, background: cfg.bg,
@@ -157,14 +187,19 @@ function OrderCard({ order }: { order: Order }) {
           {order.counterparty_name} · {order.quantity}{order.unit}
         </div>
         <div style={{ fontSize: 13, color: 'var(--color-text)', fontWeight: 700, marginTop: 6 }}>
-          {formatKRW(order.total_amount)}
+          {order.total_amount > 0 ? formatKRW(order.total_amount) : '금액 미정'}
         </div>
         <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
           {daysAgo === 0 ? '오늘' : `${daysAgo}일 전`}
         </div>
       </div>
-      {/* TODO: 주문 상세 페이지가 필요하면 /orders/[id] 추가 */}
-      <span style={{ fontSize: 18, color: '#9ca3af', marginLeft: 8 }}>›</span>
+      <Link
+        href={`/orders/${order.id}`}
+        aria-label="주문 상세"
+        style={{ fontSize: 18, color: '#9ca3af', marginLeft: 8, textDecoration: 'none', lineHeight: 1 }}
+      >
+        ›
+      </Link>
     </div>
   )
 }
@@ -180,7 +215,7 @@ function EmptyState() {
         아직 실제 주문이 없어요
       </div>
       <div style={{ fontSize: 13, color: '#9ca3af' }}>
-        RFQ에서 입찰을 선택하면 주문이 생성됩니다.
+        RFQ에서 입찰을 선택하면 주문이 생성되거나, 위 카드로 카카오·전화 주문을 바로 적을 수 있어요.
       </div>
       <div style={{ marginTop: 18 }}>
         <Link href="/rfq" style={{
