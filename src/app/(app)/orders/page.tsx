@@ -8,6 +8,7 @@ import { getOrdersList, type OrderStatus } from '@/actions/orders'
 import type { Order } from '@/types'
 import { formatKRW } from '@/lib/utils'
 import OrderCaptureCard from '@/components/orders/OrderCaptureCard'
+import OrderImageCaptureCard from '@/components/orders/OrderImageCaptureCard'
 import RecentOrderActivity from '@/components/orders/RecentOrderActivity'
 import OrderRiskSummary from '@/components/orders/OrderRiskSummary'
 
@@ -59,6 +60,7 @@ export default async function OrdersPage({
         </div>
       </div>
 
+      <OrderImageCaptureCard />
       <OrderCaptureCard />
 
       <OrderRiskSummary insights={orderInsights} />

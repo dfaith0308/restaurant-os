@@ -7,6 +7,7 @@ import {
   tryDecodeOrderCaptureFromProductName,
   tryReuseParsedItemsFromProductNames,
 } from '@/lib/order-capture'
+import { analyzeOrderImage } from '@/lib/order-image-ocr'
 import {
   attachIngredientMatches,
   parseOrderBodyWithMiniModel,
@@ -443,6 +444,103 @@ export interface CaptureOperationalOrderInput {
   source: OrderOperationCaptureSource
   counterparty_name: string
   body: string
+  /** 검토 단계에서 이미 파싱된 경우 GPT 재호출 생략 */
+  parsed_items?: OrderParsedLine[] | null
+}
+
+async function resolveParsedItemsForBody(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  tenant_id: string,
+  source: OrderOperationCaptureSource,
+  body: string,
+  preParsed?: OrderParsedLine[] | null,
+): Promise<OrderParsedLine[] | null> {
+  if (preParsed && preParsed.length > 0) {
+    return preParsed
+  }
+
+  const shouldTryParse =
+    (source === 'kakao' || source === 'phone' || source === 'manual') &&
+    body !== '(통화 내용 미기재)' &&
+    body !== '(거래명세서 메모 없음)' &&
+    body.trim().length >= 2
+
+  if (!shouldTryParse) return null
+
+  const recentSince = new Date(Date.now() - 30000).toISOString()
+  const { data: recentRows } = await supabase
+    .from('orders')
+    .select('product_name')
+    .eq('buyer_tenant_id', tenant_id)
+    .gte('created_at', recentSince)
+    .order('created_at', { ascending: false })
+    .limit(30)
+
+  const pns = (recentRows ?? []).map((r) =>
+    String((r as { product_name?: string }).product_name ?? ''),
+  )
+  const reused = tryReuseParsedItemsFromProductNames(pns, body)
+  if (reused) return reused
+
+  const drafts = await parseOrderBodyWithMiniModel(body)
+  if (!drafts || drafts.length === 0) return null
+
+  const ing = await getIngredients()
+  const pool = ing.success && ing.data ? ing.data : []
+  return attachIngredientMatches(drafts, pool)
+}
+
+export async function extractOrderTextFromImage(
+  formData: FormData,
+): Promise<ActionResult<{ order_text: string; counterparty_hint: string | null }>> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
+  const file = formData.get('image')
+  if (!(file instanceof File)) {
+    return { success: false, error: '이미지 파일을 선택해주세요' }
+  }
+
+  const result = await analyzeOrderImage(file)
+  if (!result?.order_text?.trim()) {
+    return {
+      success: false,
+      error:
+        '이미지에서 주문 내용을 읽지 못했어요. 직접 입력으로 이어서 등록할 수 있어요.',
+    }
+  }
+
+  return {
+    success: true,
+    data: {
+      order_text: result.order_text.trim(),
+      counterparty_hint: result.counterparty_hint,
+    },
+  }
+}
+
+export async function previewOrderBodyParse(
+  body: string,
+): Promise<ActionResult<{ parsed_items: OrderParsedLine[] }>> {
+  const deny = await networkApprovalErrorIfBlocked()
+  if (deny) return { success: false, error: deny }
+
+  const trimmed = (body ?? '').trim()
+  if (trimmed.length < 2) {
+    return { success: false, error: '주문 내용이 너무 짧아요' }
+  }
+
+  const drafts = await parseOrderBodyWithMiniModel(trimmed)
+  if (!drafts || drafts.length === 0) {
+    return { success: true, data: { parsed_items: [] } }
+  }
+
+  const ing = await getIngredients()
+  const pool = ing.success && ing.data ? ing.data : []
+  return {
+    success: true,
+    data: { parsed_items: attachIngredientMatches(drafts, pool) },
+  }
 }
 
 export async function captureOperationalOrder(
@@ -472,41 +570,13 @@ export async function captureOperationalOrder(
     body = '(거래명세서 메모 없음)'
   }
 
-  const shouldTryParse =
-    (input.source === 'kakao' ||
-      input.source === 'phone' ||
-      input.source === 'manual') &&
-    body !== '(통화 내용 미기재)' &&
-    body !== '(거래명세서 메모 없음)' &&
-    body.trim().length >= 2
-
-  let parsed_items: OrderParsedLine[] | null = null
-
-  if (shouldTryParse) {
-    const recentSince = new Date(Date.now() - 30000).toISOString()
-    const { data: recentRows } = await supabase
-      .from('orders')
-      .select('product_name')
-      .eq('buyer_tenant_id', tenant_id)
-      .gte('created_at', recentSince)
-      .order('created_at', { ascending: false })
-      .limit(30)
-
-    const pns = (recentRows ?? []).map((r) =>
-      String((r as { product_name?: string }).product_name ?? ''),
-    )
-    const reused = tryReuseParsedItemsFromProductNames(pns, body)
-    if (reused) {
-      parsed_items = reused
-    } else {
-      const drafts = await parseOrderBodyWithMiniModel(body)
-      if (drafts && drafts.length > 0) {
-        const ing = await getIngredients()
-        const pool = ing.success && ing.data ? ing.data : []
-        parsed_items = attachIngredientMatches(drafts, pool)
-      }
-    }
-  }
+  const parsed_items = await resolveParsedItemsForBody(
+    supabase,
+    tenant_id,
+    input.source,
+    body,
+    input.parsed_items,
+  )
 
   const capture: OrderOperationCapture = {
     source: input.source,

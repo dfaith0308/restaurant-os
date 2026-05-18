@@ -800,3 +800,148 @@ export function buildTodaySupplierOperationInsights(
     top_active_suppliers_7d,
   }
 }
+
+export type OperationFeedTone = 'danger' | 'warning' | 'normal'
+
+export type OperationFeedItem = {
+  id: string
+  occurred_at: string
+  tone: OperationFeedTone
+  title: string
+  subtitle?: string
+  href?: string
+}
+
+export type TodayOperationFeedInput = {
+  orders: Order[]
+  ocrActivities30d: OcrActivityRef[]
+  topRiskMenus: Array<{
+    id: string
+    name: string
+    operation_risk_level: 'normal' | 'warning' | 'danger'
+    updated_at?: string | null
+  }>
+  topSpikeIngredients: Array<{
+    ingredient_id: string
+    name: string
+    change_percent: number
+    occurred_at?: string | null
+  }>
+  registrationCandidates: Array<{ name: string; count: number }>
+  supplierPriceRisks: SupplierPriceRiskView[]
+}
+
+const FEED_TONE_RANK: Record<OperationFeedTone, number> = {
+  danger: 0,
+  warning: 1,
+  normal: 2,
+}
+
+function compareFeedItems(a: OperationFeedItem, b: OperationFeedItem): number {
+  const toneDiff = FEED_TONE_RANK[a.tone] - FEED_TONE_RANK[b.tone]
+  if (toneDiff !== 0) return toneDiff
+  return b.occurred_at.localeCompare(a.occurred_at)
+}
+
+export function buildTodayMainOperationFeed(
+  input: TodayOperationFeedInput,
+): OperationFeedItem[] {
+  const items: OperationFeedItem[] = []
+  const seen = new Set<string>()
+
+  function push(item: OperationFeedItem): void {
+    if (seen.has(item.id)) return
+    seen.add(item.id)
+    items.push(item)
+  }
+
+  for (const row of input.ocrActivities30d) {
+    if (!isWithinDaysOrder(row.occurred_at, 7)) continue
+    const supplier = row.supplier_name.trim()
+    const ingredient = row.ingredient_name.trim()
+    if (!supplier || !ingredient) continue
+    push({
+      id: `ocr:${row.occurred_at}:${supplier}:${ingredient}`,
+      occurred_at: row.occurred_at,
+      tone: 'normal',
+      title: `${supplier} 거래명세서 등록`,
+      subtitle: ingredient,
+      href: '/settings/ingredients',
+    })
+  }
+
+  for (const o of input.orders) {
+    if (!isWithinDaysOrder(o.created_at, 7)) continue
+    const cap = o.operation_capture
+    if (!cap) continue
+    const label = formatCaptureSourceLabel(cap.source)
+    const cp = o.counterparty_name.trim() || '거래처 미입력'
+    const lineCount = cap.parsed_items?.length ?? 0
+    push({
+      id: `order:${o.id}`,
+      occurred_at: o.created_at,
+      tone: cap.source === 'kakao' ? 'warning' : 'normal',
+      title: `${label} 유입`,
+      subtitle:
+        lineCount > 0
+          ? `${cp} · 품목 ${lineCount}줄`
+          : cp,
+      href: `/orders/${o.id}`,
+    })
+  }
+
+  for (const spike of input.topSpikeIngredients) {
+    const at = spike.occurred_at ?? ''
+    if (!at || !isWithinDaysOrder(at, 7)) continue
+    push({
+      id: `spike:${spike.ingredient_id}`,
+      occurred_at: at,
+      tone: 'danger',
+      title: `${spike.name} 가격 급등 감지`,
+      subtitle: `최근 +${spike.change_percent}%`,
+      href: '/settings/ingredients',
+    })
+  }
+
+  for (const menu of input.topRiskMenus) {
+    if (menu.operation_risk_level === 'normal') continue
+    const at = menu.updated_at ?? new Date().toISOString()
+    if (!isWithinDaysOrder(at, 7)) continue
+    push({
+      id: `menu-risk:${menu.id}`,
+      occurred_at: at,
+      tone: menu.operation_risk_level === 'danger' ? 'danger' : 'warning',
+      title: '원가 위험 메뉴 발생',
+      subtitle: menu.name,
+      href: '/settings/menus',
+    })
+  }
+
+  for (const cand of input.registrationCandidates) {
+    push({
+      id: `reg-cand:${cand.name}`,
+      occurred_at: new Date().toISOString(),
+      tone: 'warning',
+      title: '신규 식자재 후보 등장',
+      subtitle: `${cand.name} · 최근 7일 ${cand.count}회`,
+      href: '/settings/ingredients',
+    })
+  }
+
+  for (const risk of input.supplierPriceRisks) {
+    const topIng = risk.ingredients[0]
+    push({
+      id: `sup-risk:${risk.supplier_name}`,
+      occurred_at: new Date().toISOString(),
+      tone: 'warning',
+      title: `${risk.supplier_name} 가격 변동 주의`,
+      subtitle: topIng
+        ? `${topIng.name} +${topIng.change_percent}%`
+        : '공급가 변동',
+      href: '/settings/ingredients',
+    })
+  }
+
+  items.sort(compareFeedItems)
+  return items.slice(0, 20)
+}

@@ -3,8 +3,7 @@ import { getTodayDashboard } from '@/actions/today'
 import { getMoneyDashboard } from '@/actions/money'
 import { getMenus } from '@/actions/menus'
 import {
-  buildOrderOperationInsights,
-  buildRecentOrderActivities,
+  buildTodayMainOperationFeed,
   buildTodayOperationHubFromMenusAndIngredients,
   buildTodayOrderParseInsights,
   buildTodaySupplierOperationInsights,
@@ -16,11 +15,10 @@ import type { Order, SavingOpportunity, TodayDashboard } from '@/types'
 import { getTenantId } from '@/lib/get-restaurant'
 import { TodayOperationInsights } from '@/components/today/TodayOperationInsights'
 import { TodayRiskSection } from '@/components/today/TodayRiskSection'
-import OrderRiskSummary from '@/components/orders/OrderRiskSummary'
 import OrderTodayParseInsights from '@/components/orders/OrderTodayParseInsights'
-import RecentOrderActivity from '@/components/orders/RecentOrderActivity'
 import TodaySupplierInsights from '@/components/today/TodaySupplierInsights'
 import SupplierRiskSection from '@/components/today/SupplierRiskSection'
+import TodayMainOperationFeed from '@/components/today/TodayMainOperationFeed'
 
 export default async function TodayPage() {
   const tenant_id = await getTenantId()
@@ -51,13 +49,12 @@ export default async function TodayPage() {
   const d = result.data
   const ingOp = ingOpRes.success && ingOpRes.data ? ingOpRes.data : null
   const menus = menusRes.success && menusRes.data ? menusRes.data : []
-  const hub = menus.length > 0 || ingOp
-    ? buildTodayOperationHubFromMenusAndIngredients(menus, ingOp)
-    : null
+  const hub =
+    menus.length > 0 || ingOp
+      ? buildTodayOperationHubFromMenusAndIngredients(menus, ingOp)
+      : null
   const orderSlice =
     orderSliceRes.success && orderSliceRes.data ? orderSliceRes.data : []
-  const orderInsights = buildOrderOperationInsights(orderSlice)
-  const orderRecent = buildRecentOrderActivities(orderSlice, 5)
   const parseInsights = buildTodayOrderParseInsights(orderSlice)
   const supplierInsights = buildTodaySupplierOperationInsights(
     orderSlice,
@@ -66,37 +63,53 @@ export default async function TodayPage() {
     ingOp?.ingredientSupplierByName ?? {},
     ingOp?.supplierPriceRisks ?? [],
   )
+  const operationFeed = buildTodayMainOperationFeed({
+    orders: orderSlice,
+    ocrActivities30d: ingOp?.ocrActivities30d ?? [],
+    topRiskMenus: menus
+      .filter((m) => m.operation_risk_level !== 'normal')
+      .slice(0, 8)
+      .map((m) => ({
+        id: m.id,
+        name: m.name,
+        operation_risk_level: m.operation_risk_level,
+        updated_at: m.updated_at,
+      })),
+    topSpikeIngredients: ingOp?.top_spike_ingredients ?? [],
+    registrationCandidates: parseInsights.registration_candidates,
+    supplierPriceRisks: supplierInsights.price_risk_suppliers,
+  })
 
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
-      <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 6px' }}>오늘운영</h1>
-      <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 6px' }}>
-        OCR·주문·공급업체·메뉴 원가를 한 화면에서 운영 감각으로 보여드려요.
-      </p>
-      <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 16px' }}>
-        오늘 해야 할 일을 3가지 이내로 정리해요
+      <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 6px' }}>
+        {'\uc624\ub298\uc6b4\uc601'}
+      </h1>
+      <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 16px', lineHeight: 1.45 }}>
+        {
+          '\uc2dd\ub2f9 \uc6b4\uc601 \uba54\uc778 \ud5c8\ube0c \u2014 OCR\u00b7\uc8fc\ubb38\u00b7\uacf5\uae09\u00b7\uc6d0\uac00 \ud750\ub984\uc744 \ud55c\uacf3\uc5d0\uc11c \ud655\uc778\ud574\uc694.'
+        }
       </p>
 
       {hub ? (
-        <>
-          <TodayOperationInsights
-            risk_menu_count={hub.risk_menu_count}
-            spike_ingredient_count={hub.spike_ingredient_count}
-            ocr_recent_count={hub.ocr_recent_count}
-            avg_margin_rate={hub.avg_margin_rate}
-          />
-          <TodayRiskSection
-            top_risk_menus={hub.top_risk_menus}
-            top_spike_ingredients={hub.top_spike_ingredients}
-            recent_ocr={hub.recent_ocr}
-          />
-        </>
+        <TodayOperationInsights
+          risk_menu_count={hub.risk_menu_count}
+          spike_ingredient_count={hub.spike_ingredient_count}
+          ocr_recent_count={hub.ocr_recent_count}
+          avg_margin_rate={hub.avg_margin_rate}
+        />
+      ) : null}
+
+      {hub ? (
+        <TodayRiskSection
+          top_risk_menus={hub.top_risk_menus}
+          top_spike_ingredients={hub.top_spike_ingredients}
+          recent_ocr={hub.recent_ocr}
+        />
       ) : null}
 
       <TodaySupplierInsights insights={supplierInsights} />
-      <OrderRiskSummary insights={orderInsights} />
       <OrderTodayParseInsights insights={parseInsights} />
-      <RecentOrderActivity items={orderRecent} compact heading="최근 주문 활동" />
 
       <SupplierRiskSection
         priceRisks={supplierInsights.price_risk_suppliers}
@@ -104,9 +117,19 @@ export default async function TodayPage() {
         dependencies={supplierInsights.dependency_ingredients}
       />
 
+      <TodayMainOperationFeed items={operationFeed} />
+
       {!d ? (
-        <div style={{ padding: 20, borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280' }}>
-          데이터를 불러오지 못했어요. 잠시 후 다시 시도해주세요.
+        <div
+          style={{
+            padding: 20,
+            borderRadius: 12,
+            border: '1px solid #e5e7eb',
+            background: '#fff',
+            color: '#6b7280',
+          }}
+        >
+          {'\ub370\uc774\ud130\ub97c \ubd88\ub7ec\uc624\uc9c0 \ubabb\ud588\uc5b4\uc694. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574\uc8fc\uc138\uc694.'}
         </div>
       ) : (
         <TodayCards d={d} moneyTight={money.data?.is_tight ?? false} />
@@ -131,9 +154,11 @@ export default async function TodayPage() {
             textDecoration: 'none',
           }}
         >
-          구매하기 <span aria-hidden>→</span>
+          {'\uad6c\ub9e4\ud558\uae30'} <span aria-hidden>{'\u2192'}</span>
         </Link>
-        <p style={{ fontSize: 12, color: '#9ca3af', margin: '8px 0 0' }}>플랫폼에서 바로 살 수 있는 상품을 볼 수 있어요</p>
+        <p style={{ fontSize: 12, color: '#9ca3af', margin: '8px 0 0' }}>
+          {'\ud50c\ub7ab\ud3fc\uc5d0\uc11c \ubc14\ub85c \uc0b4 \uc218 \uc788\ub294 \uc0c1\ud488\uc744 \ubcfc \uc218 \uc788\uc5b4\uc694'}
+        </p>
       </section>
     </main>
   )
@@ -142,32 +167,28 @@ export default async function TodayPage() {
 function TodayCards({ d, moneyTight }: { d: TodayDashboard; moneyTight: boolean }) {
   const cards: Array<React.ReactNode> = []
 
-  // 최대 3개 카드(초과 금지) — 우선순위: 돈흐름 > 절약기회 > 오늘할일
-
-  // 1순위: 돈흐름 카드
   if (cards.length < 3 && (d.payment_due_3days > 0 || moneyTight)) {
     cards.push(
       <Card
         key="money"
-        title="돈흐름"
-        desc={`이번 주 나갈 돈: ${formatKRW(d.payment_due_3days)}`}
-        ctaLabel="지금 정리하기"
+        title={'\ub3c8\ud750\ub984'}
+        desc={`\uc774\ubc88 \uc8fc \ub098\uac08 \ub3c8: ${formatKRW(d.payment_due_3days)}`}
+        ctaLabel={'\uc9c0\uae08 \uc815\ub9ac\ud558\uae30'}
         href="/money/upcoming"
         tone="danger"
       />,
     )
   }
 
-  // 2순위: 절약기회 카드
   if (cards.length < 3) {
     const opp = pickSavingOpportunity(d.saving_opportunities)
     if (opp) {
       cards.push(
         <Card
           key="saving"
-          title="절약기회"
-          desc={`지금 ${opp.ingredient_name} 가격이 조금 높은 편이에요`}
-          ctaLabel="같이 비교해보기"
+          title={'\uc808\uc57d\uae30\ud68c'}
+          desc={`\uc9c0\uae08 ${opp.ingredient_name} \uac00\uaca9\uc774 \uc870\uae08 \ub192\uc740 \ud3b8\uc774\uc5d0\uc694`}
+          ctaLabel={'\uac19\uc774 \ube44\uad50\ud574\ubcf4\uae30'}
           href="/rfq/new"
           tone="warning"
         />,
@@ -175,20 +196,19 @@ function TodayCards({ d, moneyTight }: { d: TodayDashboard; moneyTight: boolean 
     }
   }
 
-  // 3순위: 오늘할일 카드
   if (cards.length < 3) {
     const hasTodo = d.open_rfqs > 0 || d.pending_deliveries.length > 0
     if (hasTodo) {
       const msg =
         d.open_rfqs > 0
-          ? `미처리 발주요청 ${d.open_rfqs}건이 있어요`
-          : `납품 확인이 필요한 주문 ${d.pending_deliveries.length}건이 있어요`
+          ? `\ubbf8\ucc98\ub9ac \ubc1c\uc8fc\uc694\uccad ${d.open_rfqs}\uac74\uc774 \uc788\uc5b4\uc694`
+          : `\ub0a9\ud488 \ud655\uc778\uc774 \ud544\uc694\ud55c \uc8fc\ubb38 ${d.pending_deliveries.length}\uac74\uc774 \uc788\uc5b4\uc694`
       cards.push(
         <Card
           key="todo"
-          title="오늘할일"
+          title={'\uc624\ub298\ud560\uc77c'}
           desc={msg}
-          ctaLabel="하나씩 해결하기"
+          ctaLabel={'\ud558\ub098\uc529 \ud574\uacb0\ud558\uae30'}
           href="/rfq"
           tone="neutral"
         />,
@@ -198,15 +218,32 @@ function TodayCards({ d, moneyTight }: { d: TodayDashboard; moneyTight: boolean 
 
   if (cards.length === 0) {
     return (
-      <div style={{ textAlign: 'center', padding: '44px 0', borderRadius: 14, border: '1px dashed #e5e7eb', background: '#fff' }}>
+      <div
+        style={{
+          textAlign: 'center',
+          padding: '44px 0',
+          borderRadius: 14,
+          border: '1px dashed #e5e7eb',
+          background: '#fff',
+        }}
+      >
         <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-text)', marginBottom: 8 }}>
-          오늘도 잘 운영하고 계세요 👍
+          {'\uc624\ub298\ub3c4 \uc798 \uc6b4\uc601\ud558\uace0 \uacc4\uc138\uc694'}
         </div>
         <Link
           href="/rfq/new"
-          style={{ display: 'inline-block', padding: '10px 14px', borderRadius: 10, background: 'var(--color-primary)', color: '#fff', textDecoration: 'none', fontSize: 13, fontWeight: 800 }}
+          style={{
+            display: 'inline-block',
+            padding: '10px 14px',
+            borderRadius: 10,
+            background: 'var(--color-primary)',
+            color: '#fff',
+            textDecoration: 'none',
+            fontSize: 13,
+            fontWeight: 800,
+          }}
         >
-          발주요청 하러 가기
+          {'\ubc1c\uc8fc\uc694\uccad \ud558\ub7ec \uac00\uae30'}
         </Link>
       </div>
     )
@@ -225,9 +262,6 @@ function pickSavingOpportunity(opps: SavingOpportunity[]): SavingOpportunity | n
     const last = hist[0]?.price
     const current = o.current_price
 
-    // 조건 (PRODUCT §8-3 확정):
-    // - 최근 구매가 대비 추천가 -5% 이상 (min price를 추천가로 근사)
-    // - 또는 직전 구매 대비 +10% 이상 상승
     const cheaperBy5 = current > 0 && (current - min) / current >= 0.05
     const up10 = typeof last === 'number' && last > 0 && current >= last * 1.1
     if (cheaperBy5 || up10) return o
@@ -250,20 +284,37 @@ function Card({
 }) {
   const border = tone === 'danger' ? '#FCA5A5' : tone === 'warning' ? '#FCD34D' : '#e5e7eb'
   const bg = tone === 'danger' ? '#FFF1F2' : tone === 'warning' ? '#FFFBEB' : '#fff'
-  const titleColor = tone === 'danger' ? '#B91C1C' : tone === 'warning' ? '#92400E' : 'var(--color-text)'
+  const titleColor =
+    tone === 'danger' ? '#B91C1C' : tone === 'warning' ? '#92400E' : 'var(--color-text)'
   return (
     <div style={{ border: `1px solid ${border}`, background: bg, borderRadius: 14, padding: '14px 16px' }}>
       <div style={{ fontSize: 12, fontWeight: 900, color: titleColor, marginBottom: 6 }}>{title}</div>
-      <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-text)', lineHeight: 1.35, marginBottom: 10 }}>
+      <div
+        style={{
+          fontSize: 14,
+          fontWeight: 800,
+          color: 'var(--color-text)',
+          lineHeight: 1.35,
+          marginBottom: 10,
+        }}
+      >
         {desc}
       </div>
       <Link
         href={href}
-        style={{ display: 'inline-block', padding: '9px 12px', borderRadius: 10, background: 'var(--color-primary)', color: '#fff', textDecoration: 'none', fontSize: 13, fontWeight: 800 }}
+        style={{
+          display: 'inline-block',
+          padding: '9px 12px',
+          borderRadius: 10,
+          background: 'var(--color-primary)',
+          color: '#fff',
+          textDecoration: 'none',
+          fontSize: 13,
+          fontWeight: 800,
+        }}
       >
         {ctaLabel}
       </Link>
     </div>
   )
 }
-

@@ -379,6 +379,7 @@ export type SpikeIngredientHubRow = {
   ingredient_id: string
   name: string
   change_percent: number
+  occurred_at: string | null
 }
 
 export type SupplierPriceRiskEntry = {
@@ -872,6 +873,7 @@ export async function getIngredientsOperationData(): Promise<
       ingredient_id: ingredientId,
       name: nameByIngredientId.get(ingredientId) ?? '식자재',
       change_percent: meta.price_change_percent,
+      occurred_at: meta.last_price_change_date,
     })
   }
   spikeCandidates.sort((a, b) => b.change_percent - a.change_percent)
