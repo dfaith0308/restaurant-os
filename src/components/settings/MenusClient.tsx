@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition, type FocusEvent } from 'react'
+import { Fragment, useMemo, useState, useTransition, type FocusEvent } from 'react'
 import Link from 'next/link'
 import { formatKRW } from '@/lib/utils'
 import {
@@ -1052,8 +1052,21 @@ export default function MenusClient(props: {
         filtered.map((m) => {
           const display = getMenuCardDisplay(m, directCostByMenuId)
           const badge = display.showMetrics ? marginBadge(display.marginRate) : null
+          const isExpanded = expandedMenuId === m.id
           return (
-            <div key={m.id} className="menus-card-hover" style={{ background: '#ffffff', borderRadius: 16, border: '0.5px solid #e8e5de', padding: '16px 18px', marginBottom: 10, boxSizing: 'border-box' }}>
+            <Fragment key={m.id}>
+            <div
+              className="menus-card-hover"
+              style={{
+                background: '#ffffff',
+                borderRadius: isExpanded ? '16px 16px 0 0' : 16,
+                border: '0.5px solid #e8e5de',
+                borderBottom: isExpanded ? 'none' : '0.5px solid #e8e5de',
+                padding: '16px 18px',
+                marginBottom: isExpanded ? 0 : 10,
+                boxSizing: 'border-box',
+              }}
+            >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 500, color: '#2b2b2b' }}>{m.name}</div>
@@ -1069,23 +1082,6 @@ export default function MenusClient(props: {
                 </>
               ) : (
                 <MenuUnconfiguredBox price={m.price} onConfigure={() => toggleExpandedMenu(m)} />
-              )}
-
-              {expandedMenuId === m.id && (
-                <div style={{ marginTop: 12, paddingTop: 14, borderTop: '1px solid #f3f4f6' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b' }}>메뉴 수정</div>
-                    <button
-                      type="button"
-                      onClick={() => setConfirmHideMenuId(m.id)}
-                      disabled={isPending}
-                      style={{ background: 'transparent', border: 'none', color: '#9ca3af', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
-                    >
-                      메뉴 숨기기
-                    </button>
-                  </div>
-                  {renderMenuEditPanel()}
-                </div>
               )}
 
               <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: 10 }}>
@@ -1191,6 +1187,33 @@ export default function MenusClient(props: {
                 )}
               </div>
             </div>
+            {isExpanded && (
+              <div
+                style={{
+                  background: '#f7f6f2',
+                  border: '0.5px solid #e8e5de',
+                  borderTop: 'none',
+                  borderRadius: '0 0 16px 16px',
+                  padding: '14px 18px 18px',
+                  marginBottom: 10,
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b' }}>메뉴 수정</div>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmHideMenuId(m.id)}
+                    disabled={isPending}
+                    style={{ background: 'transparent', border: 'none', color: '#9ca3af', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    메뉴 숨기기
+                  </button>
+                </div>
+                {renderMenuEditPanel()}
+              </div>
+            )}
+            </Fragment>
           )
         })
       )}

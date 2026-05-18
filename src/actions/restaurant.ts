@@ -7,14 +7,17 @@ import type { ActionResult } from '@/types'
 // ── 매장 정보 (tenants 테이블 기반 — realmyos DB 단일화 구조) ──
 
 export interface RestaurantInfo {
-  id:             string
-  name:           string
-  region:         string | null
-  owner_name:     string | null
-  phone:          string | null
-  table_2p:       number
-  table_4p:       number
-  seating_config: SeatingConfig | null
+  id:               string
+  name:             string
+  region:           string | null
+  owner_name:       string | null
+  phone:            string | null
+  business_number:  string | null
+  address:          string | null
+  address_detail:   string | null
+  table_2p:         number
+  table_4p:         number
+  seating_config:   SeatingConfig | null
 }
 
 export interface SeatingConfig {
@@ -34,35 +37,49 @@ export async function getRestaurant(
   const supabase = await createServerClient()
   const { data, error } = await supabase
     .from('tenants')
-    .select('id, name, region, name_id, phone, seating_config')
+    .select(
+      'id, name, region, address, address_detail, representative_name, contact_phone, business_number, seating_config',
+    )
     .eq('id', tenant_id)
     .single()
 
   if (error || !data) return { success: false, error: error?.message ?? '조회 실패' }
 
+  const addressParts = [data.address, data.address_detail].filter(
+    (part): part is string => typeof part === 'string' && part.trim().length > 0,
+  )
+  const location =
+    addressParts.length > 0
+      ? addressParts.join(' ')
+      : (data.region ?? null)
+
   return {
     success: true,
     data: {
-      id:             data.id,
-      name:           data.name,
-      region:         data.region ?? null,
-      owner_name:     data.name_id ?? null,   // name_id → owner_name 매핑
-      phone:          data.phone ?? null,
-      table_2p:       (data.seating_config as any)?.table_2p ?? 0,
-      table_4p:       (data.seating_config as any)?.table_4p ?? 0,
-      seating_config: (data.seating_config as any) ?? null,
-    }
+      id:               data.id,
+      name:             data.name,
+      region:           location,
+      owner_name:       data.representative_name ?? null,
+      phone:            data.contact_phone ?? null,
+      business_number:  data.business_number ?? null,
+      address:          data.address ?? null,
+      address_detail:   data.address_detail ?? null,
+      table_2p:         (data.seating_config as SeatingConfig | null)?.table_2p ?? 0,
+      table_4p:         (data.seating_config as SeatingConfig | null)?.table_4p ?? 0,
+      seating_config:   (data.seating_config as SeatingConfig | null) ?? null,
+    },
   }
 }
 
 export interface UpdateRestaurantInput {
-  id:          string
-  name?:       string
-  region?:     string | null
-  owner_name?: string | null
-  phone?:      string | null
-  table_2p?:   number
-  table_4p?:   number
+  id:              string
+  name?:           string
+  region?:         string | null
+  owner_name?:     string | null
+  phone?:          string | null
+  business_number?: string | null
+  table_2p?:       number
+  table_4p?:       number
   seating_config?: SeatingConfig | null
 }
 
@@ -71,10 +88,14 @@ export async function updateRestaurant(
 ): Promise<ActionResult> {
   const supabase = await createServerClient()
   const payload: Record<string, unknown> = {}
-  if (input.name       !== undefined) payload.name    = input.name
-  if (input.region     !== undefined) payload.region  = input.region
-  if (input.owner_name !== undefined) payload.name_id = input.owner_name  // owner_name → name_id
-  if (input.phone      !== undefined) payload.phone   = input.phone
+  if (input.name !== undefined) payload.name = input.name
+  if (input.region !== undefined) {
+    payload.address = input.region
+    payload.region = input.region
+  }
+  if (input.owner_name !== undefined) payload.representative_name = input.owner_name
+  if (input.phone !== undefined) payload.contact_phone = input.phone
+  if (input.business_number !== undefined) payload.business_number = input.business_number
 
   if (input.table_2p !== undefined || input.table_4p !== undefined) {
     payload.seating_config = {

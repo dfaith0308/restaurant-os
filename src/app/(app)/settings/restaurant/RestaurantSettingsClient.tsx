@@ -15,19 +15,21 @@ const INPUT_BASE: React.CSSProperties = {
 
 export default function RestaurantSettingsClient({ restaurant }: { restaurant: RestaurantInfo }) {
   const router = useRouter()
-  const [name,      setName]      = useState(restaurant.name ?? '')
-  const [region,    setRegion]    = useState(restaurant.region ?? '')
-  const [ownerName, setOwnerName] = useState(restaurant.owner_name ?? '')
-  const [phone,     setPhone]     = useState(restaurant.phone ?? '')
+  const [name,           setName]           = useState(restaurant.name ?? '')
+  const [region,         setRegion]         = useState(restaurant.region ?? '')
+  const [ownerName,      setOwnerName]      = useState(restaurant.owner_name ?? '')
+  const [phone,          setPhone]          = useState(restaurant.phone ?? '')
+  const [businessNumber, setBusinessNumber] = useState(restaurant.business_number ?? '')
   const [status,    setStatus]    = useState<'idle' | 'dirty' | 'saved'>('idle')
   const [isPending, startTr]      = useTransition()
 
   // dirty 감지 — 초기값과 비교
   const isDirty =
-    name      !== (restaurant.name       ?? '') ||
-    region    !== (restaurant.region     ?? '') ||
-    ownerName !== (restaurant.owner_name ?? '') ||
-    phone     !== (restaurant.phone      ?? '')
+    name           !== (restaurant.name            ?? '') ||
+    region         !== (restaurant.region          ?? '') ||
+    ownerName      !== (restaurant.owner_name      ?? '') ||
+    phone          !== (restaurant.phone           ?? '') ||
+    businessNumber !== (restaurant.business_number ?? '')
 
   // status 동기화
   useEffect(() => {
@@ -48,11 +50,12 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
   function handleSave() {
     startTr(async () => {
       await updateRestaurant({
-        id:         restaurant.id,
-        name:       name.trim()      || undefined,
-        region:     region.trim()    || null,
-        owner_name: ownerName.trim() || null,
-        phone:      phone.trim()     || null,
+        id:              restaurant.id,
+        name:            name.trim()            || undefined,
+        region:          region.trim()          || null,
+        owner_name:      ownerName.trim()       || null,
+        phone:           phone.trim()           || null,
+        business_number: businessNumber.trim()  || null,
       })
       setStatus('saved')
       router.refresh()
@@ -82,9 +85,9 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
             style={{ ...INPUT_BASE, borderColor: isSaved ? '#BBF7D0' : showDirty ? '#FCA5A5' : '#e5e7eb' }} />
         </Field>
 
-        <Field label="지역">
+        <Field label="지역/주소">
           <input value={region} onChange={e => { setRegion(e.target.value); setStatus('idle') }}
-            placeholder="예: 서울 강남"
+            placeholder="예: 서울 강남구 테헤란로 123"
             style={{ ...INPUT_BASE, borderColor: isSaved ? '#BBF7D0' : showDirty ? '#FCA5A5' : '#e5e7eb' }} />
         </Field>
 
@@ -97,6 +100,12 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
         <Field label="연락처">
           <input value={phone} onChange={e => { setPhone(e.target.value); setStatus('idle') }}
             placeholder="예: 010-1234-5678" inputMode="tel"
+            style={{ ...INPUT_BASE, borderColor: isSaved ? '#BBF7D0' : showDirty ? '#FCA5A5' : '#e5e7eb' }} />
+        </Field>
+
+        <Field label="사업자번호">
+          <input value={businessNumber} onChange={e => { setBusinessNumber(e.target.value); setStatus('idle') }}
+            placeholder="예: 123-45-67890" inputMode="numeric"
             style={{ ...INPUT_BASE, borderColor: isSaved ? '#BBF7D0' : showDirty ? '#FCA5A5' : '#e5e7eb' }} />
         </Field>
       </div>

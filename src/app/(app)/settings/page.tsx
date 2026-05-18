@@ -7,6 +7,7 @@ export default async function RestaurantSettingsPage() {
   const result = await getRestaurant(tenantId)
   const restaurant = result.data ?? {
     id: tenantId, name: '', region: null, owner_name: null, phone: null,
+    business_number: null, address: null, address_detail: null,
     table_2p: 0, table_4p: 0, seating_config: null,
   }
 
