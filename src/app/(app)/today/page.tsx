@@ -1,13 +1,16 @@
 import Link from 'next/link'
 import { getTodayDashboard } from '@/actions/today'
 import { getMoneyDashboard } from '@/actions/money'
-import { getTodayOperationHubData } from '@/actions/menus'
+import { getMenus } from '@/actions/menus'
 import {
   buildOrderOperationInsights,
   buildRecentOrderActivities,
+  buildTodayOperationHubFromMenusAndIngredients,
   buildTodayOrderParseInsights,
+  buildTodaySupplierOperationInsights,
 } from '@/lib/order-capture'
 import { getOrdersOperationSlice } from '@/actions/orders'
+import { getIngredientsOperationData } from '@/actions/ingredients'
 import { formatKRW } from '@/lib/utils'
 import type { Order, SavingOpportunity, TodayDashboard } from '@/types'
 import { getTenantId } from '@/lib/get-restaurant'
@@ -16,11 +19,13 @@ import { TodayRiskSection } from '@/components/today/TodayRiskSection'
 import OrderRiskSummary from '@/components/orders/OrderRiskSummary'
 import OrderTodayParseInsights from '@/components/orders/OrderTodayParseInsights'
 import RecentOrderActivity from '@/components/orders/RecentOrderActivity'
+import TodaySupplierInsights from '@/components/today/TodaySupplierInsights'
+import SupplierRiskSection from '@/components/today/SupplierRiskSection'
 
 export default async function TodayPage() {
   const tenant_id = await getTenantId()
 
-  const [result, money, hubRes, orderSliceRes] = await Promise.all([
+  const [result, money, menusRes, orderSliceRes, ingOpRes] = await Promise.all([
     getTodayDashboard(tenant_id).catch(() => ({
       success: false as const,
       data: undefined,
@@ -29,7 +34,7 @@ export default async function TodayPage() {
       success: false as const,
       data: undefined,
     })),
-    getTodayOperationHubData().catch(() => ({
+    getMenus().catch(() => ({
       success: false as const,
       data: undefined,
     })),
@@ -37,21 +42,36 @@ export default async function TodayPage() {
       success: true,
       data: [],
     })),
+    getIngredientsOperationData().catch(() => ({
+      success: false as const,
+      data: undefined,
+    })),
   ])
 
   const d = result.data
-  const hub = hubRes.success && hubRes.data ? hubRes.data : null
+  const ingOp = ingOpRes.success && ingOpRes.data ? ingOpRes.data : null
+  const menus = menusRes.success && menusRes.data ? menusRes.data : []
+  const hub = menus.length > 0 || ingOp
+    ? buildTodayOperationHubFromMenusAndIngredients(menus, ingOp)
+    : null
   const orderSlice =
     orderSliceRes.success && orderSliceRes.data ? orderSliceRes.data : []
   const orderInsights = buildOrderOperationInsights(orderSlice)
   const orderRecent = buildRecentOrderActivities(orderSlice, 5)
   const parseInsights = buildTodayOrderParseInsights(orderSlice)
+  const supplierInsights = buildTodaySupplierOperationInsights(
+    orderSlice,
+    ingOp?.ocrActivities30d ?? [],
+    ingOp?.ocrSupplierByCanonical ?? {},
+    ingOp?.ingredientSupplierByName ?? {},
+    ingOp?.supplierPriceRisks ?? [],
+  )
 
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
       <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 6px' }}>오늘운영</h1>
       <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 6px' }}>
-        최근 공급가와 메뉴 원가 흐름 기준 운영 위험을 보여드려요.
+        OCR·주문·공급업체·메뉴 원가를 한 화면에서 운영 감각으로 보여드려요.
       </p>
       <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 16px' }}>
         오늘 해야 할 일을 3가지 이내로 정리해요
@@ -73,9 +93,16 @@ export default async function TodayPage() {
         </>
       ) : null}
 
+      <TodaySupplierInsights insights={supplierInsights} />
       <OrderRiskSummary insights={orderInsights} />
       <OrderTodayParseInsights insights={parseInsights} />
       <RecentOrderActivity items={orderRecent} compact heading="최근 주문 활동" />
+
+      <SupplierRiskSection
+        priceRisks={supplierInsights.price_risk_suppliers}
+        activeSuppliers={supplierInsights.top_active_suppliers_7d}
+        dependencies={supplierInsights.dependency_ingredients}
+      />
 
       {!d ? (
         <div style={{ padding: 20, borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280' }}>

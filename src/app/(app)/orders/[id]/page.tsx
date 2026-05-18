@@ -116,6 +116,7 @@ export default async function OrderDetailPage({ params }: Props) {
         <ParsedOrderItems
           items={parsedItems}
           showRepeatUnlinkedWarning={showParseWarning}
+          recentSuppliers={prepLineViews.map((v) => v.recent_supplier)}
         />
       ) : null}
 

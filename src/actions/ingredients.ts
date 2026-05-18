@@ -381,15 +381,24 @@ export type SpikeIngredientHubRow = {
   change_percent: number
 }
 
+export type SupplierPriceRiskEntry = {
+  supplier_name: string
+  ingredient_name: string
+  change_percent: number
+}
+
 export type IngredientsOperationData = {
   priceHistoryByIngredient: Record<string, IngredientPriceHistoryEntry[]>
   supplierComparisonByIngredient: Record<string, SupplierPriceComparisonEntry[]>
   metaByIngredient: Record<string, IngredientOperationMeta>
   invoiceSupplierNames: string[]
   recentOcrActivities: OcrActivityEntry[]
+  /** 최근 30일 OCR 활동(공급업체 흐름 집계용) */
+  ocrActivities30d: OcrActivityEntry[]
   /** canonical 식자재명 → 최근 OCR 거래명세서 공급업체명 */
   ocrSupplierByCanonical: Record<string, string>
   ingredientSupplierByName: Record<string, string | null>
+  supplierPriceRisks: SupplierPriceRiskEntry[]
   insights: IngredientsOperationInsights
   top_spike_ingredients: SpikeIngredientHubRow[]
 }
@@ -552,6 +561,91 @@ function isWithinDays(dateStr: string, days: number): boolean {
   cutoff.setHours(0, 0, 0, 0)
   cutoff.setDate(cutoff.getDate() - days)
   return target >= cutoff
+}
+
+function isWithinDaysIso(iso: string, days: number): boolean {
+  const t = new Date(iso).getTime()
+  if (!Number.isFinite(t)) return false
+  return Date.now() - t <= days * 86400000
+}
+
+function countSupplierSpikeTransitions(
+  snaps: SupplierPriceComparisonEntry[],
+): number {
+  const sorted = [...snaps].sort((a, b) =>
+    a.effective_from.localeCompare(b.effective_from),
+  )
+  let spikes = 0
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1].price
+    const curr = sorted[i].price
+    if (prev > 0 && (curr - prev) / prev >= 0.3) spikes += 1
+  }
+  return spikes
+}
+
+function buildSupplierPriceRisks(
+  ingredients: Array<{ name: string; memo: string | null }>,
+): SupplierPriceRiskEntry[] {
+  const pairSnaps = new Map<
+    string,
+    { supplier_name: string; ingredient_name: string; snaps: SupplierPriceComparisonEntry[] }
+  >()
+
+  for (const row of ingredients) {
+    const ingredient_name = String(row.name ?? '').trim()
+    if (!ingredient_name) continue
+    const memo = row.memo ?? ''
+    const snaps30 = parseSupplierPriceSnapshots(memo).filter((s) =>
+      isWithinDays(s.effective_from, 30),
+    )
+    for (const snap of snaps30) {
+      const supplier = snap.supplier_name.trim()
+      if (!supplier) continue
+      const key = `${supplier.toLowerCase()}::${normalizeIngredientName(ingredient_name)}`
+      const prev = pairSnaps.get(key)
+      if (prev) {
+        prev.snaps.push(snap)
+      } else {
+        pairSnaps.set(key, {
+          supplier_name: supplier,
+          ingredient_name,
+          snaps: [snap],
+        })
+      }
+    }
+  }
+
+  const risks: SupplierPriceRiskEntry[] = []
+  for (const val of pairSnaps.values()) {
+    const uniqueByDate = new Map<string, SupplierPriceComparisonEntry>()
+    for (const s of val.snaps) {
+      const prev = uniqueByDate.get(s.effective_from)
+      if (!prev || s.price > prev.price) uniqueByDate.set(s.effective_from, s)
+    }
+    const snaps = [...uniqueByDate.values()]
+    if (snaps.length < 2) continue
+
+    const spikeCount = countSupplierSpikeTransitions(snaps)
+    const sorted = [...snaps].sort((a, b) =>
+      a.effective_from.localeCompare(b.effective_from),
+    )
+    const first = sorted[0].price
+    const last = sorted[sorted.length - 1].price
+    const overallPct =
+      first > 0 ? Math.round(((last - first) / first) * 100) : 0
+
+    if (spikeCount >= 2 || (overallPct >= 30 && snaps.length >= 2)) {
+      risks.push({
+        supplier_name: val.supplier_name,
+        ingredient_name: val.ingredient_name,
+        change_percent: overallPct > 0 ? overallPct : 30,
+      })
+    }
+  }
+
+  risks.sort((a, b) => b.change_percent - a.change_percent)
+  return risks.slice(0, 10)
 }
 
 function buildSupplierComparison(
@@ -724,6 +818,9 @@ export async function getIngredientsOperationData(): Promise<
   }
 
   recentOcrActivities.sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
+  const ocrActivities30d = recentOcrActivities.filter((a) =>
+    isWithinDaysIso(a.occurred_at, 30),
+  )
   const recentOcrTop = recentOcrActivities.slice(0, 5)
 
   const ocrSupplierByCanonical: Record<string, string> = {}
@@ -780,6 +877,13 @@ export async function getIngredientsOperationData(): Promise<
   spikeCandidates.sort((a, b) => b.change_percent - a.change_percent)
   const top_spike_ingredients = spikeCandidates.slice(0, 5)
 
+  const supplierPriceRisks = buildSupplierPriceRisks(
+    (ingredients ?? []).map((row) => ({
+      name: String(row.name ?? ''),
+      memo: (row.memo as string | null) ?? null,
+    })),
+  )
+
   return {
     success: true,
     data: {
@@ -788,8 +892,10 @@ export async function getIngredientsOperationData(): Promise<
       metaByIngredient,
       invoiceSupplierNames,
       recentOcrActivities: recentOcrTop,
+      ocrActivities30d,
       ocrSupplierByCanonical,
       ingredientSupplierByName,
+      supplierPriceRisks,
       insights: {
         changed_last_7_days: changedLast7DayIds.size,
         spike_count,

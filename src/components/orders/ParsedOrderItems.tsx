@@ -3,9 +3,11 @@ import type { OrderParsedLine } from '@/types'
 export default function ParsedOrderItems({
   items,
   showRepeatUnlinkedWarning,
+  recentSuppliers,
 }: {
   items: OrderParsedLine[]
   showRepeatUnlinkedWarning?: boolean
+  recentSuppliers?: Array<string | null>
 }) {
   if (items.length === 0) return null
 
@@ -46,6 +48,7 @@ export default function ParsedOrderItems({
       <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
         {items.map((line, idx) => {
           const linked = !!line.ingredient_match
+          const recentSupplier = recentSuppliers?.[idx] ?? null
           return (
             <li
               key={`${line.raw_name}-${line.quantity_text}-${idx}`}
@@ -65,6 +68,12 @@ export default function ParsedOrderItems({
                 <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
                   {line.raw_name} {'\u00b7'} {line.quantity_text}
                 </div>
+                {recentSupplier ? (
+                  <div style={{ fontSize: 11, color: '#374151', marginTop: 4, fontWeight: 600 }}>
+                    {'\ucd5c\uadfc \uacf5\uae09\uc5c5\uccb4: '}
+                    {recentSupplier}
+                  </div>
+                ) : null}
               </div>
               <span
                 style={{

@@ -422,3 +422,381 @@ export function buildOrderOperationInsights(orders: Order[]): OrderOperationInsi
     off_platform_ratio_high,
   }
 }
+
+export type SupplierFlowRow = {
+  supplier_name: string
+  count: number
+}
+
+export type SupplierPriceRiskView = {
+  supplier_name: string
+  ingredients: { name: string; change_percent: number }[]
+  max_change_percent: number
+}
+
+export type SupplierDependencyRow = {
+  ingredient_name: string
+  supplier_name: string
+  ocr_count: number
+}
+
+export type ActiveSupplierRow = {
+  supplier_name: string
+  count: number
+  is_recently_active: boolean
+}
+
+export type TodaySupplierSummary = {
+  active_supplier_count: number
+  price_risk_supplier_count: number
+  repeat_connection_supplier_count: number
+  dependency_ingredient_count: number
+}
+
+export type TodaySupplierOperationInsights = {
+  summary: TodaySupplierSummary
+  top_combined: SupplierFlowRow[]
+  top_ocr: SupplierFlowRow[]
+  top_order_linked: SupplierFlowRow[]
+  price_risk_suppliers: SupplierPriceRiskView[]
+  dependency_ingredients: SupplierDependencyRow[]
+  top_active_suppliers_7d: ActiveSupplierRow[]
+}
+
+type OcrActivityRef = {
+  supplier_name: string
+  ingredient_name: string
+  occurred_at: string
+}
+
+type MenuHubInput = {
+  id: string
+  name: string
+  operation_risk_level: 'normal' | 'warning' | 'danger'
+  margin_rate: number | null
+}
+
+type IngredientsHubInput = {
+  insights: { spike_count: number; ocr_last_7_days: number }
+  top_spike_ingredients: Array<{
+    ingredient_id: string
+    name: string
+    change_percent: number
+  }>
+  recentOcrActivities: OcrActivityRef[]
+}
+
+const MENU_RISK_ORDER = { danger: 0, warning: 1, normal: 2 } as const
+
+export function buildTodayOperationHubFromMenusAndIngredients(
+  menus: MenuHubInput[],
+  ingOp: IngredientsHubInput | null,
+): {
+  risk_menu_count: number
+  spike_ingredient_count: number
+  ocr_recent_count: number
+  avg_margin_rate: number | null
+  top_risk_menus: Array<{
+    id: string
+    name: string
+    operation_risk_level: MenuHubInput['operation_risk_level']
+  }>
+  top_spike_ingredients: IngredientsHubInput['top_spike_ingredients']
+  recent_ocr: OcrActivityRef[]
+} {
+  const risk_menu_count = menus.filter((m) => m.operation_risk_level !== 'normal').length
+  const margins = menus
+    .map((m) => m.margin_rate)
+    .filter((r): r is number => r != null && Number.isFinite(r))
+  const avg_margin_rate =
+    margins.length === 0
+      ? null
+      : Math.round(margins.reduce((a, b) => a + b, 0) / margins.length)
+
+  const top_risk_menus = [...menus]
+    .filter((m) => m.operation_risk_level !== 'normal')
+    .sort(
+      (a, b) =>
+        MENU_RISK_ORDER[a.operation_risk_level] -
+        MENU_RISK_ORDER[b.operation_risk_level],
+    )
+    .slice(0, 5)
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      operation_risk_level: m.operation_risk_level,
+    }))
+
+  return {
+    risk_menu_count,
+    spike_ingredient_count: ingOp?.insights.spike_count ?? 0,
+    ocr_recent_count: ingOp?.insights.ocr_last_7_days ?? 0,
+    avg_margin_rate,
+    top_risk_menus,
+    top_spike_ingredients: ingOp?.top_spike_ingredients ?? [],
+    recent_ocr: ingOp?.recentOcrActivities ?? [],
+  }
+}
+
+type SupplierPriceRiskInput = {
+  supplier_name: string
+  ingredient_name: string
+  change_percent: number
+}
+
+function normalizeSupplierKey(name: string): string {
+  return name.trim().toLowerCase()
+}
+
+function incrementSupplierCount(
+  map: Map<string, { display: string; count: number }>,
+  supplierName: string,
+  delta = 1,
+): void {
+  const display = supplierName.trim()
+  if (!display) return
+  const key = normalizeSupplierKey(display)
+  const prev = map.get(key)
+  map.set(key, {
+    display: prev?.display ?? display,
+    count: (prev?.count ?? 0) + delta,
+  })
+}
+
+function mapToTopRows(
+  map: Map<string, { display: string; count: number }>,
+  limit: number,
+): SupplierFlowRow[] {
+  return [...map.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
+    .map((x) => ({ supplier_name: x.display, count: x.count }))
+}
+
+function buildOcrSupplierCounts(
+  activities: OcrActivityRef[],
+  days: number,
+): Map<string, { display: string; count: number }> {
+  const map = new Map<string, { display: string; count: number }>()
+  for (const row of activities) {
+    if (!isWithinDaysOrder(row.occurred_at, days)) continue
+    incrementSupplierCount(map, row.supplier_name)
+  }
+  return map
+}
+
+function buildOrderLinkedSupplierCounts(
+  orders: Order[],
+  ocrSupplierByCanonical: Record<string, string>,
+  ingredientSupplierByName: Record<string, string | null>,
+  days: number,
+): Map<string, { display: string; count: number }> {
+  const map = new Map<string, { display: string; count: number }>()
+  for (const o of orders) {
+    if (!isWithinDaysOrder(o.created_at, days)) continue
+    const cap = o.operation_capture
+    if (cap?.parsed_items?.length) {
+      for (const line of cap.parsed_items) {
+        const supplier = resolveRecentSupplierForLine(
+          line,
+          ocrSupplierByCanonical,
+          ingredientSupplierByName,
+        )
+        if (supplier) incrementSupplierCount(map, supplier)
+      }
+      continue
+    }
+    const counterparty = (o.counterparty_name ?? '').trim()
+    if (counterparty && cap) {
+      incrementSupplierCount(map, counterparty)
+    }
+  }
+  return map
+}
+
+function mergeSupplierCountMaps(
+  a: Map<string, { display: string; count: number }>,
+  b: Map<string, { display: string; count: number }>,
+): Map<string, { display: string; count: number }> {
+  const out = new Map(a)
+  for (const [key, val] of b) {
+    const prev = out.get(key)
+    out.set(key, {
+      display: prev?.display ?? val.display,
+      count: (prev?.count ?? 0) + val.count,
+    })
+  }
+  return out
+}
+
+function groupSupplierPriceRisks(
+  risks: SupplierPriceRiskInput[],
+): SupplierPriceRiskView[] {
+  const bySupplier = new Map<
+    string,
+    { display: string; ingredients: { name: string; change_percent: number }[] }
+  >()
+  for (const row of risks) {
+    const display = row.supplier_name.trim()
+    if (!display) continue
+    const key = normalizeSupplierKey(display)
+    const prev = bySupplier.get(key)
+    const ing = {
+      name: row.ingredient_name,
+      change_percent: row.change_percent,
+    }
+    if (prev) {
+      prev.ingredients.push(ing)
+    } else {
+      bySupplier.set(key, { display, ingredients: [ing] })
+    }
+  }
+  return [...bySupplier.values()]
+    .map((x) => {
+      const max_change_percent = Math.max(
+        ...x.ingredients.map((i) => i.change_percent),
+        0,
+      )
+      return {
+        supplier_name: x.display,
+        ingredients: x.ingredients
+          .sort((a, b) => b.change_percent - a.change_percent)
+          .slice(0, 3),
+        max_change_percent,
+      }
+    })
+    .sort((a, b) => b.max_change_percent - a.max_change_percent)
+    .slice(0, 5)
+}
+
+function buildSupplierDependencyIngredients(
+  activities: OcrActivityRef[],
+): SupplierDependencyRow[] {
+  const byCanonical = new Map<
+    string,
+    {
+      displayIngredient: string
+      latestAt: string
+      suppliers: Map<string, { display: string; count: number }>
+    }
+  >()
+
+  for (const row of activities) {
+    if (!isWithinDaysOrder(row.occurred_at, 30)) continue
+    const ingredient = row.ingredient_name.trim()
+    if (!ingredient) continue
+    const canonical =
+      normalizeIngredientName(ingredient) || ingredient.toLowerCase()
+    const supplier = row.supplier_name.trim()
+    if (!supplier) continue
+
+    let bucket = byCanonical.get(canonical)
+    if (!bucket) {
+      bucket = {
+        displayIngredient: ingredient,
+        latestAt: row.occurred_at,
+        suppliers: new Map(),
+      }
+      byCanonical.set(canonical, bucket)
+    }
+    if (row.occurred_at >= bucket.latestAt) {
+      bucket.displayIngredient = ingredient
+      bucket.latestAt = row.occurred_at
+    }
+    incrementSupplierCount(bucket.suppliers, supplier)
+  }
+
+  const out: SupplierDependencyRow[] = []
+  for (const bucket of byCanonical.values()) {
+    if (bucket.suppliers.size !== 1) continue
+    const only = [...bucket.suppliers.values()][0]
+    if (only.count < 2) continue
+    out.push({
+      ingredient_name: bucket.displayIngredient,
+      supplier_name: only.display,
+      ocr_count: only.count,
+    })
+  }
+
+  return out.sort((a, b) => b.ocr_count - a.ocr_count).slice(0, 5)
+}
+
+function countRepeatConnectionSuppliers(
+  ocr7d: Map<string, { display: string; count: number }>,
+  order7d: Map<string, { display: string; count: number }>,
+): number {
+  let count = 0
+  const keys = new Set([...ocr7d.keys(), ...order7d.keys()])
+  for (const key of keys) {
+    const o = ocr7d.get(key)?.count ?? 0
+    const r = order7d.get(key)?.count ?? 0
+    if ((o > 0 && r > 0) || o + r >= 3) count += 1
+  }
+  return count
+}
+
+function buildActiveSuppliers7d(
+  ocr7d: Map<string, { display: string; count: number }>,
+  order7d: Map<string, { display: string; count: number }>,
+): ActiveSupplierRow[] {
+  const merged = mergeSupplierCountMaps(ocr7d, order7d)
+  return [...merged.values()]
+    .map((x) => {
+      const o = ocr7d.get(normalizeSupplierKey(x.display))?.count ?? 0
+      const r = order7d.get(normalizeSupplierKey(x.display))?.count ?? 0
+      const is_recently_active =
+        (o > 0 && r > 0 && x.count >= 2) || x.count >= 3
+      return {
+        supplier_name: x.display,
+        count: x.count,
+        is_recently_active,
+      }
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+}
+
+export function buildTodaySupplierOperationInsights(
+  orders: Order[],
+  ocrActivities30d: OcrActivityRef[],
+  ocrSupplierByCanonical: Record<string, string>,
+  ingredientSupplierByName: Record<string, string | null>,
+  supplierPriceRisks: SupplierPriceRiskInput[],
+): TodaySupplierOperationInsights {
+  const ocrMap30 = buildOcrSupplierCounts(ocrActivities30d, 30)
+  const orderMap30 = buildOrderLinkedSupplierCounts(
+    orders,
+    ocrSupplierByCanonical,
+    ingredientSupplierByName,
+    30,
+  )
+  const ocrMap7 = buildOcrSupplierCounts(ocrActivities30d, 7)
+  const orderMap7 = buildOrderLinkedSupplierCounts(
+    orders,
+    ocrSupplierByCanonical,
+    ingredientSupplierByName,
+    7,
+  )
+  const combined30 = mergeSupplierCountMaps(ocrMap30, orderMap30)
+  const price_risk_suppliers = groupSupplierPriceRisks(supplierPriceRisks)
+  const dependency_ingredients = buildSupplierDependencyIngredients(ocrActivities30d)
+  const top_active_suppliers_7d = buildActiveSuppliers7d(ocrMap7, orderMap7)
+
+  return {
+    summary: {
+      active_supplier_count: combined30.size,
+      price_risk_supplier_count: price_risk_suppliers.length,
+      repeat_connection_supplier_count: countRepeatConnectionSuppliers(
+        ocrMap7,
+        orderMap7,
+      ),
+      dependency_ingredient_count: dependency_ingredients.length,
+    },
+    top_combined: mapToTopRows(combined30, 5),
+    top_ocr: mapToTopRows(ocrMap30, 5),
+    top_order_linked: mapToTopRows(orderMap30, 5),
+    price_risk_suppliers,
+    dependency_ingredients,
+    top_active_suppliers_7d,
+  }
+}
