@@ -1,8 +1,9 @@
 'use client'
 
-import { useMemo, useState, useTransition, type FocusEvent } from 'react'
+import { useCallback, useEffect, useMemo, useState, useTransition, type FocusEvent } from 'react'
 import Link from 'next/link'
 import { formatKRW } from '@/lib/utils'
+import { getIngredientsOperationData, type IngredientsOperationData } from '@/actions/ingredients'
 import {
   activateMenu,
   addMenuIngredient,
@@ -12,6 +13,7 @@ import {
   removeMenuIngredient,
   updateMenu,
   type MenuCostEstimateData,
+  type MenuCostRiskLevel,
   type MenuWithCost,
 } from '@/actions/menus'
 
@@ -41,6 +43,49 @@ function marginBadge(rate: number | null): { label: string; bg: string; color: s
   if (rate >= 60) return { label: '마진 우수', bg: '#edf7f1', color: '#1f5d3a' }
   if (rate >= 40) return { label: '평균 수준', bg: '#f7f6f2', color: '#6b7280' }
   return null
+}
+
+const MENU_RISK_SORT_ORDER: Record<MenuCostRiskLevel, number> = {
+  danger: 0,
+  warning: 1,
+  normal: 2,
+}
+
+function sortMenusByOperationRisk(menus: MenuWithCost[]): MenuWithCost[] {
+  return [...menus].sort((a, b) => {
+    const riskDiff =
+      MENU_RISK_SORT_ORDER[a.cost_risk_level] - MENU_RISK_SORT_ORDER[b.cost_risk_level]
+    if (riskDiff !== 0) return riskDiff
+    const ua = a.updated_at ?? a.created_at
+    const ub = b.updated_at ?? b.created_at
+    return ub.localeCompare(ua)
+  })
+}
+
+function MenuCostRiskBadge({ level }: { level: MenuCostRiskLevel }) {
+  if (level === 'normal') return null
+  const isDanger = level === 'danger'
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: 1,
+        background: isDanger ? '#fef2f2' : '#fff7ed',
+        color: isDanger ? '#dc2626' : '#F97316',
+        borderRadius: 999,
+        padding: '4px 10px',
+        fontSize: 10,
+        fontWeight: 600,
+        flexShrink: 0,
+        lineHeight: 1.2,
+      }}
+    >
+      <span>{isDanger ? '위험' : '주의'}</span>
+      <span style={{ fontSize: 9, fontWeight: 600 }}>{isDanger ? '원가 급등' : '원가 상승'}</span>
+    </span>
+  )
 }
 
 function hasNoReliableCost(m: MenuWithCost): boolean {
@@ -269,6 +314,18 @@ export default function MenusClient(props: {
 
   const [estimate, setEstimate] = useState<MenuCostEstimateData | null>(null)
   const [estimateLoading, setEstimateLoading] = useState(false)
+  const [operationData, setOperationData] = useState<IngredientsOperationData | null>(null)
+
+  const refreshOperationData = useCallback(async () => {
+    const res = await getIngredientsOperationData()
+    if (res.success && res.data) {
+      setOperationData(res.data)
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshOperationData()
+  }, [refreshOperationData])
 
   const categories = useMemo(() => {
     const set = new Set<string>()
@@ -281,7 +338,7 @@ export default function MenusClient(props: {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return menus.filter((m) => {
+    const items = menus.filter((m) => {
       if (categoryFilter && (m.category ?? '') !== categoryFilter) return false
       if (!q) return true
       if (m.name.toLowerCase().includes(q)) return true
@@ -290,7 +347,29 @@ export default function MenusClient(props: {
       }
       return false
     })
+    return sortMenusByOperationRisk(items)
   }, [menus, query, categoryFilter])
+
+  const menuOperationInsights = useMemo(() => {
+    const atRiskMenuCount = menus.filter((m) => m.cost_risk_level !== 'normal').length
+    let risingIngredientCount = 0
+    if (operationData?.metaByIngredient) {
+      for (const meta of Object.values(operationData.metaByIngredient)) {
+        if (
+          meta.price_change_direction === 'up' &&
+          meta.price_change_percent != null &&
+          meta.price_change_percent >= 10
+        ) {
+          risingIngredientCount += 1
+        }
+      }
+    }
+    return {
+      atRiskMenuCount,
+      risingIngredientCount,
+      ocrUpdates7d: operationData?.insights.ocr_last_7_days ?? 0,
+    }
+  }, [menus, operationData])
 
   function resetForm() {
     setEditingId(null)
@@ -427,6 +506,7 @@ export default function MenusClient(props: {
       const next = await import('@/actions/menus').then((m) => m.getMenus())
       if (next.success) {
         setMenus(next.data ?? [])
+        void refreshOperationData()
         if (editingId) {
           const updated = next.data?.find((x) => x.id === editingId)
           if (updated) loadMenuForm(updated)
@@ -448,6 +528,7 @@ export default function MenusClient(props: {
     const [next, inactive] = await Promise.all([menusMod.getMenus(), menusMod.getInactiveMenus()])
     if (next.success) setMenus(next.data ?? [])
     if (inactive.success) setInactiveMenus(inactive.data ?? [])
+    void refreshOperationData()
   }
 
   function handleDeactivate(menuId: string) {
@@ -1042,6 +1123,55 @@ export default function MenusClient(props: {
         </div>
       )}
 
+      {menus.length > 0 && operationData ? (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 8,
+            marginBottom: 12,
+          }}
+        >
+          {[
+            {
+              label: '원가 위험 메뉴',
+              value: `${menuOperationInsights.atRiskMenuCount}개`,
+            },
+            {
+              label: '최근 원가 상승 식자재',
+              value: `${menuOperationInsights.risingIngredientCount}개`,
+            },
+            {
+              label: '최근 OCR 공급가 반영',
+              value: `${menuOperationInsights.ocrUpdates7d}건`,
+            },
+          ].map((item) => (
+            <div
+              key={item.label}
+              style={{
+                background: '#ffffff',
+                border: '0.5px solid #ece8df',
+                borderRadius: 14,
+                padding: 14,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: '#1f5d3a',
+                  marginBottom: 4,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {item.value}
+              </div>
+              <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>{item.label}</div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
       {menus.length > 0 && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
           <input
@@ -1127,12 +1257,33 @@ export default function MenusClient(props: {
                 boxSizing: 'border-box',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12, gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 16, fontWeight: 500, color: '#2b2b2b' }}>{m.name}</div>
                   <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>{(m.category ?? '미분류')} · 재료 {m.ingredients.length}개{m.is_representative ? ' · 대표' : ''}</div>
+                  {m.cost_direction_label ? (
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 600,
+                        marginTop: 6,
+                        color:
+                          m.cost_direction_label.startsWith('▲') ? '#F97316' : '#2563eb',
+                      }}
+                    >
+                      {m.cost_direction_label}
+                      {m.cost_change_percent != null && m.cost_change_percent !== 0
+                        ? ` (${m.cost_change_percent > 0 ? '+' : ''}${m.cost_change_percent}%)`
+                        : ''}
+                    </div>
+                  ) : null}
                 </div>
-                {badge && <span style={{ fontSize: 11, fontWeight: 600, background: badge.bg, color: badge.color, padding: '4px 10px', borderRadius: 999, flexShrink: 0 }}>{badge.label}</span>}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                  <MenuCostRiskBadge level={m.cost_risk_level} />
+                  {badge ? (
+                    <span style={{ fontSize: 11, fontWeight: 600, background: badge.bg, color: badge.color, padding: '4px 10px', borderRadius: 999 }}>{badge.label}</span>
+                  ) : null}
+                </div>
               </div>
               {display.showMetrics ? (
                 <>
@@ -1269,6 +1420,38 @@ export default function MenusClient(props: {
                     메뉴 숨기기
                   </button>
                 </div>
+                {m.impacting_ingredients.length > 0 ? (
+                  <div
+                    style={{
+                      background: '#f7f6f2',
+                      border: '0.5px solid #ece8df',
+                      borderRadius: 12,
+                      padding: 12,
+                      marginBottom: 12,
+                    }}
+                  >
+                    <p style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', margin: '0 0 8px' }}>
+                      최근 가격 영향 식자재
+                    </p>
+                    {m.impacting_ingredients.map((ing) => (
+                      <div
+                        key={ing.ingredient_id}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '6px 0',
+                          borderBottom: '0.5px solid #ece8df',
+                        }}
+                      >
+                        <span style={{ fontSize: 13, color: '#2b2b2b' }}>{ing.ingredient_name}</span>
+                        <span style={{ fontSize: 12, fontWeight: 600, color: '#F97316' }}>
+                          ▲ +{ing.change_percent}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 {renderMenuEditPanel()}
               </div>
             )}

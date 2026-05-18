@@ -3,7 +3,12 @@
 import { revalidatePath } from 'next/cache'
 import { createServerClient } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/get-restaurant'
-import { getIngredientPriceAtDate } from '@/actions/ingredients'
+import {
+  getIngredientPriceAtDate,
+  getIngredientPriceRiskMap,
+  type IngredientPriceRisk,
+  type IngredientPriceRiskLevel,
+} from '@/actions/ingredients'
 import type { ActionResult } from '@/types'
 
 export interface MenuIngredientRow {
@@ -14,6 +19,14 @@ export interface MenuIngredientRow {
   ingredient_current_price: number | null
   quantity: number
   unit: string | null
+}
+
+export type MenuCostRiskLevel = IngredientPriceRiskLevel
+
+export type MenuIngredientImpact = {
+  ingredient_id: string
+  ingredient_name: string
+  change_percent: number
 }
 
 export interface MenuWithCost {
@@ -30,6 +43,103 @@ export interface MenuWithCost {
   ingredients: MenuIngredientRow[]
   calculated_cost: number
   margin_rate: number | null
+  cost_risk_level: MenuCostRiskLevel
+  cost_direction_label: string | null
+  cost_change_percent: number | null
+  impacting_ingredients: MenuIngredientImpact[]
+}
+
+const MENU_RISK_DEFAULTS = {
+  cost_risk_level: 'normal' as const,
+  cost_direction_label: null,
+  cost_change_percent: null,
+  impacting_ingredients: [] as MenuIngredientImpact[],
+}
+
+function subtractDaysFromDate(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const dt = new Date(y, m - 1, d)
+  dt.setDate(dt.getDate() - days)
+  const yy = dt.getFullYear()
+  const mm = String(dt.getMonth() + 1).padStart(2, '0')
+  const dd = String(dt.getDate()).padStart(2, '0')
+  return `${yy}-${mm}-${dd}`
+}
+
+function computeMenuCostRiskLevel(
+  ingredients: MenuIngredientRow[],
+  riskMap: Record<string, IngredientPriceRisk>,
+): MenuCostRiskLevel {
+  let level: MenuCostRiskLevel = 'normal'
+  for (const row of ingredients) {
+    const risk = riskMap[row.ingredient_id]
+    if (!risk) continue
+    if (risk.risk_level === 'danger') return 'danger'
+    if (risk.risk_level === 'warning') level = 'warning'
+  }
+  return level
+}
+
+function buildImpactingIngredients(
+  ingredients: MenuIngredientRow[],
+  riskMap: Record<string, IngredientPriceRisk>,
+): MenuIngredientImpact[] {
+  const impacts: MenuIngredientImpact[] = []
+  for (const row of ingredients) {
+    const risk = riskMap[row.ingredient_id]
+    if (
+      !risk ||
+      risk.change_percent == null ||
+      risk.change_percent <= 0 ||
+      risk.risk_level === 'normal'
+    ) {
+      continue
+    }
+    impacts.push({
+      ingredient_id: row.ingredient_id,
+      ingredient_name: row.ingredient_name,
+      change_percent: risk.change_percent,
+    })
+  }
+  return impacts.sort((a, b) => b.change_percent - a.change_percent)
+}
+
+function computeMenuCostDirection(
+  costToday: number,
+  costPast: number,
+): { label: string | null; percent: number | null } {
+  if (costToday <= 0 && costPast <= 0) {
+    return { label: null, percent: null }
+  }
+  if (costPast <= 0) {
+    return { label: '▲ 원가 상승 중', percent: null }
+  }
+  const delta = (costToday - costPast) / costPast
+  const percent = Math.round(delta * 100)
+  if (Math.abs(percent) < 3) {
+    return { label: '▼ 원가 안정', percent }
+  }
+  if (delta > 0) {
+    return { label: '▲ 원가 상승 중', percent }
+  }
+  return { label: '▼ 원가 안정', percent }
+}
+
+const RISK_SORT_ORDER: Record<MenuCostRiskLevel, number> = {
+  danger: 0,
+  warning: 1,
+  normal: 2,
+}
+
+function sortMenusByOperationRisk(menus: MenuWithCost[]): MenuWithCost[] {
+  return [...menus].sort((a, b) => {
+    const riskDiff =
+      RISK_SORT_ORDER[a.cost_risk_level] - RISK_SORT_ORDER[b.cost_risk_level]
+    if (riskDiff !== 0) return riskDiff
+    const ua = a.updated_at ?? a.created_at
+    const ub = b.updated_at ?? b.created_at
+    return ub.localeCompare(ua)
+  })
 }
 
 function isValidCalculationDate(value: string): boolean {
@@ -184,15 +294,25 @@ export async function getMenus(): Promise<ActionResult<MenuWithCost[]>> {
 
   if (miErr) return { success: false, error: miErr.message, data: [] }
 
-  const byMenu = await buildMenuIngredientsWithPrices(
-    (miRaw ?? []) as MenuIngredientJoinRow[],
-    calculationDate,
-  )
+  const miRows = (miRaw ?? []) as MenuIngredientJoinRow[]
+  const byMenuToday = await buildMenuIngredientsWithPrices(miRows, calculationDate)
+  const datePast = subtractDaysFromDate(calculationDate, 30)
+  const byMenuPast = await buildMenuIngredientsWithPrices(miRows, datePast)
+
+  const ingredientIds = [
+    ...new Set(miRows.map((r) => r.ingredient_id).filter(Boolean)),
+  ]
+  const riskRes = await getIngredientPriceRiskMap(ingredientIds)
+  const riskMap =
+    riskRes.success && riskRes.data ? riskRes.data : {}
 
   const result: MenuWithCost[] = menus.map((m) => {
-    const ingredients = byMenu.get(m.id) ?? []
+    const ingredients = byMenuToday.get(m.id) ?? []
     const calculated_cost = computeCost(ingredients)
     const margin_rate = computeMarginRate(m.price ?? 0, calculated_cost)
+    const costPast = computeCost(byMenuPast.get(m.id) ?? [])
+    const direction = computeMenuCostDirection(calculated_cost, costPast)
+
     return {
       id: m.id,
       tenant_id: m.tenant_id,
@@ -207,10 +327,14 @@ export async function getMenus(): Promise<ActionResult<MenuWithCost[]>> {
       ingredients,
       calculated_cost,
       margin_rate,
+      cost_risk_level: computeMenuCostRiskLevel(ingredients, riskMap),
+      cost_direction_label: direction.label,
+      cost_change_percent: direction.percent,
+      impacting_ingredients: buildImpactingIngredients(ingredients, riskMap),
     }
   })
 
-  return { success: true, data: result }
+  return { success: true, data: sortMenusByOperationRisk(result) }
 }
 
 export async function getInactiveMenus(): Promise<ActionResult<MenuWithCost[]>> {
@@ -264,6 +388,7 @@ export async function getInactiveMenus(): Promise<ActionResult<MenuWithCost[]>> 
       ingredients,
       calculated_cost,
       margin_rate,
+      ...MENU_RISK_DEFAULTS,
     }
   })
 

@@ -413,6 +413,91 @@ export type IngredientsOperationData = {
   insights: IngredientsOperationInsights
 }
 
+export type IngredientPriceRiskLevel = 'normal' | 'warning' | 'danger'
+
+export type IngredientPriceRisk = {
+  change_percent: number | null
+  direction: 'up' | 'down' | 'flat' | null
+  risk_level: IngredientPriceRiskLevel
+}
+
+function computeIngredientPriceRisk(
+  histories: IngredientPriceHistoryEntry[],
+): IngredientPriceRisk {
+  const base: IngredientPriceRisk = {
+    change_percent: null,
+    direction: null,
+    risk_level: 'normal',
+  }
+  if (histories.length < 2) return base
+
+  const latest = histories[0]
+  const prev = histories[1]
+  if (prev.price <= 0 || !isWithinDays(latest.effective_from, 30)) return base
+
+  const delta = (latest.price - prev.price) / prev.price
+  const change_percent = Math.round(delta * 100)
+  let direction: 'up' | 'down' | 'flat' = 'flat'
+  if (delta > 0) direction = 'up'
+  if (delta < 0) direction = 'down'
+
+  let risk_level: IngredientPriceRiskLevel = 'normal'
+  if (delta >= 0.3) risk_level = 'danger'
+  else if (delta >= 0.1) risk_level = 'warning'
+
+  return { change_percent, direction, risk_level }
+}
+
+export async function getIngredientPriceRiskMap(
+  ingredientIds: string[],
+): Promise<ActionResult<Record<string, IngredientPriceRisk>>> {
+  const supabase = await createServerClient()
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id) {
+    return { success: false, error: '인증 필요', data: undefined }
+  }
+
+  const uniqueIds = [...new Set(ingredientIds.filter(Boolean))]
+  if (uniqueIds.length === 0) {
+    return { success: true, data: {} }
+  }
+
+  const { data: rawHistories, error } = await supabase
+    .from('ingredient_price_history')
+    .select('ingredient_id, price, effective_from, created_at')
+    .eq('tenant_id', tenant_id)
+    .in('ingredient_id', uniqueIds)
+    .order('effective_from', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    return { success: false, error: error.message, data: undefined }
+  }
+
+  const grouped: Record<string, IngredientPriceHistoryEntry[]> = {}
+  for (const row of rawHistories ?? []) {
+    const ingredientId = row.ingredient_id as string
+    const bucket = grouped[ingredientId] ?? []
+    if (bucket.length >= 2) continue
+    const price = Number(row.price)
+    if (!Number.isFinite(price)) continue
+    bucket.push({
+      effective_from: row.effective_from as string,
+      price,
+      created_at: row.created_at as string,
+      supplier_name: null,
+    })
+    grouped[ingredientId] = bucket
+  }
+
+  const result: Record<string, IngredientPriceRisk> = {}
+  for (const id of uniqueIds) {
+    result[id] = computeIngredientPriceRisk(grouped[id] ?? [])
+  }
+
+  return { success: true, data: result }
+}
+
 const SUPPLIER_SNAPSHOT_RE = /;공급:([^,]+),(\d{4}-\d{2}-\d{2}),(\d+(?:\.\d+)?)/g
 
 function parseSupplierFromMemo(memo: string | null): string | null {
