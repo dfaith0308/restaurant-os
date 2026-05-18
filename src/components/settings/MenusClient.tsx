@@ -703,24 +703,48 @@ export default function MenusClient(props: {
                       <p style={{ fontSize: 12, color: '#9ca3af', marginBottom: 6, marginTop: 0 }}>
                         원가 감이 안 오세요?
                       </p>
-                      <button
-                        type="button"
-                        onClick={handleFetchEstimate}
-                        disabled={estimateLoading || isPending || !name.trim()}
-                        style={{
-                          background: 'transparent',
-                          border: '0.5px solid #e8e5de',
-                          borderRadius: 8,
-                          padding: '8px 14px',
-                          fontSize: 12,
-                          color: '#6b7280',
-                          cursor: estimateLoading ? 'wait' : 'pointer',
-                          fontFamily: 'inherit',
-                          opacity: estimateLoading ? 0.7 : 1,
-                        }}
-                      >
-                        {estimateLoading ? '원가 분석 중...' : '비슷한 메뉴 예상 원가 보기'}
-                      </button>
+                      {estimateLoading ? (
+                        <div
+                          role="status"
+                          style={{
+                            background: '#fff7ed',
+                            border: '1px solid #fdba74',
+                            borderRadius: 10,
+                            padding: '10px 14px',
+                            fontSize: 13,
+                            fontWeight: 500,
+                            color: '#ea580c',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            fontFamily: 'inherit',
+                          }}
+                        >
+                          <span className="ai-estimate-spinner" aria-hidden />
+                          AI가 메뉴를 분석하고 있어요...
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="ai-estimate-btn"
+                          onClick={handleFetchEstimate}
+                          disabled={isPending || !name.trim()}
+                          style={{
+                            background: '#fff7ed',
+                            border: '1px solid #fdba74',
+                            color: '#ea580c',
+                            borderRadius: 10,
+                            padding: '10px 14px',
+                            fontSize: 13,
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            fontFamily: 'inherit',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          ✨ 비슷한 메뉴 예상 원가 보기
+                        </button>
+                      )}
                       {estimate?.estimated_cost != null && (
                         <div
                           style={{
@@ -734,8 +758,8 @@ export default function MenusClient(props: {
                             lineHeight: 1.5,
                           }}
                         >
-                          <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>
-                            비슷한 메뉴 기준 예상 원가
+                          <p style={{ margin: 0, fontSize: 12, fontWeight: 600, color: '#ea580c' }}>
+                            AI 예상 원가 분석
                           </p>
                           <p
                             style={{
@@ -939,6 +963,25 @@ export default function MenusClient(props: {
         @keyframes menusPulse {
           0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.3); }
           50% { box-shadow: 0 0 0 8px rgba(249, 115, 22, 0); }
+        }
+        @keyframes aiEstimateSpin {
+          to { transform: rotate(360deg); }
+        }
+        .ai-estimate-spinner {
+          width: 14px;
+          height: 14px;
+          border: 2px solid #fdba74;
+          border-top: 2px solid #ea580c;
+          border-radius: 50%;
+          animation: aiEstimateSpin 0.8s linear infinite;
+          flex-shrink: 0;
+        }
+        .ai-estimate-btn {
+          transition: all 0.15s ease;
+        }
+        .ai-estimate-btn:hover:not(:disabled) {
+          background: #ffedd5 !important;
+          border-color: #fb923c !important;
         }
         .menus-fade-up { opacity: 0; animation: menusFadeUp 0.5s ease forwards; }
         .menus-anim-title { animation-delay: 0s; }
