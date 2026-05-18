@@ -29,11 +29,48 @@ type OcrIngredientRow = InvoiceIngredient & {
   priceAction?: 'apply' | 'keep'
 }
 
+// 거래명세서 식자재명은 업체마다 표현이 다르다.
+// OCR 중복 폭발 방지를 위해 canonical normalize 사용.
+const CANONICAL_STRIP_TOKENS = [
+  '국내산',
+  '수입산',
+  '상품',
+  '박스',
+  'box',
+  '깐',
+  '특',
+  'kg',
+  'ea',
+  '개',
+  'g',
+] as const
+
 function normalizeIngredientName(name: string): string {
-  return name
+  let s = name
     .trim()
     .toLowerCase()
     .replace(/[\s()[\]{}·.,\-_/\\|"'`~!@#$%^&*+=?:;<>]/g, '')
+
+  for (const token of CANONICAL_STRIP_TOKENS) {
+    s = s.split(token).join('')
+  }
+
+  s = s.replace(/\d+/g, '')
+  return s
+}
+
+function isLikelySameIngredient(a: string, b: string): boolean {
+  const left = normalizeIngredientName(a)
+  const right = normalizeIngredientName(b)
+  if (!left || !right) return false
+  return left === right
+}
+
+function findCanonicalIngredient(
+  ingredients: Ingredient[],
+  ocrName: string,
+): Ingredient | undefined {
+  return ingredients.find((row) => isLikelySameIngredient(row.name, ocrName))
 }
 
 function todayDateString(): string {
@@ -284,21 +321,13 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
   const showManualForm =
     showForm && (registerMode === 'manual' || registerMode === 'product')
 
-  const ingredientByNorm = useMemo(() => {
-    const map = new Map<string, Ingredient>()
-    for (const i of list) {
-      map.set(normalizeIngredientName(i.name), i)
-    }
-    return map
-  }, [list])
-
   const pendingPriceChoices = useMemo(() => {
     return ocrIngredients.some((row) => {
-      const existing = ingredientByNorm.get(normalizeIngredientName(row.name))
+      const existing = findCanonicalIngredient(list, row.name)
       if (!existing || row.price == null) return false
       return pricesDiffer(existing.current_price, row.price) && row.priceAction == null
     })
-  }, [ocrIngredients, ingredientByNorm])
+  }, [ocrIngredients, list])
 
   function resetInvoiceFlow() {
     setInvoiceImage(null)
@@ -413,7 +442,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     const rows = ocrIngredients
       .filter((row) => row.name.trim().length > 0)
       .map((row) => {
-        const existing = ingredientByNorm.get(normalizeIngredientName(row.name))
+        const existing = findCanonicalIngredient(list, row.name)
         let mode: 'new' | 'apply' | 'keep'
         if (!existing) {
           mode = 'new'
@@ -829,9 +858,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {ocrIngredients.map((row) => {
-                      const existing = ingredientByNorm.get(
-                        normalizeIngredientName(row.name),
-                      )
+                      const existing = findCanonicalIngredient(list, row.name)
                       const isNew = !existing
                       const priceChanged =
                         !!existing &&
@@ -866,6 +893,11 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                               {isNew ? '신규' : '기존'}
                             </span>
                           </div>
+                          {!isNew && (
+                            <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 8px' }}>
+                              기존 식자재와 연결됨
+                            </p>
+                          )}
                           <input
                             value={row.name}
                             onChange={(e) => updateOcrRow(row.rowKey, 'name', e.target.value)}

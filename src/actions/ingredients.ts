@@ -23,11 +23,48 @@ export interface IngredientRow {
 const INGREDIENT_SELECT =
   'id, tenant_id, name, unit, current_price, target_price, category, memo, barcode, is_active, created_at, updated_at'
 
+// 거래명세서 식자재명은 업체마다 표현이 다르다.
+// OCR 중복 폭발 방지를 위해 canonical normalize 사용.
+const CANONICAL_STRIP_TOKENS = [
+  '국내산',
+  '수입산',
+  '상품',
+  '박스',
+  'box',
+  '깐',
+  '특',
+  'kg',
+  'ea',
+  '개',
+  'g',
+] as const
+
 function normalizeIngredientName(name: string): string {
-  return name
+  let s = name
     .trim()
     .toLowerCase()
     .replace(/[\s()[\]{}·.,\-_/\\|"'`~!@#$%^&*+=?:;<>]/g, '')
+
+  for (const token of CANONICAL_STRIP_TOKENS) {
+    s = s.split(token).join('')
+  }
+
+  s = s.replace(/\d+/g, '')
+  return s
+}
+
+function isLikelySameIngredient(a: string, b: string): boolean {
+  const left = normalizeIngredientName(a)
+  const right = normalizeIngredientName(b)
+  if (!left || !right) return false
+  return left === right
+}
+
+function findCanonicalIngredient(
+  pool: IngredientRow[],
+  ocrName: string,
+): IngredientRow | undefined {
+  return pool.find((row) => isLikelySameIngredient(row.name, ocrName))
 }
 
 function todayDateString(): string {
@@ -329,10 +366,9 @@ export async function registerInvoiceIngredients(
 
   if (loadError) return { success: false, error: loadError.message }
 
-  const byNorm = new Map<string, IngredientRow>()
-  for (const row of (existingRows ?? []) as IngredientRow[]) {
-    byNorm.set(normalizeIngredientName(row.name), row)
-  }
+  const ingredientPool: IngredientRow[] = [
+    ...((existingRows ?? []) as IngredientRow[]),
+  ]
 
   const created: IngredientRow[] = []
   const updated: IngredientRow[] = []
@@ -347,8 +383,7 @@ export async function registerInvoiceIngredients(
       ? row.effective_from
       : todayDateString()
 
-    const norm = normalizeIngredientName(name)
-    const existing = byNorm.get(norm)
+    const existing = findCanonicalIngredient(ingredientPool, name)
 
     if (!existing) {
       const current_price = row.price
@@ -376,7 +411,7 @@ export async function registerInvoiceIngredients(
             effective_from,
           )
         }
-        byNorm.set(norm, ing)
+        ingredientPool.push(ing)
         created.push(ing)
         successCount += 1
       }
@@ -409,7 +444,12 @@ export async function registerInvoiceIngredients(
           effective_from,
         )
         const ing = data as IngredientRow
-        byNorm.set(norm, ing)
+        const poolIdx = ingredientPool.findIndex((r) => r.id === existing.id)
+        if (poolIdx >= 0) {
+          ingredientPool[poolIdx] = ing
+        } else {
+          ingredientPool.push(ing)
+        }
         updated.push(ing)
         successCount += 1
       }
