@@ -8,7 +8,7 @@ export default async function RestaurantSettingsPage() {
   const restaurant = result.data ?? {
     id: tenantId, name: '', region: null, owner_name: null, phone: null,
     business_number: null, address: null, address_detail: null,
-    opening_time: null, closing_time: null, working_days_per_month: 25,
+    business_hours_text: null, working_days_per_month: 25,
     table_2p: 0, table_4p: 0, seating_config: null,
   }
 

@@ -15,8 +15,7 @@ export interface RestaurantInfo {
   business_number:        string | null
   address:                string | null
   address_detail:         string | null
-  opening_time:           string | null
-  closing_time:           string | null
+  business_hours_text:    string | null
   working_days_per_month: number
   table_2p:               number
   table_4p:               number
@@ -41,7 +40,7 @@ export async function getRestaurant(
   const { data, error } = await supabase
     .from('tenants')
     .select(
-      'id, name, region, address, address_detail, representative_name, contact_phone, business_number, opening_time, closing_time, working_days_per_month, seating_config',
+      'id, name, region, address, address_detail, representative_name, contact_phone, business_number, business_hours_text, working_days_per_month, seating_config',
     )
     .eq('id', tenant_id)
     .single()
@@ -67,8 +66,7 @@ export async function getRestaurant(
       business_number:  data.business_number ?? null,
       address:                data.address ?? null,
       address_detail:         data.address_detail ?? null,
-      opening_time:           data.opening_time ?? null,
-      closing_time:           data.closing_time ?? null,
+      business_hours_text:    data.business_hours_text ?? null,
       working_days_per_month: data.working_days_per_month ?? 25,
       table_2p:               (data.seating_config as SeatingConfig | null)?.table_2p ?? 0,
       table_4p:         (data.seating_config as SeatingConfig | null)?.table_4p ?? 0,
@@ -84,8 +82,7 @@ export interface UpdateRestaurantInput {
   owner_name?:     string | null
   phone?:          string | null
   business_number?:        string | null
-  opening_time?:           string | null
-  closing_time?:           string | null
+  business_hours_text?:    string | null
   working_days_per_month?: number
   table_2p?:               number
   table_4p?:       number
@@ -105,8 +102,9 @@ export async function updateRestaurant(
   if (input.owner_name !== undefined) payload.representative_name = input.owner_name
   if (input.phone !== undefined) payload.contact_phone = input.phone
   if (input.business_number !== undefined) payload.business_number = input.business_number
-  if (input.opening_time !== undefined) payload.opening_time = input.opening_time
-  if (input.closing_time !== undefined) payload.closing_time = input.closing_time
+  if (input.business_hours_text !== undefined) {
+    payload.business_hours_text = input.business_hours_text
+  }
   if (input.working_days_per_month !== undefined) {
     payload.working_days_per_month = input.working_days_per_month
   }

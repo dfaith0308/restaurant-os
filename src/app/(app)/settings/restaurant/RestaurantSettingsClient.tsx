@@ -20,8 +20,9 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
   const [ownerName,      setOwnerName]      = useState(restaurant.owner_name ?? '')
   const [phone,          setPhone]          = useState(restaurant.phone ?? '')
   const [businessNumber, setBusinessNumber] = useState(restaurant.business_number ?? '')
-  const [openingTime, setOpeningTime] = useState(restaurant.opening_time ?? '')
-  const [closingTime, setClosingTime] = useState(restaurant.closing_time ?? '')
+  const [businessHoursText, setBusinessHoursText] = useState(
+    restaurant.business_hours_text ?? '',
+  )
   const [workingDays, setWorkingDays] = useState(restaurant.working_days_per_month ?? 25)
   const [status,    setStatus]    = useState<'idle' | 'dirty' | 'saved'>('idle')
   const [isPending, startTr]      = useTransition()
@@ -33,9 +34,8 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
     ownerName      !== (restaurant.owner_name      ?? '') ||
     phone          !== (restaurant.phone           ?? '') ||
     businessNumber !== (restaurant.business_number ?? '') ||
-    openingTime      !== (restaurant.opening_time ?? '') ||
-    closingTime      !== (restaurant.closing_time ?? '') ||
-    workingDays      !== (restaurant.working_days_per_month ?? 25)
+    businessHoursText !== (restaurant.business_hours_text ?? '') ||
+    workingDays         !== (restaurant.working_days_per_month ?? 25)
 
   // status 동기화
   useEffect(() => {
@@ -59,8 +59,7 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
     setOwnerName(restaurant.owner_name ?? '')
     setPhone(restaurant.phone ?? '')
     setBusinessNumber(restaurant.business_number ?? '')
-    setOpeningTime(restaurant.opening_time ?? '')
-    setClosingTime(restaurant.closing_time ?? '')
+    setBusinessHoursText(restaurant.business_hours_text ?? '')
     setWorkingDays(restaurant.working_days_per_month ?? 25)
     setStatus('idle')
   }, [restaurant])
@@ -74,8 +73,7 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
         owner_name:      ownerName.trim()       || null,
         phone:           phone.trim()           || null,
         business_number: businessNumber.trim()  || null,
-        opening_time: openingTime || null,
-        closing_time: closingTime || null,
+        business_hours_text: businessHoursText,
         working_days_per_month: Number(workingDays) || 25,
       })
       setStatus('saved')
@@ -134,23 +132,32 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
           영업 정보
         </p>
 
-        <Field label="오픈 시간">
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 4 }}>
+            영업시간
+          </label>
+          <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 6px' }}>
+            자유롭게 입력하세요
+          </p>
           <input
-            type="time"
-            value={openingTime}
-            onChange={e => { setOpeningTime(e.target.value); setStatus('idle') }}
-            style={{ ...INPUT_BASE, borderColor: isSaved ? '#BBF7D0' : showDirty ? '#FCA5A5' : '#e5e7eb' }}
+            value={businessHoursText}
+            onChange={e => { setBusinessHoursText(e.target.value); setStatus('idle') }}
+            placeholder="예: 매일 11:00~22:00 / 월요일 휴무"
+            style={{
+              width: '100%',
+              padding: '9px 12px',
+              border: '0.5px solid #e8e5de',
+              borderRadius: 10,
+              fontSize: 13,
+              background: '#f7f6f2',
+              boxSizing: 'border-box',
+              fontFamily: 'inherit',
+            }}
           />
-        </Field>
-
-        <Field label="마감 시간">
-          <input
-            type="time"
-            value={closingTime}
-            onChange={e => { setClosingTime(e.target.value); setStatus('idle') }}
-            style={{ ...INPUT_BASE, borderColor: isSaved ? '#BBF7D0' : showDirty ? '#FCA5A5' : '#e5e7eb' }}
-          />
-        </Field>
+          <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 4, lineHeight: 1.4, marginBottom: 0 }}>
+            예: 매일 11:00~22:00 / 평일 11:00~21:00 주말 10:00~22:00 / 월요일 휴무
+          </p>
+        </div>
 
         <Field label="월 영업일수">
           <input

@@ -45,11 +45,7 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
     restaurant.phone &&
     restaurant.address
   )
-  const businessHoursFilled = !!(
-    restaurant.opening_time &&
-    restaurant.closing_time &&
-    restaurant.working_days_per_month > 0
-  )
+  const businessHoursFilled = restaurant.working_days_per_month > 0
   const menuCount = initMenus.length
   const menuFilled = menuCount > 0
   const seatFilled = (restaurant.table_2p ?? 0) + (restaurant.table_4p ?? 0) > 0
@@ -174,7 +170,7 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
 
   const completionHint =
     nextAction === 'restaurant' ? '매장 정보를 먼저 입력해주세요' :
-    nextAction === 'restaurant-hours' ? '영업시간을 입력하면 손익 계산이 가능해져요' :
+    nextAction === 'restaurant-hours' ? '월 영업일수를 입력하면 손익 계산이 가능해져요' :
     nextAction === 'fixed-costs' ? '고정비를 입력하면 하루 손익분기를 볼 수 있어요' :
     nextAction === 'menus' ? '메뉴를 등록하면 원가 분석이 가능해요' :
     nextAction === 'seats' ? '좌석 구성을 입력해주세요' :
@@ -282,14 +278,14 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
           marginBottom: 16,
         }}>
           <p style={{ fontSize: 11, color: '#86efac', margin: '0 0 4px', fontWeight: 500 }}>
-            영업시간을 입력하면
+            월 영업일수를 입력하면
           </p>
           <p style={{ fontSize: 18, fontWeight: 500, color: '#ffffff', margin: '0 0 14px', lineHeight: 1.3 }}>
             하루 고정비와 손익 계산이 가능해져요
           </p>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', margin: 0 }}>
-              오픈시간·마감시간·영업일수 미입력
+              월 영업일수 미입력
             </p>
             <Link href="/settings/restaurant" style={ctaLinkStyle}>
               입력하기
