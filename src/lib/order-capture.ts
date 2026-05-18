@@ -60,6 +60,113 @@ export interface TodayOrderParseInsights {
   unmatched_lines_today: number
   recent_top_labels: { label: string; count: number }[]
   repeat_unlinked: { name: string; count: number }[]
+  kakao_orders_today: number
+  repeat_order_items: { label: string; count: number }[]
+  registration_candidates: { name: string; count: number }[]
+  preparation_needed_order_count: number
+  repeat_order_item_distinct_count: number
+}
+
+export interface OrderPreparationSummary {
+  linked_count: number
+  unlinked_count: number
+  preparation_item_count: number
+}
+
+export interface OrderPreparationLineView {
+  line: OrderParsedLine
+  recent_supplier: string | null
+  is_repeat_unlinked: boolean
+}
+
+export function buildOrderPreparationSummary(
+  items: OrderParsedLine[] | null | undefined,
+): OrderPreparationSummary {
+  if (!items?.length) {
+    return { linked_count: 0, unlinked_count: 0, preparation_item_count: 0 }
+  }
+  let linked_count = 0
+  let unlinked_count = 0
+  for (const line of items) {
+    if (line.ingredient_match) linked_count += 1
+    else unlinked_count += 1
+  }
+  return {
+    linked_count,
+    unlinked_count,
+    preparation_item_count: linked_count,
+  }
+}
+
+export function resolveRecentSupplierForLine(
+  line: OrderParsedLine,
+  ocrSupplierByCanonical: Record<string, string>,
+  ingredientSupplierByName: Record<string, string | null>,
+): string | null {
+  const keys: string[] = []
+  if (line.ingredient_match) {
+    keys.push(normalizeIngredientName(line.ingredient_match))
+  }
+  const norm = normalizeIngredientName(line.normalized_name)
+  if (norm) keys.push(norm)
+  for (const key of keys) {
+    if (key && ocrSupplierByCanonical[key]) {
+      return ocrSupplierByCanonical[key]
+    }
+  }
+  if (line.ingredient_match) {
+    const fromIng = ingredientSupplierByName[line.ingredient_match]
+    if (fromIng) return fromIng
+  }
+  return null
+}
+
+export function buildOrderPreparationLineViews(
+  items: OrderParsedLine[],
+  ocrSupplierByCanonical: Record<string, string>,
+  ingredientSupplierByName: Record<string, string | null>,
+  repeatUnlinkedKeys: ReadonlySet<string>,
+): OrderPreparationLineView[] {
+  return items.map((line) => {
+    const key =
+      normalizeIngredientName(line.normalized_name) ||
+      line.normalized_name.trim().toLowerCase()
+    const is_repeat_unlinked =
+      !line.ingredient_match && repeatUnlinkedKeys.has(key)
+    return {
+      line,
+      recent_supplier: resolveRecentSupplierForLine(
+        line,
+        ocrSupplierByCanonical,
+        ingredientSupplierByName,
+      ),
+      is_repeat_unlinked,
+    }
+  })
+}
+
+export function buildRepeatUnlinkedKeySet(
+  orders: Order[],
+): Set<string> {
+  const unlinkedKeyCounts = new Map<string, number>()
+  for (const o of orders) {
+    const cap = o.operation_capture
+    if (!cap?.parsed_items?.length) continue
+    if (!isWithinDaysOrder(o.created_at, 7)) continue
+    for (const line of cap.parsed_items) {
+      if (line.ingredient_match) continue
+      const key =
+        normalizeIngredientName(line.normalized_name) ||
+        line.normalized_name.trim().toLowerCase()
+      if (!key) continue
+      unlinkedKeyCounts.set(key, (unlinkedKeyCounts.get(key) ?? 0) + 1)
+    }
+  }
+  const out = new Set<string>()
+  for (const [key, count] of unlinkedKeyCounts) {
+    if (count >= 3) out.add(key)
+  }
+  return out
 }
 
 function seoulYmd(iso: string): string {
@@ -89,26 +196,40 @@ export function buildTodayOrderParseInsights(
 
   let kakao_line_count_today = 0
   let unmatched_lines_today = 0
+  let kakao_orders_today = 0
+  let preparation_needed_order_count = 0
 
-  const labelCounts = new Map<string, number>()
+  const labelCounts7d = new Map<string, number>()
   const unlinkedKeyCounts = new Map<string, { display: string; count: number }>()
 
   for (const o of sorted) {
     const cap = o.operation_capture
     if (!cap?.parsed_items?.length) continue
+
+    if (o.status === 'confirmed') {
+      preparation_needed_order_count += 1
+    }
+
     const isKakaoToday =
       cap.source === 'kakao' && isTodaySeoul(o.created_at)
+    if (isKakaoToday) {
+      kakao_orders_today += 1
+    }
+
+    const in7d = isWithinDaysOrder(o.created_at, 7)
     for (const line of cap.parsed_items) {
       const label = line.normalized_name.trim()
       if (!label) continue
-      labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1)
+      if (in7d) {
+        labelCounts7d.set(label, (labelCounts7d.get(label) ?? 0) + 1)
+      }
       if (isKakaoToday) {
         kakao_line_count_today += 1
         if (!line.ingredient_match) {
           unmatched_lines_today += 1
         }
       }
-      if (!line.ingredient_match && isWithinDaysOrder(o.created_at, 7)) {
+      if (!line.ingredient_match && in7d) {
         const key =
           normalizeIngredientName(line.normalized_name) ||
           label.toLowerCase().replace(/\s+/g, '')
@@ -121,9 +242,14 @@ export function buildTodayOrderParseInsights(
     }
   }
 
-  const recent_top_labels = [...labelCounts.entries()]
+  const recent_top_labels = [...labelCounts7d.entries()]
     .sort((a, b) => b[1] - a[1])
     .slice(0, 3)
+    .map(([label, count]) => ({ label, count }))
+
+  const repeat_order_items = [...labelCounts7d.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
     .map(([label, count]) => ({ label, count }))
 
   const repeat_unlinked = [...unlinkedKeyCounts.values()]
@@ -132,11 +258,25 @@ export function buildTodayOrderParseInsights(
     .sort((a, b) => b.count - a.count)
     .slice(0, 5)
 
+  const registration_candidates = repeat_unlinked.map((x) => ({
+    name: x.name,
+    count: x.count,
+  }))
+
+  const repeat_order_item_distinct_count = [...labelCounts7d.values()].filter(
+    (c) => c >= 2,
+  ).length
+
   return {
     kakao_line_count_today,
     unmatched_lines_today,
     recent_top_labels,
     repeat_unlinked,
+    kakao_orders_today,
+    repeat_order_items,
+    registration_candidates,
+    preparation_needed_order_count,
+    repeat_order_item_distinct_count,
   }
 }
 

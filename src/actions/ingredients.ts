@@ -387,6 +387,9 @@ export type IngredientsOperationData = {
   metaByIngredient: Record<string, IngredientOperationMeta>
   invoiceSupplierNames: string[]
   recentOcrActivities: OcrActivityEntry[]
+  /** canonical 식자재명 → 최근 OCR 거래명세서 공급업체명 */
+  ocrSupplierByCanonical: Record<string, string>
+  ingredientSupplierByName: Record<string, string | null>
   insights: IngredientsOperationInsights
   top_spike_ingredients: SpikeIngredientHubRow[]
 }
@@ -627,7 +630,7 @@ export async function getIngredientsOperationData(): Promise<
 
   const { data: ingredients, error: ingError } = await supabase
     .from('ingredients')
-    .select('id, name, memo, updated_at')
+    .select('id, name, memo, updated_at, supplier_name')
     .eq('tenant_id', tenant_id)
     .eq('is_active', true)
 
@@ -694,20 +697,47 @@ export async function getIngredientsOperationData(): Promise<
     if (meta.is_spike_risk) spike_count += 1
   }
 
-  const recentOcrActivities: OcrActivityEntry[] = (ingredients ?? [])
-    .filter((row) => ((row.memo as string | null) ?? '').includes('거래명세서 OCR'))
-    .map((row) => {
-      const supplier = parseSupplierFromMemo((row.memo as string | null) ?? null)
-      if (!supplier) return null
-      return {
+  const ocrSupplierBest = new Map<string, { supplier: string; at: string }>()
+  const recentOcrActivities: OcrActivityEntry[] = []
+
+  for (const row of ingredients ?? []) {
+    const memo = (row.memo as string | null) ?? ''
+    if (!memo.includes('거래명세서 OCR')) continue
+    const supplier = parseSupplierFromMemo(memo)
+    if (!supplier) continue
+    const ingredient_name = (row.name as string) ?? ''
+    const occurred_at = (row.updated_at as string | null) ?? ''
+    if (occurred_at) {
+      recentOcrActivities.push({
         supplier_name: supplier,
-        ingredient_name: (row.name as string) ?? '',
-        occurred_at: (row.updated_at as string | null) ?? '',
+        ingredient_name,
+        occurred_at,
+      })
+    }
+    const key = normalizeIngredientName(ingredient_name)
+    if (key) {
+      const prev = ocrSupplierBest.get(key)
+      if (!prev || occurred_at > prev.at) {
+        ocrSupplierBest.set(key, { supplier, at: occurred_at })
       }
-    })
-    .filter((row): row is OcrActivityEntry => !!row && !!row.occurred_at)
-    .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
-    .slice(0, 5)
+    }
+  }
+
+  recentOcrActivities.sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
+  const recentOcrTop = recentOcrActivities.slice(0, 5)
+
+  const ocrSupplierByCanonical: Record<string, string> = {}
+  for (const [key, val] of ocrSupplierBest) {
+    ocrSupplierByCanonical[key] = val.supplier
+  }
+
+  const ingredientSupplierByName: Record<string, string | null> = {}
+  for (const row of ingredients ?? []) {
+    const name = String(row.name ?? '').trim()
+    if (!name) continue
+    const sn = (row.supplier_name as string | null)?.trim()
+    ingredientSupplierByName[name] = sn && sn.length > 0 ? sn : null
+  }
 
   let ocr_last_7_days = 0
   for (const row of ingredients ?? []) {
@@ -757,7 +787,9 @@ export async function getIngredientsOperationData(): Promise<
       supplierComparisonByIngredient,
       metaByIngredient,
       invoiceSupplierNames,
-      recentOcrActivities,
+      recentOcrActivities: recentOcrTop,
+      ocrSupplierByCanonical,
+      ingredientSupplierByName,
       insights: {
         changed_last_7_days: changedLast7DayIds.size,
         spike_count,

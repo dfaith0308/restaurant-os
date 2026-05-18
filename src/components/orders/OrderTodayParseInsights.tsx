@@ -7,6 +7,8 @@ export default function OrderTodayParseInsights({
 }) {
   const hasRepeat = insights.repeat_unlinked.length > 0
   const hasTop = insights.recent_top_labels.length > 0
+  const hasRepeatItems = insights.repeat_order_items.length > 0
+  const hasCandidates = insights.registration_candidates.length > 0
 
   return (
     <section
@@ -19,7 +21,7 @@ export default function OrderTodayParseInsights({
       }}
     >
       <h2 style={{ fontSize: 14, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 10px' }}>
-        주문 품목 인사이트
+        {'\uc8fc\ubb38 \uc6b4\uc601'}
       </h2>
       <div
         style={{
@@ -29,29 +31,82 @@ export default function OrderTodayParseInsights({
           marginBottom: 12,
         }}
       >
-        <div style={{ background: '#f9fafb', borderRadius: 12, padding: 10 }}>
-          <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>오늘 카카오 줄 수</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#1f5d3a' }}>
-            {insights.kakao_line_count_today}
-          </div>
-        </div>
-        <div style={{ background: '#f9fafb', borderRadius: 12, padding: 10 }}>
-          <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>오늘 미연결 품목</div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: '#F97316' }}>
-            {insights.unmatched_lines_today}
-          </div>
-        </div>
+        <Metric label={'\uc624\ub298 \uce74\uce74\uc624 \uc8fc\ubb38 \uc218'} value={insights.kakao_orders_today} />
+        <Metric
+          label={'\ubbf8\uc5f0\uacb0 \uc8fc\ubb38 \ud488\ubaa9 \uc218'}
+          value={insights.unmatched_lines_today}
+          accent="#F97316"
+        />
+        <Metric
+          label={'\ubc18\ubcf5 \uc8fc\ubb38 \ud488\ubaa9 \uc218'}
+          value={insights.repeat_order_item_distinct_count}
+        />
+        <Metric
+          label={'\ubc1c\uc8fc \uc900\ube44 \ud544\uc694 \uc8fc\ubb38 \uc218'}
+          value={insights.preparation_needed_order_count}
+          accent="#6D28D9"
+        />
       </div>
+
+      <h3 style={{ fontSize: 13, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 8px' }}>
+        {'\uc8fc\ubb38 \ud488\ubaa9 \uc778\uc0ac\uc774\ud2b8'}
+      </h3>
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(2, 1fr)',
+          gap: 10,
+          marginBottom: 12,
+        }}
+      >
+        <Metric label={'\uc624\ub298 \uce74\uce74\uc624 \uc904 \uc218'} value={insights.kakao_line_count_today} />
+        <Metric
+          label={'\uc624\ub298 \ubbf8\uc5f0\uacb0 \ud488\ubaa9'}
+          value={insights.unmatched_lines_today}
+          accent="#F97316"
+        />
+      </div>
+
+      {hasRepeatItems ? (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 6 }}>
+            {'\ucd5c\uadfc \ubc18\ubcf5 \uc8fc\ubb38 \ud488\ubaa9'}
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
+            {insights.repeat_order_items.map((row) => (
+              <li key={row.label}>
+                {row.label} ({row.count})
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
 
       {hasTop ? (
         <div style={{ marginBottom: 10 }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 6 }}>
-            최근 주문 주요 품목
+            {'\ucd5c\uadfc \uc8fc\ubb38 \uc8fc\uc694 \ud488\ubaa9'}
           </div>
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
             {insights.recent_top_labels.map((row) => (
               <li key={row.label}>
                 {row.label} ({row.count})
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {hasCandidates ? (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', marginBottom: 6 }}>
+            {'\ub4f1\ub85d \ucd94\ucc9c \uc2dd\uc790\uc7ac'}
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: '#374151', lineHeight: 1.5 }}>
+            {insights.registration_candidates.map((row) => (
+              <li key={row.name}>
+                {row.name} {'\u00b7'} {'\ucd5c\uadfc 7\uc77c'} {row.count}
+                {'\ud68c'}
               </li>
             ))}
           </ul>
@@ -68,12 +123,13 @@ export default function OrderTodayParseInsights({
           }}
         >
           <div style={{ fontSize: 12, fontWeight: 800, color: '#92400e', marginBottom: 6 }}>
-            자주 주문되지만 등록되지 않은 식자재
+            {'\uc790\uc8fc \uc8fc\ubb38\ub418\uc9c0\ub9cc \ub4f1\ub85d\ub418\uc9c0 \uc54a\uc740 \uc2dd\uc790\uc7ac'}
           </div>
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#78350f', lineHeight: 1.45 }}>
             {insights.repeat_unlinked.map((row) => (
               <li key={row.name}>
-                {row.name} · 최근 7일 {row.count}회 인식
+                {row.name} {'\u00b7'} {'\ucd5c\uadfc 7\uc77c'} {row.count}
+                {'\ud68c \uc778\uc2dd'}
               </li>
             ))}
           </ul>
@@ -81,9 +137,27 @@ export default function OrderTodayParseInsights({
       ) : null}
 
       <p style={{ fontSize: 11, color: '#9ca3af', margin: '12px 0 0', lineHeight: 1.45 }}>
-        거래명세서 OCR과 카카오 주문은 같은 운영 흐름으로 쌓입니다. 미연결은 식자재 등록 후 자동으로
-        맞춰져요.
+        {
+          '\uac70\ub798\uba85\uc138\uc11c OCR\uacfc \uce74\uce74\uc624 \uc8fc\ubb38\uc740 \uac19\uc740 \uc6b4\uc601 \ud750\ub984\uc73c\ub85c \uc313\uc785\ub2c8\ub2e4. \ubbf8\uc5f0\uacb0\uc740 \uc2dd\uc790\uc7ac \ub4f1\ub85d \ud6c4 \uc790\ub3d9\uc73c\ub85c \ub9de\ucdb0\uc838\uc694.'
+        }
       </p>
     </section>
+  )
+}
+
+function Metric({
+  label,
+  value,
+  accent,
+}: {
+  label: string
+  value: number
+  accent?: string
+}) {
+  return (
+    <div style={{ background: '#f9fafb', borderRadius: 12, padding: 10 }}>
+      <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 20, fontWeight: 700, color: accent ?? '#1f5d3a' }}>{value}</div>
+    </div>
   )
 }

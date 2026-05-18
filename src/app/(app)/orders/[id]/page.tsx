@@ -1,9 +1,16 @@
 import Link from 'next/link'
 import { getTenantId, requireNetworkApprovedPage } from '@/lib/get-restaurant'
-import { getOrderDetail, type OrderStatus } from '@/actions/orders'
+import { getOrderDetail, getOrdersOperationSlice, type OrderStatus } from '@/actions/orders'
+import { getIngredientsOperationData } from '@/actions/ingredients'
+import {
+  buildOrderPreparationLineViews,
+  buildOrderPreparationSummary,
+  buildRepeatUnlinkedKeySet,
+} from '@/lib/order-capture'
 import { formatKRW } from '@/lib/utils'
 import OrderCompleteButton from '@/components/orders/OrderCompleteButton'
 import ParsedOrderItems from '@/components/orders/ParsedOrderItems'
+import OrderPreparationSection from '@/components/orders/OrderPreparationSection'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -14,7 +21,11 @@ export default async function OrderDetailPage({ params }: Props) {
   const tenant_id = await getTenantId()
   await requireNetworkApprovedPage()
 
-  const result = await getOrderDetail(tenant_id, id)
+  const [result, orderSliceRes, ingOpRes] = await Promise.all([
+    getOrderDetail(tenant_id, id),
+    getOrdersOperationSlice(tenant_id),
+    getIngredientsOperationData(),
+  ])
   if (!result.success || !result.data) {
     return (
       <main style={{ maxWidth: 480, margin: '0 auto', padding: '40px 16px', textAlign: 'center' }}>
@@ -25,6 +36,25 @@ export default async function OrderDetailPage({ params }: Props) {
   }
 
   const { order, order_lines } = result.data
+  const parsedItems = order.operation_capture?.parsed_items ?? []
+  const orderSlice =
+    orderSliceRes.success && orderSliceRes.data ? orderSliceRes.data : []
+  const repeatUnlinkedKeys = buildRepeatUnlinkedKeySet(orderSlice)
+  const ingOp = ingOpRes.success && ingOpRes.data ? ingOpRes.data : null
+  const prepSummary = buildOrderPreparationSummary(parsedItems)
+  const prepLineViews =
+    parsedItems.length > 0
+      ? buildOrderPreparationLineViews(
+          parsedItems,
+          ingOp?.ocrSupplierByCanonical ?? {},
+          ingOp?.ingredientSupplierByName ?? {},
+          repeatUnlinkedKeys,
+        )
+      : []
+  const showUnlinkedWarning = prepLineViews.some((v) => v.is_repeat_unlinked)
+  const showParseWarning =
+    showUnlinkedWarning ||
+    parsedItems.some((line) => !line.ingredient_match && repeatUnlinkedKeys.size > 0)
 
   const cfg: Record<OrderStatus, { label: string; color: string; bg: string }> = {
     confirmed: { label: '납품 대기', color: '#6D28D9', bg: '#EDE9FE' },
@@ -82,8 +112,19 @@ export default async function OrderDetailPage({ params }: Props) {
         </div>
       ) : null}
 
-      {order.operation_capture?.parsed_items && order.operation_capture.parsed_items.length > 0 ? (
-        <ParsedOrderItems items={order.operation_capture.parsed_items} />
+      {parsedItems.length > 0 ? (
+        <ParsedOrderItems
+          items={parsedItems}
+          showRepeatUnlinkedWarning={showParseWarning}
+        />
+      ) : null}
+
+      {parsedItems.length > 0 ? (
+        <OrderPreparationSection
+          summary={prepSummary}
+          lineViews={prepLineViews}
+          showUnlinkedWarning={showUnlinkedWarning}
+        />
       ) : null}
 
       {/* 요약 카드 */}
