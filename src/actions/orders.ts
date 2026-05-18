@@ -5,14 +5,21 @@ import {
   encodeOrderCaptureProductName,
   formatCaptureSourceLabel,
   tryDecodeOrderCaptureFromProductName,
+  tryReuseParsedItemsFromProductNames,
 } from '@/lib/order-capture'
+import {
+  attachIngredientMatches,
+  parseOrderBodyWithMiniModel,
+} from '@/lib/order-parser'
 import { revalidatePath } from 'next/cache'
 import type {
   ActionResult,
   Order,
   OrderOperationCapture,
   OrderOperationCaptureSource,
+  OrderParsedLine,
 } from '@/types'
+import { getIngredients } from '@/actions/ingredients'
 import { getTenantId, networkApprovalErrorIfBlocked } from '@/lib/get-restaurant'
 
 /** `orders` list/detail select() row → `Order` (Supabase 추론과 `Order` 정합) */
@@ -465,10 +472,47 @@ export async function captureOperationalOrder(
     body = '(거래명세서 메모 없음)'
   }
 
+  const shouldTryParse =
+    (input.source === 'kakao' ||
+      input.source === 'phone' ||
+      input.source === 'manual') &&
+    body !== '(통화 내용 미기재)' &&
+    body !== '(거래명세서 메모 없음)' &&
+    body.trim().length >= 2
+
+  let parsed_items: OrderParsedLine[] | null = null
+
+  if (shouldTryParse) {
+    const recentSince = new Date(Date.now() - 30000).toISOString()
+    const { data: recentRows } = await supabase
+      .from('orders')
+      .select('product_name')
+      .eq('buyer_tenant_id', tenant_id)
+      .gte('created_at', recentSince)
+      .order('created_at', { ascending: false })
+      .limit(30)
+
+    const pns = (recentRows ?? []).map((r) =>
+      String((r as { product_name?: string }).product_name ?? ''),
+    )
+    const reused = tryReuseParsedItemsFromProductNames(pns, body)
+    if (reused) {
+      parsed_items = reused
+    } else {
+      const drafts = await parseOrderBodyWithMiniModel(body)
+      if (drafts && drafts.length > 0) {
+        const ing = await getIngredients()
+        const pool = ing.success && ing.data ? ing.data : []
+        parsed_items = attachIngredientMatches(drafts, pool)
+      }
+    }
+  }
+
   const capture: OrderOperationCapture = {
     source: input.source,
     counterparty,
     body,
+    parsed_items,
   }
   const product_name = encodeOrderCaptureProductName(capture)
 

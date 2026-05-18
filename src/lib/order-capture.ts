@@ -2,9 +2,143 @@ import type {
   Order,
   OrderOperationCapture,
   OrderOperationCaptureSource,
+  OrderParsedLine,
 } from '@/types'
+import { normalizeIngredientName } from '@/lib/ingredient-canonical'
 
 const ORDER_CAPTURE_PREFIX = '__ORDER_CAPTURE_V1__\n' as const
+
+function coerceOrderParsedItems(raw: unknown): OrderParsedLine[] | null {
+  if (raw === undefined || raw === null) return null
+  if (!Array.isArray(raw)) return null
+  const out: OrderParsedLine[] = []
+  for (const row of raw) {
+    if (!row || typeof row !== 'object') return null
+    const o = row as Record<string, unknown>
+    const raw_name = typeof o.raw_name === 'string' ? o.raw_name.trim() : ''
+    const normalized_name =
+      typeof o.normalized_name === 'string' ? o.normalized_name.trim() : ''
+    const quantity_text =
+      typeof o.quantity_text === 'string' ? o.quantity_text.trim() : ''
+    if (!raw_name || !normalized_name || !quantity_text) return null
+    const im = o.ingredient_match
+    const ingredient_match =
+      im === null || im === undefined
+        ? null
+        : typeof im === 'string' && im.trim().length > 0
+          ? im.trim()
+          : null
+    out.push({
+      raw_name,
+      normalized_name,
+      quantity_text,
+      ingredient_match,
+    })
+  }
+  return out.length > 0 ? out : null
+}
+
+export function tryReuseParsedItemsFromProductNames(
+  recentProductNames: string[],
+  body: string,
+): OrderParsedLine[] | null {
+  const target = body.trim()
+  if (!target) return null
+  for (const pn of recentProductNames) {
+    const cap = tryDecodeOrderCaptureFromProductName(pn)
+    if (!cap) continue
+    if (cap.body.trim() !== target) continue
+    if (cap.parsed_items && cap.parsed_items.length > 0) {
+      return cap.parsed_items
+    }
+  }
+  return null
+}
+
+export interface TodayOrderParseInsights {
+  kakao_line_count_today: number
+  unmatched_lines_today: number
+  recent_top_labels: { label: string; count: number }[]
+  repeat_unlinked: { name: string; count: number }[]
+}
+
+function seoulYmd(iso: string): string {
+  const d = new Date(iso)
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(d)
+}
+
+function isTodaySeoul(iso: string): boolean {
+  return seoulYmd(iso) === seoulYmd(new Date().toISOString())
+}
+
+function isWithinDaysOrder(iso: string, days: number): boolean {
+  const t = new Date(iso).getTime()
+  if (!Number.isFinite(t)) return false
+  return Date.now() - t <= days * 86400000
+}
+
+export function buildTodayOrderParseInsights(
+  orders: Order[],
+): TodayOrderParseInsights {
+  const sorted = [...orders].sort((a, b) => b.created_at.localeCompare(a.created_at))
+
+  let kakao_line_count_today = 0
+  let unmatched_lines_today = 0
+
+  const labelCounts = new Map<string, number>()
+  const unlinkedKeyCounts = new Map<string, { display: string; count: number }>()
+
+  for (const o of sorted) {
+    const cap = o.operation_capture
+    if (!cap?.parsed_items?.length) continue
+    const isKakaoToday =
+      cap.source === 'kakao' && isTodaySeoul(o.created_at)
+    for (const line of cap.parsed_items) {
+      const label = line.normalized_name.trim()
+      if (!label) continue
+      labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1)
+      if (isKakaoToday) {
+        kakao_line_count_today += 1
+        if (!line.ingredient_match) {
+          unmatched_lines_today += 1
+        }
+      }
+      if (!line.ingredient_match && isWithinDaysOrder(o.created_at, 7)) {
+        const key =
+          normalizeIngredientName(line.normalized_name) ||
+          label.toLowerCase().replace(/\s+/g, '')
+        const prev = unlinkedKeyCounts.get(key)
+        unlinkedKeyCounts.set(key, {
+          display: label,
+          count: (prev?.count ?? 0) + 1,
+        })
+      }
+    }
+  }
+
+  const recent_top_labels = [...labelCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([label, count]) => ({ label, count }))
+
+  const repeat_unlinked = [...unlinkedKeyCounts.values()]
+    .filter((x) => x.count >= 3)
+    .map((x) => ({ name: x.display, count: x.count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+
+  return {
+    kakao_line_count_today,
+    unmatched_lines_today,
+    recent_top_labels,
+    repeat_unlinked,
+  }
+}
 
 const ORDER_CAPTURE_SOURCES: readonly OrderOperationCaptureSource[] = [
   'kakao',
@@ -18,11 +152,20 @@ function isOrderCaptureSource(v: string): v is OrderOperationCaptureSource {
 }
 
 export function encodeOrderCaptureProductName(capture: OrderOperationCapture): string {
-  const meta = JSON.stringify({
+  const metaPayload: {
+    v: number
+    source: OrderOperationCaptureSource
+    cp: string
+    parsed_items?: OrderParsedLine[]
+  } = {
     v: 1,
     source: capture.source,
     cp: capture.counterparty.trim(),
-  })
+  }
+  if (capture.parsed_items && capture.parsed_items.length > 0) {
+    metaPayload.parsed_items = capture.parsed_items
+  }
+  const meta = JSON.stringify(metaPayload)
   const body = (capture.body ?? '').trim()
   return `${ORDER_CAPTURE_PREFIX}${meta}\n${body.length > 0 ? body : ' '}`
 }
@@ -41,13 +184,19 @@ export function tryDecodeOrderCaptureFromProductName(
       v?: number
       source?: string
       cp?: string
+      parsed_items?: unknown
     }
     if (meta.v !== 1 || typeof meta.cp !== 'string' || !meta.source) return null
     if (!isOrderCaptureSource(meta.source)) return null
+    const parsed_items =
+      meta.parsed_items === undefined || meta.parsed_items === null
+        ? null
+        : coerceOrderParsedItems(meta.parsed_items)
     return {
       source: meta.source,
       counterparty: meta.cp,
       body: body.trim().length > 0 ? body : '',
+      parsed_items,
     }
   } catch {
     return null

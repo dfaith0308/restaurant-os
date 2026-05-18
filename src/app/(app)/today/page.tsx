@@ -5,6 +5,7 @@ import { getTodayOperationHubData } from '@/actions/menus'
 import {
   buildOrderOperationInsights,
   buildRecentOrderActivities,
+  buildTodayOrderParseInsights,
 } from '@/lib/order-capture'
 import { getOrdersOperationSlice } from '@/actions/orders'
 import { formatKRW } from '@/lib/utils'
@@ -13,6 +14,7 @@ import { getTenantId } from '@/lib/get-restaurant'
 import { TodayOperationInsights } from '@/components/today/TodayOperationInsights'
 import { TodayRiskSection } from '@/components/today/TodayRiskSection'
 import OrderRiskSummary from '@/components/orders/OrderRiskSummary'
+import OrderTodayParseInsights from '@/components/orders/OrderTodayParseInsights'
 import RecentOrderActivity from '@/components/orders/RecentOrderActivity'
 
 export default async function TodayPage() {
@@ -43,6 +45,7 @@ export default async function TodayPage() {
     orderSliceRes.success && orderSliceRes.data ? orderSliceRes.data : []
   const orderInsights = buildOrderOperationInsights(orderSlice)
   const orderRecent = buildRecentOrderActivities(orderSlice, 5)
+  const parseInsights = buildTodayOrderParseInsights(orderSlice)
 
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
@@ -71,6 +74,7 @@ export default async function TodayPage() {
       ) : null}
 
       <OrderRiskSummary insights={orderInsights} />
+      <OrderTodayParseInsights insights={parseInsights} />
       <RecentOrderActivity items={orderRecent} compact heading="최근 주문 활동" />
 
       {!d ? (

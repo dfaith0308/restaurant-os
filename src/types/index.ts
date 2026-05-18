@@ -64,11 +64,21 @@ export interface RfqBid {
 
 export type OrderOperationCaptureSource = 'kakao' | 'phone' | 'manual' | 'invoice'
 
+export interface OrderParsedLine {
+  raw_name: string
+  normalized_name: string
+  quantity_text: string
+  /** 기존 식자재명과 canonical 매칭되면 해당 이름, 아니면 null */
+  ingredient_match: string | null
+}
+
 /** `orders.product_name`에 인코딩된 비-RFQ 주문 흡수 메타(스키마 변경 없이 저장) */
 export interface OrderOperationCapture {
   source: OrderOperationCaptureSource
   counterparty: string
   body: string
+  /** AI 파싱 + 식자재 매칭 결과(없으면 null, 실패 시에도 원문 body는 유지) */
+  parsed_items: OrderParsedLine[] | null
 }
 
 export interface Order {

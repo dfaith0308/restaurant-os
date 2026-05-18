@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createServerClient } from '@/lib/supabase-server'
+import { normalizeIngredientName } from '@/lib/ingredient-canonical'
 import { getTenantId } from '@/lib/get-restaurant'
 import type { ActionResult } from '@/types'
 
@@ -22,36 +23,6 @@ export interface IngredientRow {
 
 const INGREDIENT_SELECT =
   'id, tenant_id, name, unit, current_price, target_price, category, memo, barcode, is_active, created_at, updated_at'
-
-// 거래명세서 식자재명은 업체마다 표현이 다르다.
-// OCR 중복 폭발 방지를 위해 canonical normalize 사용.
-const CANONICAL_STRIP_TOKENS = [
-  '국내산',
-  '수입산',
-  '상품',
-  '박스',
-  'box',
-  '깐',
-  '특',
-  'kg',
-  'ea',
-  '개',
-  'g',
-] as const
-
-function normalizeIngredientName(name: string): string {
-  let s = name
-    .trim()
-    .toLowerCase()
-    .replace(/[\s()[\]{}·.,\-_/\\|"'`~!@#$%^&*+=?:;<>]/g, '')
-
-  for (const token of CANONICAL_STRIP_TOKENS) {
-    s = s.split(token).join('')
-  }
-
-  s = s.replace(/\d+/g, '')
-  return s
-}
 
 function isLikelySameIngredient(a: string, b: string): boolean {
   const left = normalizeIngredientName(a)

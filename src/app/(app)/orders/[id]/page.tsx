@@ -3,6 +3,7 @@ import { getTenantId, requireNetworkApprovedPage } from '@/lib/get-restaurant'
 import { getOrderDetail, type OrderStatus } from '@/actions/orders'
 import { formatKRW } from '@/lib/utils'
 import OrderCompleteButton from '@/components/orders/OrderCompleteButton'
+import ParsedOrderItems from '@/components/orders/ParsedOrderItems'
 
 interface Props {
   params: Promise<{ id: string }>
@@ -79,6 +80,10 @@ export default async function OrderDetailPage({ params }: Props) {
             {order.operation_capture.body}
           </pre>
         </div>
+      ) : null}
+
+      {order.operation_capture?.parsed_items && order.operation_capture.parsed_items.length > 0 ? (
+        <ParsedOrderItems items={order.operation_capture.parsed_items} />
       ) : null}
 
       {/* 요약 카드 */}
