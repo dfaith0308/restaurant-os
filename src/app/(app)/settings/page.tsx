@@ -1,15 +1,39 @@
 import { getTenantId } from '@/lib/get-restaurant'
-import { getRestaurant, updateRestaurant } from '@/actions/restaurant'
-import RestaurantSettingsClient from './restaurant/RestaurantSettingsClient'
+import { getRestaurant, getMenus } from '@/actions/restaurant'
+import { getFixedCosts, getIngredients } from '@/actions/settings'
+import SettingsHub from '@/components/settings/SettingsHub'
 
-export default async function RestaurantSettingsPage() {
-  const tenantId = await getTenantId()
-  const result = await getRestaurant(tenantId)
-  const restaurant = result.data ?? {
-    id: tenantId, name: '', region: null, owner_name: null, phone: null,
-    business_number: null, address: null, address_detail: null,
-    table_2p: 0, table_4p: 0, seating_config: null,
+function emptyRestaurant(id: string) {
+  return {
+    id,
+    name: '',
+    region: null,
+    owner_name: null,
+    phone: null,
+    business_number: null,
+    address: null,
+    address_detail: null,
+    table_2p: 0,
+    table_4p: 0,
+    seating_config: null,
   }
+}
 
-  return <RestaurantSettingsClient restaurant={restaurant} />
+export default async function SettingsPage() {
+  const tenantId = await getTenantId()
+  const [restaurantRes, fixedCostsRes, ingredientsRes, menusRes] = await Promise.all([
+    getRestaurant(tenantId),
+    getFixedCosts(tenantId),
+    getIngredients(tenantId),
+    getMenus(tenantId),
+  ])
+
+  return (
+    <SettingsHub
+      restaurant={restaurantRes.data ?? emptyRestaurant(tenantId)}
+      fixedCosts={fixedCostsRes.data ?? []}
+      ingredients={ingredientsRes.data ?? []}
+      menus={menusRes.data ?? []}
+    />
+  )
 }

@@ -47,6 +47,15 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [handleBeforeUnload])
 
+  useEffect(() => {
+    setName(restaurant.name ?? '')
+    setRegion(restaurant.region ?? '')
+    setOwnerName(restaurant.owner_name ?? '')
+    setPhone(restaurant.phone ?? '')
+    setBusinessNumber(restaurant.business_number ?? '')
+    setStatus('idle')
+  }, [restaurant])
+
   function handleSave() {
     startTr(async () => {
       await updateRestaurant({

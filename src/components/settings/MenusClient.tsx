@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useMemo, useState, useTransition, type FocusEvent } from 'react'
+import { useMemo, useState, useTransition, type FocusEvent } from 'react'
 import Link from 'next/link'
 import { formatKRW } from '@/lib/utils'
 import {
@@ -1054,16 +1054,15 @@ export default function MenusClient(props: {
           const badge = display.showMetrics ? marginBadge(display.marginRate) : null
           const isExpanded = expandedMenuId === m.id
           return (
-            <Fragment key={m.id}>
+            <div key={m.id} style={{ marginBottom: 10 }}>
             <div
               className="menus-card-hover"
               style={{
                 background: '#ffffff',
-                borderRadius: isExpanded ? '16px 16px 0 0' : 16,
+                borderRadius: isExpanded ? '14px 14px 0 0' : 14,
                 border: '0.5px solid #e8e5de',
                 borderBottom: isExpanded ? 'none' : '0.5px solid #e8e5de',
                 padding: '16px 18px',
-                marginBottom: isExpanded ? 0 : 10,
                 boxSizing: 'border-box',
               }}
             >
@@ -1190,12 +1189,11 @@ export default function MenusClient(props: {
             {isExpanded && (
               <div
                 style={{
-                  background: '#f7f6f2',
+                  background: '#ffffff',
                   border: '0.5px solid #e8e5de',
                   borderTop: 'none',
-                  borderRadius: '0 0 16px 16px',
-                  padding: '14px 18px 18px',
-                  marginBottom: 10,
+                  borderRadius: '0 0 14px 14px',
+                  padding: '16px 18px',
                   boxSizing: 'border-box',
                 }}
               >
@@ -1213,7 +1211,7 @@ export default function MenusClient(props: {
                 {renderMenuEditPanel()}
               </div>
             )}
-            </Fragment>
+            </div>
           )
         })
       )}

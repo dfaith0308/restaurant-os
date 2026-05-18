@@ -2,8 +2,8 @@
 
 import { useState, useTransition, useRef } from 'react'
 import Link from 'next/link'
-import { formatKRW, toKoreanAmount } from '@/lib/utils'
-import { createMenu, updateRestaurant } from '@/actions/restaurant'
+import { formatKRW } from '@/lib/utils'
+import { updateRestaurant } from '@/actions/restaurant'
 import type { RestaurantInfo, MenuRow, SeatingType } from '@/actions/restaurant'
 import type { FixedCostRow, IngredientRow } from '@/actions/settings'
 
@@ -109,38 +109,14 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
     saveSeating(next)
   }
 
-  // ── 메뉴 입력 ─────────────────────────────────────────────
-  const [menuList, setMenuList]     = useState<MenuRow[]>(initMenus)
-  const [menuExpanded, setMenuExpanded] = useState(false)
-  const [menuName, setMenuName]     = useState('')
-  const [menuPrice, setMenuPrice]   = useState('')
-  const [menuPending, startMenuTr]  = useTransition()
-
-  function handlePriceInput(v: string) {
-    const n = v.replace(/[^0-9]/g, '')
-    setMenuPrice(n ? Number(n).toLocaleString() : '')
-  }
-
-  function handleAddMenu() {
-    const name  = menuName.trim()
-    const price = parseInt(menuPrice.replace(/,/g, ''), 10)
-    if (!name || !price) return
-    startMenuTr(async () => {
-      const res = await createMenu({ tenant_id: restaurant.id, name, price })
-      if (res.success && res.data) {
-        setMenuList(prev => [{ id: res.data!.id, name, price, is_featured: false }, ...prev])
-        setMenuName('')
-        setMenuPrice('')
-      }
-    })
-  }
+  const menuCount = initMenus.length
 
   // ── 완료도 ────────────────────────────────────────────────
   const doneCores  = [restaurantFilled, fixedCostFilled, ingredientCount > 0].filter(Boolean).length
   const pct        = Math.round(doneCores / 3 * 100)
 
   return (
-    <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
+    <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px', background: '#ffffff' }}>
 
       {/* 헤더 */}
       <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '0 0 4px' }}>
@@ -249,24 +225,31 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
 
         {/* 1. 매장 정보 */}
         <SettingsRow
-          label="매장 정보" icon="🏪" href="/settings/restaurant"
+          label="매장 정보"
+          description="상호명, 주소, 대표자, 연락처, 사업자번호"
+          icon="🏪"
+          href="/settings/restaurant"
           status={restaurantFilled ? restaurant.name : null}
           statusNote={restaurantFilled ? restaurant.region ?? undefined : '상호명·위치 미입력'}
           done={restaurantFilled}
         />
 
-        {/* 2. 고정비 */}
         <SettingsRow
-          label="고정비" icon="💰" href="/settings/fixed-costs"
+          label="고정비"
+          description="임대료, 인건비 등 월 고정비"
+          icon="💰"
+          href="/settings/fixed-costs"
           status={fixedCostFilled ? `${formatKRW(monthlyFixed)} / 월` : null}
           statusNote={fixedCostFilled ? `${fixedCosts.length}개 항목` : '임대료·인건비 등 미입력'}
           done={fixedCostFilled}
           highlight={!fixedCostFilled}
         />
 
-        {/* 3. 식자재 */}
         <SettingsRow
-          label="식자재" icon="🥬" href="/settings/ingredients"
+          label="식자재"
+          description="재료명, 단위, 단가 관리"
+          icon="🥬"
+          href="/settings/ingredients"
           status={ingredientCount > 0 ? `${ingredientCount}개` : null}
           statusNote={
             ingredientCount === 0 ? '아직 없음' :
@@ -275,6 +258,16 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
           }
           done={ingredientCount > 0}
           highlight={fixedCostFilled && ingredientCount < 3}
+        />
+
+        <SettingsRow
+          label="메뉴 / 원가"
+          description="메뉴 등록, 재료 구성, 원가·마진 확인"
+          icon="📋"
+          href="/settings/menus"
+          status={menuCount > 0 ? `${menuCount}개` : null}
+          statusNote={menuCount > 0 ? '메뉴별 원가 관리' : '아직 없음'}
+          done={menuCount > 0}
         />
 
         {/* 4. 좌석 구성 — 자유형 */}
@@ -406,135 +399,6 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
           )}
         </div>
 
-        {/* 5. 메뉴 / 가격 — 인라인 입력 */}
-        <div>
-          <button
-            onClick={() => setMenuExpanded(e => !e)}
-            style={{
-              width: '100%', background: '#fff', border: '1px solid #E5E7EB',
-              borderRadius: menuExpanded ? '14px 14px 0 0' : 14,
-              padding: '14px 16px', cursor: 'pointer', textAlign: 'left',
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <span style={{ fontSize: 22 }}>📋</span>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>메뉴 / 가격</span>
-                  {menuList.length > 0 && (
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, color: '#059669',
-                      background: '#ECFDF5', borderRadius: 10, padding: '1px 6px',
-                    }}>완료</span>
-                  )}
-                </div>
-                <div style={{ fontSize: 12, color: menuList.length > 0 ? '#374151' : '#9CA3AF' }}>
-                  {menuList.length > 0 ? `${menuList.length}개 등록됨` : '아직 없음'}
-                </div>
-              </div>
-            </div>
-            <span style={{ fontSize: 18, color: '#9CA3AF' }}>
-              {menuExpanded ? '∧' : '›'}
-            </span>
-          </button>
-
-          {menuExpanded && (
-            <div style={{
-              background: '#F9FAFB', border: '1px solid #E5E7EB', borderTop: 'none',
-              borderRadius: '0 0 14px 14px', padding: '14px 16px',
-            }}>
-              {/* 입력 폼 */}
-              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                <input
-                  value={menuName}
-                  onChange={e => setMenuName(e.target.value)}
-                  placeholder="메뉴명"
-                  style={{
-                    flex: 2, padding: '10px 12px',
-                    border: '1px solid #E5E7EB', borderRadius: 8,
-                    fontSize: 14, outline: 'none', background: '#fff',
-                    fontFamily: 'inherit',
-                  }}
-                />
-                <div style={{ flex: 1 }}>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      value={menuPrice}
-                      onChange={e => handlePriceInput(e.target.value)}
-                      placeholder="가격"
-                      inputMode="numeric"
-                      style={{
-                        width: '100%', padding: '10px 28px 10px 12px',
-                        border: '1px solid #E5E7EB', borderRadius: 8,
-                        fontSize: 14, outline: 'none', background: '#fff',
-                        boxSizing: 'border-box', fontFamily: 'inherit',
-                      }}
-                    />
-                    <span style={{
-                      position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                      fontSize: 12, color: '#9CA3AF',
-                    }}>원</span>
-                  </div>
-                  {menuPrice && (
-                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
-                      {toKoreanAmount(menuPrice.replace(/,/g, ''))}
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={handleAddMenu}
-                  disabled={menuPending || !menuName.trim() || !menuPrice}
-                  style={{
-                    padding: '10px 14px',
-                    background: (!menuName.trim() || !menuPrice) ? '#E5E7EB' : 'var(--color-primary)',
-                    color: (!menuName.trim() || !menuPrice) ? '#9CA3AF' : '#fff',
-                    border: 'none', borderRadius: 8,
-                    fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {menuPending ? '...' : '추가'}
-                </button>
-              </div>
-
-              {/* 메뉴 리스트 */}
-              {menuList.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {menuList.slice(0, 8).map(m => (
-                    <div key={m.id} style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '8px 10px', background: '#fff',
-                      borderRadius: 8, border: '1px solid #E5E7EB',
-                    }}>
-                      <span style={{ fontSize: 13, color: 'var(--color-text)', fontWeight: 500 }}>{m.name}</span>
-                      <span style={{ fontSize: 13, color: '#374151', fontWeight: 700 }}>{formatKRW(m.price)}</span>
-                    </div>
-                  ))}
-                  {menuList.length > 8 && (
-                    <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: '4px 0' }}>
-                      외 {menuList.length - 8}개
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div style={{ fontSize: 12, color: '#9CA3AF', textAlign: 'center', padding: '8px 0' }}>
-                  메뉴를 추가하면 원가 분석이 가능해요
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* 6. 거래 조건 */}
-        <SettingsRow
-          label="거래 조건" icon="🤝" href="/settings/trading"
-          status={null}
-          statusNote="결제 주기·주요 거래처"
-          done={false}
-          comingSoon
-        />
-
       </div>
 
       {/* ── 세팅 완료도 ── */}
@@ -567,35 +431,38 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
 
 // ── 설정 항목 행 ──────────────────────────────────────────────
 
-function SettingsRow({ label, icon, href, status, statusNote, done, highlight, comingSoon }: {
-  label: string; icon: string; href: string
-  status: string | null; statusNote?: string
-  done: boolean; highlight?: boolean; comingSoon?: boolean
+function SettingsRow({ label, description, icon, href, status, statusNote, done, highlight }: {
+  label: string
+  description?: string
+  icon: string
+  href: string
+  status: string | null
+  statusNote?: string
+  done: boolean
+  highlight?: boolean
 }) {
   const inner = (
     <div style={{
-      background: '#fff', borderRadius: 14,
-      border: highlight ? '1.5px solid var(--color-primary)' : '1px solid #E5E7EB',
-      padding: '14px 16px',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      opacity: comingSoon ? 0.6 : 1,
+      background: '#ffffff',
+      borderRadius: 14,
+      border: highlight ? '1.5px solid #1f5d3a' : '0.5px solid #e8e5de',
+      padding: '16px 18px',
+      minHeight: 56,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      boxSizing: 'border-box',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
         <span style={{ fontSize: 22 }}>{icon}</span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text)' }}>{label}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: description ? 4 : 2 }}>
+            <span style={{ fontSize: 15, fontWeight: 600, color: '#2b2b2b' }}>{label}</span>
             {done && (
               <span style={{
-                fontSize: 10, fontWeight: 700, color: '#059669',
-                background: '#ECFDF5', borderRadius: 10, padding: '1px 6px',
+                fontSize: 10, fontWeight: 700, color: '#1f5d3a',
+                background: '#edf7f1', borderRadius: 10, padding: '1px 6px',
               }}>완료</span>
-            )}
-            {comingSoon && (
-              <span style={{
-                fontSize: 10, fontWeight: 600, color: '#9CA3AF',
-                background: '#F3F4F6', borderRadius: 10, padding: '1px 6px',
-              }}>준비 중</span>
             )}
             {highlight && !done && (
               <span style={{
@@ -604,20 +471,24 @@ function SettingsRow({ label, icon, href, status, statusNote, done, highlight, c
               }}>먼저 입력</span>
             )}
           </div>
+          {description && (
+            <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: status || statusNote ? 4 : 0, lineHeight: 1.4 }}>
+              {description}
+            </div>
+          )}
           <div style={{ fontSize: 12, color: done ? '#374151' : '#9CA3AF' }}>
             {status ? (
               <>
-                <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{status}</span>
+                <span style={{ fontWeight: 600, color: '#2b2b2b' }}>{status}</span>
                 {statusNote && <span style={{ color: '#9CA3AF' }}> · {statusNote}</span>}
               </>
             ) : statusNote}
           </div>
         </div>
       </div>
-      <span style={{ fontSize: 18, color: '#9CA3AF', marginLeft: 8 }}>›</span>
+      <span style={{ fontSize: 20, color: '#1f5d3a', marginLeft: 8, flexShrink: 0 }}>›</span>
     </div>
   )
 
-  if (comingSoon) return <div>{inner}</div>
-  return <Link href={href} style={{ textDecoration: 'none' }}>{inner}</Link>
+  return <Link href={href} style={{ textDecoration: 'none', display: 'block' }}>{inner}</Link>
 }
