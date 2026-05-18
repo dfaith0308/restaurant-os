@@ -14,26 +14,61 @@ interface Props {
   menus:       MenuRow[]
 }
 
-const WORKING_DAYS_DEFAULT = 25
 const BRAND_ORANGE = '#F97316'
 
+type NextAction = 'restaurant' | 'restaurant-hours' | 'fixed-costs' | 'menus' | 'seats' | null
+type SettingsRowVariant = 'default' | 'done' | 'priority'
+
+function rowVariant(
+  done: boolean,
+  nextAction: NextAction,
+  target: Exclude<NextAction, null>,
+): SettingsRowVariant {
+  if (done) return 'done'
+  if (nextAction === target) return 'priority'
+  return 'default'
+}
+
 export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus: initMenus }: Props) {
-  const [workingDays, setWorkingDays] = useState(WORKING_DAYS_DEFAULT)
+  const monthlyFixed = fixedCosts.reduce((s, c) => s + c.amount, 0)
+  const effectiveDays =
+    restaurant.working_days_per_month > 0 ? restaurant.working_days_per_month : 25
+  const dailyBreakeven =
+    monthlyFixed > 0 && effectiveDays > 0 ? Math.ceil(monthlyFixed / effectiveDays) : 0
 
-  const monthlyFixed   = fixedCosts.reduce((s, c) => s + c.amount, 0)
-  const effectiveDays  = workingDays > 0 ? workingDays : WORKING_DAYS_DEFAULT
-  const dailyBreakeven = monthlyFixed > 0 ? Math.ceil(monthlyFixed / effectiveDays) : 0
+  const fixedCostFilled = fixedCosts.length > 0
+  const ingredientCount = ingredients.length
+  const ingredientFilled = ingredientCount > 0
+  const pricedCount = ingredients.filter(i => i.current_price != null).length
+  const restaurantFilled = !!(
+    restaurant.name?.trim() &&
+    restaurant.phone &&
+    restaurant.address
+  )
+  const businessHoursFilled = !!(
+    restaurant.opening_time &&
+    restaurant.closing_time &&
+    restaurant.working_days_per_month > 0
+  )
+  const menuCount = initMenus.length
+  const menuFilled = menuCount > 0
+  const seatFilled = (restaurant.table_2p ?? 0) + (restaurant.table_4p ?? 0) > 0
+  const storeSetupFilled = restaurantFilled && businessHoursFilled
 
-  const fixedCostFilled  = fixedCosts.length > 0
-  const ingredientCount  = ingredients.length
-  const pricedCount      = ingredients.filter(i => i.current_price != null).length
-  const restaurantFilled = !!(restaurant.name?.trim())
-  const menuCount        = initMenus.length
+  const nextAction: NextAction =
+    !restaurantFilled ? 'restaurant' :
+    !businessHoursFilled ? 'restaurant-hours' :
+    !fixedCostFilled ? 'fixed-costs' :
+    !menuFilled ? 'menus' :
+    !seatFilled ? 'seats' :
+    null
 
   const completionRate =
-    (restaurantFilled ? 33 : 0) +
-    (fixedCostFilled ? 34 : 0) +
-    (menuCount > 0 ? 33 : 0)
+    (restaurantFilled ? 20 : 0) +
+    (businessHoursFilled ? 20 : 0) +
+    (fixedCostFilled ? 20 : 0) +
+    (menuFilled ? 20 : 0) +
+    (seatFilled ? 20 : 0)
 
   const [barWidth, setBarWidth] = useState(0)
   const [displayRate, setDisplayRate] = useState(0)
@@ -137,13 +172,23 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
     saveSeating(next)
   }
 
-  const completionHint = !fixedCostFilled
-    ? '고정비 먼저 입력하면 손익 분석이 시작돼요'
-    : !restaurantFilled
-      ? '매장 정보를 입력해주세요'
-      : menuCount === 0
-        ? '메뉴를 등록하면 원가 분석이 가능해요'
-        : null
+  const completionHint =
+    nextAction === 'restaurant' ? '매장 정보를 먼저 입력해주세요' :
+    nextAction === 'restaurant-hours' ? '영업시간을 입력하면 손익 계산이 가능해져요' :
+    nextAction === 'fixed-costs' ? '고정비를 입력하면 하루 손익분기를 볼 수 있어요' :
+    nextAction === 'menus' ? '메뉴를 등록하면 원가 분석이 가능해요' :
+    nextAction === 'seats' ? '좌석 구성을 입력해주세요' :
+    null
+
+  const ctaLinkStyle = {
+    background: BRAND_ORANGE,
+    color: '#ffffff',
+    borderRadius: 8,
+    padding: '8px 14px',
+    fontSize: 12,
+    fontWeight: 500,
+    textDecoration: 'none',
+  } as const
 
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px', background: '#ffffff' }}>
@@ -184,8 +229,74 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
         )}
       </div>
 
-      {/* 고정비 미입력 — 딥그린 CTA */}
-      {!fixedCostFilled ? (
+      {/* onboarding 히어로 배너 */}
+      {nextAction === null ? (
+        <div style={{
+          background: '#1f5d3a',
+          borderRadius: 16,
+          padding: '18px',
+          marginBottom: 16,
+        }}>
+          <p style={{ fontSize: 11, color: '#86efac', margin: '0 0 4px', fontWeight: 500 }}>
+            핵심 세팅 완료!
+          </p>
+          <p style={{ fontSize: 18, fontWeight: 500, color: '#ffffff', margin: '0 0 8px', lineHeight: 1.3 }}>
+            이제 손익 분석을 시작할 수 있어요
+          </p>
+          {fixedCostFilled && dailyBreakeven > 0 && (
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', margin: '0 0 14px', lineHeight: 1.4 }}>
+              하루 최소 매출 약 {formatKRW(dailyBreakeven)} (월 {effectiveDays}일 영업 기준)
+            </p>
+          )}
+          <Link href="/today" style={ctaLinkStyle}>
+            오늘 운영 보기
+          </Link>
+        </div>
+      ) : nextAction === 'restaurant' ? (
+        <div style={{
+          background: '#1f5d3a',
+          borderRadius: 16,
+          padding: '18px',
+          marginBottom: 16,
+        }}>
+          <p style={{ fontSize: 11, color: '#86efac', margin: '0 0 4px', fontWeight: 500 }}>
+            다음 단계
+          </p>
+          <p style={{ fontSize: 18, fontWeight: 500, color: '#ffffff', margin: '0 0 14px', lineHeight: 1.3 }}>
+            매장 정보를 먼저 입력해주세요
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', margin: 0, lineHeight: 1.4 }}>
+              상호명, 연락처, 주소를 입력하면 다음 단계로 갈 수 있어요
+            </p>
+            <Link href="/settings/restaurant" style={ctaLinkStyle}>
+              입력하기
+            </Link>
+          </div>
+        </div>
+      ) : nextAction === 'restaurant-hours' ? (
+        <div style={{
+          background: '#1f5d3a',
+          borderRadius: 16,
+          padding: '18px',
+          marginBottom: 16,
+        }}>
+          <p style={{ fontSize: 11, color: '#86efac', margin: '0 0 4px', fontWeight: 500 }}>
+            영업시간을 입력하면
+          </p>
+          <p style={{ fontSize: 18, fontWeight: 500, color: '#ffffff', margin: '0 0 14px', lineHeight: 1.3 }}>
+            하루 고정비와 손익 계산이 가능해져요
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', margin: 0 }}>
+              오픈시간·마감시간·영업일수 미입력
+            </p>
+            <Link href="/settings/restaurant" style={ctaLinkStyle}>
+              입력하기
+            </Link>
+          </div>
+        </div>
+      ) : nextAction === 'fixed-costs' ? (
         <div style={{
           background: '#1f5d3a',
           borderRadius: 16,
@@ -196,88 +307,57 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
             고정비를 입력하면
           </p>
           <p style={{ fontSize: 18, fontWeight: 500, color: '#ffffff', margin: '0 0 14px', lineHeight: 1.3 }}>
-            하루 얼마나 팔면<br />되는지 알 수 있어요
+            하루 얼마나 팔아야 하는지 알 수 있어요
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', margin: 0 }}>
               임대료·인건비 등 미입력
             </p>
-            <Link href="/settings/fixed-costs" style={{
-              background: BRAND_ORANGE,
-              color: '#ffffff',
-              borderRadius: 8,
-              padding: '8px 14px',
-              fontSize: 12,
-              fontWeight: 500,
-              textDecoration: 'none',
-            }}>
+            <Link href="/settings/fixed-costs" style={ctaLinkStyle}>
               입력하기
             </Link>
           </div>
         </div>
-      ) : (
+      ) : nextAction === 'menus' ? (
         <div style={{
           background: '#1f5d3a',
           borderRadius: 16,
-          padding: '20px',
+          padding: '18px',
           marginBottom: 16,
         }}>
-          <div style={{ fontSize: 12, color: '#86efac', fontWeight: 600, marginBottom: 6 }}>
-            고정비 기준 최소 매출
-          </div>
-          <div style={{ fontSize: 32, fontWeight: 800, color: '#fff', letterSpacing: '-0.03em', marginBottom: 4 }}>
-            하루 {formatKRW(dailyBreakeven)}
-          </div>
-          <div style={{ fontSize: 14, color: '#6EE7B7', fontWeight: 600, marginBottom: 14 }}>
-            팔면 남아요
-          </div>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>월</span>
-              <input
-                type="number"
-                min={1}
-                max={31}
-                value={workingDays}
-                onChange={e => {
-                  const v = parseInt(e.target.value, 10)
-                  if (isNaN(v) || v < 1) setWorkingDays(WORKING_DAYS_DEFAULT)
-                  else if (v > 31) setWorkingDays(31)
-                  else setWorkingDays(v)
-                }}
-                onBlur={e => {
-                  const v = parseInt(e.target.value, 10)
-                  if (isNaN(v) || v < 1) setWorkingDays(WORKING_DAYS_DEFAULT)
-                }}
-                style={{
-                  width: 44,
-                  padding: '4px 6px',
-                  background: 'rgba(0,0,0,0.2)',
-                  color: '#fff',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  borderRadius: 6,
-                  fontSize: 14,
-                  fontWeight: 700,
-                  textAlign: 'center',
-                  outline: 'none',
-                  fontFamily: 'inherit',
-                }}
-              />
-              <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>일 영업 기준입니다</span>
-            </div>
-          </div>
-          <div style={{
-            paddingTop: 14,
-            borderTop: '1px solid rgba(255,255,255,0.15)',
-            fontSize: 12,
-            color: 'rgba(255,255,255,0.55)',
-            lineHeight: 1.8,
-          }}>
-            이보다 적게 팔면 적자입니다<br />
-            <span style={{ color: 'rgba(255,255,255,0.4)' }}>→ 구조를 바꾸면 이 기준을 낮출 수 있습니다</span>
+          <p style={{ fontSize: 11, color: '#86efac', margin: '0 0 4px', fontWeight: 500 }}>
+            메뉴를 등록하면
+          </p>
+          <p style={{ fontSize: 18, fontWeight: 500, color: '#ffffff', margin: '0 0 14px', lineHeight: 1.3 }}>
+            원가와 예상 마진을 바로 확인할 수 있어요
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+            <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', margin: 0 }}>
+              등록된 메뉴 없음
+            </p>
+            <Link href="/settings/menus" style={ctaLinkStyle}>
+              입력하기
+            </Link>
           </div>
         </div>
-      )}
+      ) : nextAction === 'seats' ? (
+        <div style={{
+          background: '#1f5d3a',
+          borderRadius: 16,
+          padding: '18px',
+          marginBottom: 16,
+        }}>
+          <p style={{ fontSize: 11, color: '#86efac', margin: '0 0 4px', fontWeight: 500 }}>
+            좌석 구성을 입력해주세요
+          </p>
+          <p style={{ fontSize: 18, fontWeight: 500, color: '#ffffff', margin: '0 0 8px', lineHeight: 1.3 }}>
+            테이블 수에 맞춰 운영 분석이 정확해져요
+          </p>
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', margin: 0 }}>
+            아래 좌석 구성 카드에서 입력할 수 있어요
+          </p>
+        </div>
+      ) : null}
 
       {canGoRfq ? (
         <div style={{ marginBottom: 16 }}>
@@ -318,7 +398,11 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
           href="/settings/restaurant"
           status={restaurantFilled ? restaurant.name : null}
           statusNote={restaurantFilled ? restaurant.region ?? undefined : '상호명·위치 미입력'}
-          variant={restaurantFilled ? 'done' : 'default'}
+          variant={
+            storeSetupFilled ? 'done' :
+            nextAction === 'restaurant' || nextAction === 'restaurant-hours' ? 'priority' :
+            'default'
+          }
         />
 
         <SettingsRow
@@ -328,7 +412,7 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
           href="/settings/fixed-costs"
           status={fixedCostFilled ? `${formatKRW(monthlyFixed)} / 월` : null}
           statusNote={fixedCostFilled ? `${fixedCosts.length}개 항목` : '임대료·인건비 등 미입력'}
-          variant={fixedCostFilled ? 'done' : 'priority'}
+          variant={rowVariant(fixedCostFilled, nextAction, 'fixed-costs')}
         />
 
         <SettingsRow
@@ -342,7 +426,7 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
             pricedCount < ingredientCount ? `${pricedCount}개 가격 입력됨` :
             '전부 가격 입력됨'
           }
-          variant={ingredientCount > 0 ? 'done' : 'default'}
+          variant={ingredientFilled ? 'done' : 'default'}
         />
 
         <SettingsRow
@@ -352,7 +436,7 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
           href="/settings/menus"
           status={menuCount > 0 ? `${menuCount}개` : null}
           statusNote={menuCount > 0 ? '메뉴별 원가 관리' : '아직 없음'}
-          variant={menuCount > 0 ? 'done' : 'default'}
+          variant={rowVariant(menuFilled, nextAction, 'menus')}
         />
 
         <div>
@@ -362,7 +446,9 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
             style={{
               width: '100%',
               background: '#ffffff',
-              border: '0.5px solid #e8e5de',
+              border: nextAction === 'seats'
+                ? `1.5px solid ${BRAND_ORANGE}`
+                : '0.5px solid #e8e5de',
               borderRadius: tableExpanded ? '14px 14px 0 0' : 14,
               padding: '16px 18px',
               cursor: 'pointer',
@@ -551,8 +637,6 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
     </main>
   )
 }
-
-type SettingsRowVariant = 'default' | 'done' | 'priority'
 
 function SettingsRow({ label, description, icon, href, status, statusNote, variant = 'default' }: {
   label: string

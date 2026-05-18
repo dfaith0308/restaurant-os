@@ -7,17 +7,20 @@ import type { ActionResult } from '@/types'
 // ── 매장 정보 (tenants 테이블 기반 — realmyos DB 단일화 구조) ──
 
 export interface RestaurantInfo {
-  id:               string
-  name:             string
-  region:           string | null
-  owner_name:       string | null
-  phone:            string | null
-  business_number:  string | null
-  address:          string | null
-  address_detail:   string | null
-  table_2p:         number
-  table_4p:         number
-  seating_config:   SeatingConfig | null
+  id:                     string
+  name:                   string
+  region:                 string | null
+  owner_name:             string | null
+  phone:                  string | null
+  business_number:        string | null
+  address:                string | null
+  address_detail:         string | null
+  opening_time:           string | null
+  closing_time:           string | null
+  working_days_per_month: number
+  table_2p:               number
+  table_4p:               number
+  seating_config:         SeatingConfig | null
 }
 
 export interface SeatingConfig {
@@ -38,7 +41,7 @@ export async function getRestaurant(
   const { data, error } = await supabase
     .from('tenants')
     .select(
-      'id, name, region, address, address_detail, representative_name, contact_phone, business_number, seating_config',
+      'id, name, region, address, address_detail, representative_name, contact_phone, business_number, opening_time, closing_time, working_days_per_month, seating_config',
     )
     .eq('id', tenant_id)
     .single()
@@ -62,9 +65,12 @@ export async function getRestaurant(
       owner_name:       data.representative_name ?? null,
       phone:            data.contact_phone ?? null,
       business_number:  data.business_number ?? null,
-      address:          data.address ?? null,
-      address_detail:   data.address_detail ?? null,
-      table_2p:         (data.seating_config as SeatingConfig | null)?.table_2p ?? 0,
+      address:                data.address ?? null,
+      address_detail:         data.address_detail ?? null,
+      opening_time:           data.opening_time ?? null,
+      closing_time:           data.closing_time ?? null,
+      working_days_per_month: data.working_days_per_month ?? 25,
+      table_2p:               (data.seating_config as SeatingConfig | null)?.table_2p ?? 0,
       table_4p:         (data.seating_config as SeatingConfig | null)?.table_4p ?? 0,
       seating_config:   (data.seating_config as SeatingConfig | null) ?? null,
     },
@@ -77,8 +83,11 @@ export interface UpdateRestaurantInput {
   region?:         string | null
   owner_name?:     string | null
   phone?:          string | null
-  business_number?: string | null
-  table_2p?:       number
+  business_number?:        string | null
+  opening_time?:           string | null
+  closing_time?:           string | null
+  working_days_per_month?: number
+  table_2p?:               number
   table_4p?:       number
   seating_config?: SeatingConfig | null
 }
@@ -96,6 +105,11 @@ export async function updateRestaurant(
   if (input.owner_name !== undefined) payload.representative_name = input.owner_name
   if (input.phone !== undefined) payload.contact_phone = input.phone
   if (input.business_number !== undefined) payload.business_number = input.business_number
+  if (input.opening_time !== undefined) payload.opening_time = input.opening_time
+  if (input.closing_time !== undefined) payload.closing_time = input.closing_time
+  if (input.working_days_per_month !== undefined) {
+    payload.working_days_per_month = input.working_days_per_month
+  }
 
   if (input.table_2p !== undefined || input.table_4p !== undefined) {
     payload.seating_config = {

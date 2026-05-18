@@ -20,6 +20,9 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
   const [ownerName,      setOwnerName]      = useState(restaurant.owner_name ?? '')
   const [phone,          setPhone]          = useState(restaurant.phone ?? '')
   const [businessNumber, setBusinessNumber] = useState(restaurant.business_number ?? '')
+  const [openingTime, setOpeningTime] = useState(restaurant.opening_time ?? '')
+  const [closingTime, setClosingTime] = useState(restaurant.closing_time ?? '')
+  const [workingDays, setWorkingDays] = useState(restaurant.working_days_per_month ?? 25)
   const [status,    setStatus]    = useState<'idle' | 'dirty' | 'saved'>('idle')
   const [isPending, startTr]      = useTransition()
 
@@ -29,7 +32,10 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
     region         !== (restaurant.region          ?? '') ||
     ownerName      !== (restaurant.owner_name      ?? '') ||
     phone          !== (restaurant.phone           ?? '') ||
-    businessNumber !== (restaurant.business_number ?? '')
+    businessNumber !== (restaurant.business_number ?? '') ||
+    openingTime      !== (restaurant.opening_time ?? '') ||
+    closingTime      !== (restaurant.closing_time ?? '') ||
+    workingDays      !== (restaurant.working_days_per_month ?? 25)
 
   // status 동기화
   useEffect(() => {
@@ -53,6 +59,9 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
     setOwnerName(restaurant.owner_name ?? '')
     setPhone(restaurant.phone ?? '')
     setBusinessNumber(restaurant.business_number ?? '')
+    setOpeningTime(restaurant.opening_time ?? '')
+    setClosingTime(restaurant.closing_time ?? '')
+    setWorkingDays(restaurant.working_days_per_month ?? 25)
     setStatus('idle')
   }, [restaurant])
 
@@ -65,6 +74,9 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
         owner_name:      ownerName.trim()       || null,
         phone:           phone.trim()           || null,
         business_number: businessNumber.trim()  || null,
+        opening_time: openingTime || null,
+        closing_time: closingTime || null,
+        working_days_per_month: Number(workingDays) || 25,
       })
       setStatus('saved')
       router.refresh()
@@ -116,6 +128,48 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
           <input value={businessNumber} onChange={e => { setBusinessNumber(e.target.value); setStatus('idle') }}
             placeholder="예: 123-45-67890" inputMode="numeric"
             style={{ ...INPUT_BASE, borderColor: isSaved ? '#BBF7D0' : showDirty ? '#FCA5A5' : '#e5e7eb' }} />
+        </Field>
+
+        <p style={{ fontSize: 12, fontWeight: 600, color: '#374151', margin: '8px 0 0' }}>
+          영업 정보
+        </p>
+
+        <Field label="오픈 시간">
+          <input
+            type="time"
+            value={openingTime}
+            onChange={e => { setOpeningTime(e.target.value); setStatus('idle') }}
+            style={{ ...INPUT_BASE, borderColor: isSaved ? '#BBF7D0' : showDirty ? '#FCA5A5' : '#e5e7eb' }}
+          />
+        </Field>
+
+        <Field label="마감 시간">
+          <input
+            type="time"
+            value={closingTime}
+            onChange={e => { setClosingTime(e.target.value); setStatus('idle') }}
+            style={{ ...INPUT_BASE, borderColor: isSaved ? '#BBF7D0' : showDirty ? '#FCA5A5' : '#e5e7eb' }}
+          />
+        </Field>
+
+        <Field label="월 영업일수">
+          <input
+            type="number"
+            min={1}
+            max={31}
+            value={workingDays}
+            onChange={e => {
+              const v = parseInt(e.target.value, 10)
+              if (isNaN(v)) setWorkingDays(25)
+              else if (v < 1) setWorkingDays(1)
+              else if (v > 31) setWorkingDays(31)
+              else setWorkingDays(v)
+              setStatus('idle')
+            }}
+            placeholder="예: 25"
+            inputMode="numeric"
+            style={{ ...INPUT_BASE, borderColor: isSaved ? '#BBF7D0' : showDirty ? '#FCA5A5' : '#e5e7eb' }}
+          />
         </Field>
       </div>
 
