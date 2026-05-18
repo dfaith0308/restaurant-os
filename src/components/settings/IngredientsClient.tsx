@@ -1,8 +1,15 @@
 'use client'
 
-import { useMemo, useState, useTransition, useCallback } from 'react'
-import { createIngredient, updateIngredient, deactivateIngredient } from '@/actions/ingredients'
+import { useMemo, useState, useTransition, useCallback, useRef } from 'react'
+import {
+  createIngredient,
+  createIngredientsBatch,
+  updateIngredient,
+  deactivateIngredient,
+} from '@/actions/ingredients'
 import { formatKRW, toKoreanAmount } from '@/lib/utils'
+import { analyzeInvoiceImage } from '@/lib/invoice-ocr'
+import type { InvoiceIngredient } from '@/lib/invoice-ocr'
 import Link from 'next/link'
 import IngredientBarcodeSection from '@/components/product/IngredientBarcodeSection'
 import type { IngredientBarcodeApplyHints } from '@/components/product/IngredientBarcodeSection'
@@ -13,6 +20,13 @@ const BRAND_GREEN = '#1f5d3a'
 const UNITS = ['kg', 'g', 'L', 'ml', '개', '봉', '묶음', '팩', '캔'] as const
 
 type RegisterMode = 'select' | 'manual' | 'product' | 'invoice' | null
+type InvoiceAnalyzeStatus = 'idle' | 'loading' | 'success' | 'failed'
+
+type OcrIngredientRow = InvoiceIngredient & { rowKey: string }
+
+function normalizeIngredientName(name: string): string {
+  return name.trim().toLowerCase()
+}
 
 const INPUT_STYLE: React.CSSProperties = {
   width: '100%',
@@ -194,6 +208,12 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
 
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('')
+  const invoiceInputRef = useRef<HTMLInputElement>(null)
+  const [invoiceImage, setInvoiceImage] = useState<File | null>(null)
+  const [invoiceAnalyzeStatus, setInvoiceAnalyzeStatus] =
+    useState<InvoiceAnalyzeStatus>('idle')
+  const [ocrIngredients, setOcrIngredients] = useState<OcrIngredientRow[]>([])
+  const [bulkRegisterMessage, setBulkRegisterMessage] = useState<string | null>(null)
 
   const categories = useMemo(() => {
     const set = new Set<string>()
@@ -233,6 +253,18 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
   const showManualForm =
     showForm && (registerMode === 'manual' || registerMode === 'product')
 
+  const existingNameKeys = useMemo(
+    () => new Set(list.map((i) => normalizeIngredientName(i.name))),
+    [list],
+  )
+
+  function resetInvoiceFlow() {
+    setInvoiceImage(null)
+    setInvoiceAnalyzeStatus('idle')
+    setOcrIngredients([])
+    setBulkRegisterMessage(null)
+  }
+
   function resetForm() {
     setEditingId(null)
     setName('')
@@ -249,6 +281,90 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     setShowForm(false)
     setRegisterMode(null)
     resetForm()
+    resetInvoiceFlow()
+  }
+
+  function updateOcrRow(
+    rowKey: string,
+    field: keyof InvoiceIngredient,
+    value: string,
+  ) {
+    setOcrIngredients((prev) =>
+      prev.map((row) => {
+        if (row.rowKey !== rowKey) return row
+        if (field === 'name') {
+          return { ...row, name: value }
+        }
+        if (field === 'unit') {
+          return { ...row, unit: value.trim() || null }
+        }
+        if (field === 'quantity') {
+          const n = parseFloat(value.replace(/,/g, ''))
+          return {
+            ...row,
+            quantity: Number.isFinite(n) && n > 0 ? n : null,
+          }
+        }
+        const n = parseInt(value.replace(/,/g, ''), 10)
+        return {
+          ...row,
+          price: Number.isFinite(n) && n > 0 ? n : null,
+        }
+      }),
+    )
+    setBulkRegisterMessage(null)
+  }
+
+  async function handleInvoiceFileSelect(file: File | undefined) {
+    if (!file) return
+    setInvoiceImage(file)
+    setInvoiceAnalyzeStatus('loading')
+    setOcrIngredients([])
+    setBulkRegisterMessage(null)
+
+    const items = await analyzeInvoiceImage(file)
+    if (!items || items.length === 0) {
+      setInvoiceAnalyzeStatus('failed')
+      return
+    }
+    setOcrIngredients(
+      items.map((item, idx) => ({
+        ...item,
+        rowKey: `ocr_${Date.now()}_${idx}`,
+      })),
+    )
+    setInvoiceAnalyzeStatus('success')
+  }
+
+  function handleBulkRegister() {
+    const payload = ocrIngredients
+      .map((row) => ({
+        name: row.name.trim(),
+        unit: (row.unit?.trim() || '개'),
+        current_price: row.price,
+        memo: row.quantity != null
+          ? `거래명세서 OCR · 수량 ${row.quantity}${row.unit ? ` ${row.unit}` : ''}`
+          : '거래명세서 OCR',
+      }))
+      .filter((row) => row.name.length > 0)
+
+    if (payload.length === 0) return
+
+    startTr(async () => {
+      const res = await createIngredientsBatch(payload)
+      if (!res.success || !res.data) {
+        setBulkRegisterMessage('등록에 실패했어요. 다시 시도해주세요.')
+        return
+      }
+      const { successCount, created } = res.data
+      if (successCount > 0) {
+        setList((prev) => [...prev, ...created])
+      }
+      setBulkRegisterMessage(`${successCount}개 등록 완료`)
+      if (successCount > 0) {
+        setTimeout(() => closeRegistration(), 1200)
+      }
+    })
   }
 
   const applyBarcodeHints = useCallback((h: IngredientBarcodeApplyHints) => {
@@ -364,6 +480,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
         .fade-up { opacity: 0; animation: fadeUp 0.4s ease forwards; }
         .fade-up-delay-1 { animation-delay: 0.1s; }
         .reg-mode-card:hover { border-color: #F97316 !important; }
+        @keyframes naverPlaceSpin { to { transform: rotate(360deg); } }
       `}</style>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -470,16 +587,19 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
             iconBg="#eff6ff"
             title="거래명세서 사진 찍기"
             description="명세서 한 장으로 여러 식자재를 한번에 등록해요"
-            badge="곧 지원 예정"
+            badge="자동 등록"
             badgeStyle={{
-              background: '#f3f4f6',
-              color: '#9ca3af',
+              background: '#eff6ff',
+              color: '#3b82f6',
               borderRadius: 999,
               padding: '3px 8px',
               fontSize: 10,
               fontWeight: 500,
             }}
-            onClick={() => setRegisterMode('invoice')}
+            onClick={() => {
+              resetInvoiceFlow()
+              setRegisterMode('invoice')
+            }}
           />
 
           <button
@@ -511,45 +631,204 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
             background: '#ffffff',
             borderRadius: 18,
             border: '0.5px solid #e8e5de',
-            padding: 24,
+            padding: 20,
             marginBottom: 18,
-            textAlign: 'center',
           }}
         >
-          <div style={{ fontSize: 38, marginBottom: 12 }}>📄</div>
-          <p style={{ fontSize: 16, fontWeight: 600, color: '#2b2b2b', margin: '0 0 10px' }}>
-            거래명세서 자동 등록
-          </p>
-          <p style={{ fontSize: 13, color: '#9ca3af', lineHeight: 1.7, margin: '0 0 4px' }}>
-            거래명세서 사진 한 장으로
-            <br />
-            여러 식자재를 한번에 등록하는 기능이에요.
-          </p>
-          <p style={{ fontSize: 13, color: '#9ca3af', lineHeight: 1.7, margin: '0 0 10px' }}>
-            공급가·수량·날짜를 자동으로 분석해서
-            <br />
-            운영 데이터로 변환합니다.
-          </p>
-          <p style={{ fontSize: 12, color: BRAND_ORANGE, marginTop: 10, marginBottom: 20, fontWeight: 500 }}>
-            현재 준비 중입니다
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <input
+            ref={invoiceInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              handleInvoiceFileSelect(e.target.files?.[0])
+              e.target.value = ''
+            }}
+          />
+
+          <div style={{ textAlign: 'center', marginBottom: 16 }}>
+            <div style={{ fontSize: 38, marginBottom: 8 }}>📄</div>
+            <p style={{ fontSize: 16, fontWeight: 600, color: '#2b2b2b', margin: '0 0 6px' }}>
+              거래명세서 자동 등록
+            </p>
+            <p style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5, margin: 0 }}>
+              공급가·수량·제품명을 자동 분석합니다
+            </p>
+          </div>
+
+          {invoiceAnalyzeStatus === 'loading' ? (
+            <div style={{ textAlign: 'center', padding: '24px 12px' }}>
+              <span
+                aria-hidden
+                style={{
+                  display: 'inline-block',
+                  width: 32,
+                  height: 32,
+                  border: '3px solid rgba(249,115,22,0.25)',
+                  borderTopColor: BRAND_ORANGE,
+                  borderRadius: '50%',
+                  animation: 'naverPlaceSpin 0.7s linear infinite',
+                  marginBottom: 12,
+                }}
+              />
+              <p style={{ fontSize: 14, fontWeight: 500, color: '#2b2b2b', margin: '0 0 4px' }}>
+                거래명세서 분석 중...
+              </p>
+              {invoiceImage && (
+                <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>
+                  {invoiceImage.name}
+                </p>
+              )}
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => invoiceInputRef.current?.click()}
+                disabled={isPending}
+                style={{
+                  width: '100%',
+                  padding: 13,
+                  background: BRAND_ORANGE,
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 10,
+                  fontSize: 14,
+                  fontWeight: 600,
+                  cursor: isPending ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  opacity: isPending ? 0.65 : 1,
+                  marginBottom: 12,
+                }}
+              >
+                거래명세서 사진 선택
+              </button>
+
+              {invoiceAnalyzeStatus === 'failed' && (
+                <p style={{ fontSize: 12, color: '#9ca3af', textAlign: 'center', lineHeight: 1.6, margin: '0 0 12px' }}>
+                  거래명세서를 읽지 못했어요.
+                  <br />
+                  직접 입력을 이용해주세요.
+                </p>
+              )}
+
+              {invoiceAnalyzeStatus === 'success' && ocrIngredients.length > 0 && (
+                <div style={{ marginBottom: 12 }}>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', margin: '0 0 10px' }}>
+                    추출된 식자재 {ocrIngredients.length}개
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {ocrIngredients.map((row) => {
+                      const dup = existingNameKeys.has(normalizeIngredientName(row.name))
+                      return (
+                        <div
+                          key={row.rowKey}
+                          style={{
+                            background: '#ffffff',
+                            border: '0.5px solid #e8e5de',
+                            borderRadius: 12,
+                            padding: 12,
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
+                              품목
+                            </span>
+                            {dup && (
+                              <span
+                                style={{
+                                  background: '#fff8f3',
+                                  color: BRAND_ORANGE,
+                                  borderRadius: 999,
+                                  padding: '3px 8px',
+                                  fontSize: 10,
+                                  fontWeight: 500,
+                                }}
+                              >
+                                이미 등록된 식자재
+                              </span>
+                            )}
+                          </div>
+                          <input
+                            value={row.name}
+                            onChange={(e) => updateOcrRow(row.rowKey, 'name', e.target.value)}
+                            placeholder="식자재명"
+                            style={{ ...INPUT_STYLE, marginBottom: 8 }}
+                          />
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                            <input
+                              value={row.quantity != null ? String(row.quantity) : ''}
+                              onChange={(e) => updateOcrRow(row.rowKey, 'quantity', e.target.value)}
+                              placeholder="수량"
+                              inputMode="decimal"
+                              style={INPUT_STYLE}
+                            />
+                            <input
+                              value={row.unit ?? ''}
+                              onChange={(e) => updateOcrRow(row.rowKey, 'unit', e.target.value)}
+                              placeholder="단위"
+                              style={INPUT_STYLE}
+                            />
+                          </div>
+                          <input
+                            value={row.price != null ? String(row.price) : ''}
+                            onChange={(e) => updateOcrRow(row.rowKey, 'price', e.target.value)}
+                            placeholder="공급가 (원)"
+                            inputMode="numeric"
+                            style={INPUT_STYLE}
+                          />
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleBulkRegister}
+                    disabled={isPending || ocrIngredients.every((r) => !r.name.trim())}
+                    style={{
+                      width: '100%',
+                      marginTop: 12,
+                      padding: 13,
+                      background: BRAND_GREEN,
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: 10,
+                      fontSize: 14,
+                      fontWeight: 600,
+                      cursor: isPending ? 'not-allowed' : 'pointer',
+                      fontFamily: 'inherit',
+                      opacity: isPending ? 0.65 : 1,
+                    }}
+                  >
+                    {isPending ? '등록 중...' : '식자재 한번에 등록'}
+                  </button>
+                  {bulkRegisterMessage && (
+                    <p style={{ fontSize: 13, color: BRAND_GREEN, textAlign: 'center', marginTop: 10, fontWeight: 500 }}>
+                      {bulkRegisterMessage}
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
             <button
               type="button"
               onClick={() => {
                 resetForm()
+                resetInvoiceFlow()
                 setRegisterMode('manual')
                 setShowForm(true)
               }}
               style={{
                 width: '100%',
-                padding: 13,
-                background: BRAND_GREEN,
-                color: '#ffffff',
-                border: 'none',
+                padding: 12,
+                background: 'transparent',
+                border: '0.5px solid #e8e5de',
+                color: '#6b7280',
                 borderRadius: 10,
-                fontSize: 14,
-                fontWeight: 500,
+                fontSize: 13,
                 cursor: 'pointer',
                 fontFamily: 'inherit',
               }}
@@ -558,15 +837,17 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
             </button>
             <button
               type="button"
-              onClick={() => setRegisterMode('select')}
+              onClick={() => {
+                resetInvoiceFlow()
+                setRegisterMode('select')
+              }}
               style={{
                 width: '100%',
-                padding: 13,
+                padding: 0,
+                border: 'none',
                 background: 'transparent',
-                border: '0.5px solid #e8e5de',
-                color: '#6b7280',
-                borderRadius: 10,
-                fontSize: 14,
+                fontSize: 13,
+                color: '#9ca3af',
                 cursor: 'pointer',
                 fontFamily: 'inherit',
               }}

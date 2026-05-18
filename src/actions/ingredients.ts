@@ -125,6 +125,63 @@ export async function updateIngredient(
   return { success: true }
 }
 
+export type CreateIngredientInput = {
+  name: string
+  unit: string
+  category?: string | null
+  current_price?: number | null
+  target_price?: number | null
+  memo?: string | null
+  barcode?: string | null
+}
+
+export async function createIngredientsBatch(
+  inputs: CreateIngredientInput[],
+): Promise<ActionResult<{ successCount: number; created: IngredientRow[] }>> {
+  const supabase = await createServerClient()
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id) return { success: false, error: '인증 필요' }
+
+  const created: IngredientRow[] = []
+  let successCount = 0
+
+  for (const input of inputs) {
+    const name = (input.name ?? '').trim()
+    const unit = (input.unit ?? '').trim() || '개'
+    if (!name) continue
+
+    const { data, error } = await supabase
+      .from('ingredients')
+      .insert({
+        tenant_id,
+        name,
+        unit,
+        category: input.category?.trim() || null,
+        current_price: input.current_price ?? null,
+        target_price: input.target_price ?? null,
+        memo: input.memo?.trim() || null,
+        barcode: input.barcode?.replace(/\D/g, '').trim() || null,
+        is_active: true,
+      })
+      .select(
+        'id, tenant_id, name, unit, current_price, target_price, category, memo, barcode, is_active, created_at, updated_at',
+      )
+      .single()
+
+    if (!error && data) {
+      successCount += 1
+      created.push(data as IngredientRow)
+    }
+  }
+
+  if (successCount > 0) {
+    revalidatePath('/settings/ingredients')
+    revalidatePath('/today')
+  }
+
+  return { success: true, data: { successCount, created } }
+}
+
 export async function deactivateIngredient(id: string): Promise<ActionResult> {
   const supabase = await createServerClient()
   const tenant_id = await getTenantId().catch(() => null)
