@@ -3,9 +3,9 @@
 import { useMemo, useState, useTransition, useCallback, useRef } from 'react'
 import {
   createIngredient,
-  createIngredientsBatch,
   updateIngredient,
   deactivateIngredient,
+  registerInvoiceIngredients,
 } from '@/actions/ingredients'
 import { formatKRW, toKoreanAmount } from '@/lib/utils'
 import { analyzeInvoiceImage } from '@/lib/invoice-ocr'
@@ -22,10 +22,38 @@ const UNITS = ['kg', 'g', 'L', 'ml', '개', '봉', '묶음', '팩', '캔'] as co
 type RegisterMode = 'select' | 'manual' | 'product' | 'invoice' | null
 type InvoiceAnalyzeStatus = 'idle' | 'loading' | 'success' | 'failed'
 
-type OcrIngredientRow = InvoiceIngredient & { rowKey: string }
+type OcrIngredientRow = InvoiceIngredient & {
+  rowKey: string
+  effectiveFrom: string
+  priceAction?: 'apply' | 'keep'
+}
 
 function normalizeIngredientName(name: string): string {
-  return name.trim().toLowerCase()
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/[\s()[\]{}·.,\-_/\\|"'`~!@#$%^&*+=?:;<>]/g, '')
+}
+
+function todayDateString(): string {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const d = String(now.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function defaultEffectiveFrom(invoiceDate: string | null): string {
+  return invoiceDate ?? todayDateString()
+}
+
+function pricesDiffer(
+  existing: number | null,
+  incoming: number | null,
+): boolean {
+  if (incoming == null) return false
+  if (existing == null) return true
+  return existing !== incoming
 }
 
 const INPUT_STYLE: React.CSSProperties = {
@@ -212,6 +240,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
   const [invoiceImage, setInvoiceImage] = useState<File | null>(null)
   const [invoiceAnalyzeStatus, setInvoiceAnalyzeStatus] =
     useState<InvoiceAnalyzeStatus>('idle')
+  const [invoiceDate, setInvoiceDate] = useState<string | null>(null)
   const [ocrIngredients, setOcrIngredients] = useState<OcrIngredientRow[]>([])
   const [bulkRegisterMessage, setBulkRegisterMessage] = useState<string | null>(null)
 
@@ -253,14 +282,26 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
   const showManualForm =
     showForm && (registerMode === 'manual' || registerMode === 'product')
 
-  const existingNameKeys = useMemo(
-    () => new Set(list.map((i) => normalizeIngredientName(i.name))),
-    [list],
-  )
+  const ingredientByNorm = useMemo(() => {
+    const map = new Map<string, Ingredient>()
+    for (const i of list) {
+      map.set(normalizeIngredientName(i.name), i)
+    }
+    return map
+  }, [list])
+
+  const pendingPriceChoices = useMemo(() => {
+    return ocrIngredients.some((row) => {
+      const existing = ingredientByNorm.get(normalizeIngredientName(row.name))
+      if (!existing || row.price == null) return false
+      return pricesDiffer(existing.current_price, row.price) && row.priceAction == null
+    })
+  }, [ocrIngredients, ingredientByNorm])
 
   function resetInvoiceFlow() {
     setInvoiceImage(null)
     setInvoiceAnalyzeStatus('idle')
+    setInvoiceDate(null)
     setOcrIngredients([])
     setBulkRegisterMessage(null)
   }
@@ -293,7 +334,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
       prev.map((row) => {
         if (row.rowKey !== rowKey) return row
         if (field === 'name') {
-          return { ...row, name: value }
+          return { ...row, name: value, priceAction: undefined }
         }
         if (field === 'unit') {
           return { ...row, unit: value.trim() || null }
@@ -309,8 +350,27 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
         return {
           ...row,
           price: Number.isFinite(n) && n > 0 ? n : null,
+          priceAction: undefined,
         }
       }),
+    )
+    setBulkRegisterMessage(null)
+  }
+
+  function updateOcrEffectiveFrom(rowKey: string, value: string) {
+    setOcrIngredients((prev) =>
+      prev.map((row) =>
+        row.rowKey === rowKey ? { ...row, effectiveFrom: value } : row,
+      ),
+    )
+    setBulkRegisterMessage(null)
+  }
+
+  function setOcrPriceAction(rowKey: string, action: 'apply' | 'keep') {
+    setOcrIngredients((prev) =>
+      prev.map((row) =>
+        row.rowKey === rowKey ? { ...row, priceAction: action } : row,
+      ),
     )
     setBulkRegisterMessage(null)
   }
@@ -319,46 +379,76 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     if (!file) return
     setInvoiceImage(file)
     setInvoiceAnalyzeStatus('loading')
+    setInvoiceDate(null)
     setOcrIngredients([])
     setBulkRegisterMessage(null)
 
-    const items = await analyzeInvoiceImage(file)
-    if (!items || items.length === 0) {
+    const result = await analyzeInvoiceImage(file)
+    if (!result || result.items.length === 0) {
       setInvoiceAnalyzeStatus('failed')
       return
     }
+    const effDefault = defaultEffectiveFrom(result.invoice_date)
+    setInvoiceDate(result.invoice_date)
     setOcrIngredients(
-      items.map((item, idx) => ({
+      result.items.map((item, idx) => ({
         ...item,
         rowKey: `ocr_${Date.now()}_${idx}`,
+        effectiveFrom: effDefault,
+        priceAction: undefined,
       })),
     )
     setInvoiceAnalyzeStatus('success')
   }
 
   function handleBulkRegister() {
-    const payload = ocrIngredients
-      .map((row) => ({
-        name: row.name.trim(),
-        unit: (row.unit?.trim() || '개'),
-        current_price: row.price,
-        memo: row.quantity != null
-          ? `거래명세서 OCR · 수량 ${row.quantity}${row.unit ? ` ${row.unit}` : ''}`
-          : '거래명세서 OCR',
-      }))
-      .filter((row) => row.name.length > 0)
+    const rows = ocrIngredients
+      .filter((row) => row.name.trim().length > 0)
+      .map((row) => {
+        const existing = ingredientByNorm.get(normalizeIngredientName(row.name))
+        let mode: 'new' | 'apply' | 'keep'
+        if (!existing) {
+          mode = 'new'
+        } else if (
+          row.price != null &&
+          pricesDiffer(existing.current_price, row.price)
+        ) {
+          mode = row.priceAction === 'apply' ? 'apply' : 'keep'
+        } else {
+          mode = 'keep'
+        }
+        return {
+          name: row.name.trim(),
+          unit: row.unit?.trim() || '개',
+          price: row.price,
+          memo:
+            row.quantity != null
+              ? `거래명세서 OCR · 수량 ${row.quantity}${row.unit ? ` ${row.unit}` : ''}`
+              : '거래명세서 OCR',
+          mode,
+          effective_from: row.effectiveFrom,
+        }
+      })
 
-    if (payload.length === 0) return
+    if (rows.length === 0) return
 
     startTr(async () => {
-      const res = await createIngredientsBatch(payload)
+      const res = await registerInvoiceIngredients(rows)
       if (!res.success || !res.data) {
         setBulkRegisterMessage('등록에 실패했어요. 다시 시도해주세요.')
         return
       }
-      const { successCount, created } = res.data
-      if (successCount > 0) {
-        setList((prev) => [...prev, ...created])
+      const { successCount, created, updated } = res.data
+      if (created.length > 0 || updated.length > 0) {
+        setList((prev) => {
+          const byId = new Map(prev.map((i) => [i.id, i]))
+          for (const u of updated) byId.set(u.id, u)
+          const merged = [...byId.values()]
+          for (const c of created) {
+            if (!byId.has(c.id)) merged.push(c)
+          }
+          return merged
+        })
       }
       setBulkRegisterMessage(`${successCount}개 등록 완료`)
       if (successCount > 0) {
@@ -714,18 +804,33 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
 
               {invoiceAnalyzeStatus === 'success' && ocrIngredients.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
+                  <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 10px' }}>
+                    거래명세서 날짜:{' '}
+                    <span style={{ fontWeight: 500, color: '#374151' }}>
+                      {defaultEffectiveFrom(invoiceDate)}
+                    </span>
+                  </p>
                   <p style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', margin: '0 0 10px' }}>
                     추출된 식자재 {ocrIngredients.length}개
                   </p>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {ocrIngredients.map((row) => {
-                      const dup = existingNameKeys.has(normalizeIngredientName(row.name))
+                      const existing = ingredientByNorm.get(
+                        normalizeIngredientName(row.name),
+                      )
+                      const isNew = !existing
+                      const priceChanged =
+                        !!existing &&
+                        row.price != null &&
+                        pricesDiffer(existing.current_price, row.price)
                       return (
                         <div
                           key={row.rowKey}
                           style={{
                             background: '#ffffff',
-                            border: '0.5px solid #e8e5de',
+                            border: priceChanged
+                              ? `1px solid ${BRAND_ORANGE}`
+                              : '0.5px solid #e8e5de',
                             borderRadius: 12,
                             padding: 12,
                           }}
@@ -734,20 +839,18 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                             <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
                               품목
                             </span>
-                            {dup && (
-                              <span
-                                style={{
-                                  background: '#fff8f3',
-                                  color: BRAND_ORANGE,
-                                  borderRadius: 999,
-                                  padding: '3px 8px',
-                                  fontSize: 10,
-                                  fontWeight: 500,
-                                }}
-                              >
-                                이미 등록된 식자재
-                              </span>
-                            )}
+                            <span
+                              style={{
+                                background: isNew ? '#edf7f1' : '#f3f4f6',
+                                color: isNew ? BRAND_GREEN : '#6b7280',
+                                borderRadius: 999,
+                                padding: '3px 8px',
+                                fontSize: 10,
+                                fontWeight: 500,
+                              }}
+                            >
+                              {isNew ? '신규' : '기존'}
+                            </span>
                           </div>
                           <input
                             value={row.name}
@@ -775,8 +878,92 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                             onChange={(e) => updateOcrRow(row.rowKey, 'price', e.target.value)}
                             placeholder="공급가 (원)"
                             inputMode="numeric"
-                            style={INPUT_STYLE}
+                            style={{ ...INPUT_STYLE, marginBottom: priceChanged ? 10 : 0 }}
                           />
+                          {priceChanged && existing && row.price != null && (
+                            <div
+                              style={{
+                                background: '#fff8f3',
+                                border: `0.5px solid ${BRAND_ORANGE}`,
+                                borderRadius: 10,
+                                padding: 12,
+                              }}
+                            >
+                              <p style={{ fontSize: 12, color: '#374151', margin: '0 0 4px', lineHeight: 1.5 }}>
+                                기존 공급가:
+                                <br />
+                                {existing.current_price != null
+                                  ? formatKRW(existing.current_price)
+                                  : '미등록'}
+                              </p>
+                              <p style={{ fontSize: 12, color: '#374151', margin: '0 0 8px', lineHeight: 1.5 }}>
+                                새 거래명세서:
+                                <br />
+                                {formatKRW(row.price)}
+                              </p>
+                              <p style={{ fontSize: 12, fontWeight: 600, color: BRAND_ORANGE, margin: '0 0 10px' }}>
+                                공급가 변경으로 보입니다.
+                              </p>
+                              <p style={{ fontSize: 11, color: '#6b7280', margin: '0 0 6px' }}>
+                                적용 시작일
+                              </p>
+                              <input
+                                type="date"
+                                value={row.effectiveFrom}
+                                onChange={(e) =>
+                                  updateOcrEffectiveFrom(row.rowKey, e.target.value)
+                                }
+                                style={{ ...INPUT_STYLE, marginBottom: 10 }}
+                              />
+                              <div style={{ display: 'flex', gap: 8 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setOcrPriceAction(row.rowKey, 'apply')}
+                                  style={{
+                                    flex: 1,
+                                    padding: 10,
+                                    background:
+                                      row.priceAction === 'apply'
+                                        ? BRAND_ORANGE
+                                        : '#ffffff',
+                                    color:
+                                      row.priceAction === 'apply'
+                                        ? '#ffffff'
+                                        : BRAND_ORANGE,
+                                    border: `1px solid ${BRAND_ORANGE}`,
+                                    borderRadius: 8,
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    fontFamily: 'inherit',
+                                  }}
+                                >
+                                  새 가격 적용
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setOcrPriceAction(row.rowKey, 'keep')}
+                                  style={{
+                                    flex: 1,
+                                    padding: 10,
+                                    background:
+                                      row.priceAction === 'keep'
+                                        ? '#f3f4f6'
+                                        : '#ffffff',
+                                    color: '#6b7280',
+                                    border: '0.5px solid #e8e5de',
+                                    borderRadius: 8,
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    fontFamily: 'inherit',
+                                  }}
+                                >
+                                  기존 가격 유지
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )
                     })}
@@ -784,7 +971,11 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                   <button
                     type="button"
                     onClick={handleBulkRegister}
-                    disabled={isPending || ocrIngredients.every((r) => !r.name.trim())}
+                    disabled={
+                      isPending ||
+                      pendingPriceChoices ||
+                      ocrIngredients.every((r) => !r.name.trim())
+                    }
                     style={{
                       width: '100%',
                       marginTop: 12,
