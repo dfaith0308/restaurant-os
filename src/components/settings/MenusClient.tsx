@@ -541,6 +541,18 @@ export default function MenusClient(props: {
     })
   }
 
+  function getEstimateInputCost(e: MenuCostEstimateData): number | null {
+    const min = e.cost_range_min
+    const max = e.cost_range_max
+    if (min != null && max != null && min > 0 && max > 0) {
+      return Math.round((min + max) / 2)
+    }
+    if (e.estimated_cost != null && e.estimated_cost > 0) {
+      return e.estimated_cost
+    }
+    return null
+  }
+
   function formatEstimateCostLine(e: MenuCostEstimateData): string {
     const min = e.cost_range_min
     const max = e.cost_range_max
@@ -745,7 +757,7 @@ export default function MenusClient(props: {
                           ✨ 비슷한 메뉴 예상 원가 보기
                         </button>
                       )}
-                      {estimate?.estimated_cost != null && (
+                      {estimate && getEstimateInputCost(estimate) != null && (
                         <div
                           style={{
                             background: '#f7f6f2',
@@ -794,13 +806,18 @@ export default function MenusClient(props: {
                               <span>{estimate.hidden_cost_note}</span>
                             </p>
                           )}
+                          <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 6, marginBottom: 0, lineHeight: 1.4 }}>
+                            실제 재료 구성에 따라 달라질 수 있어요.
+                          </p>
                           <button
                             type="button"
                             onClick={() => {
-                              if (editingId && estimate.estimated_cost != null) {
-                                syncDirectCostForMenu(editingId, String(estimate.estimated_cost))
+                              const inputCost = getEstimateInputCost(estimate)
+                              if (editingId && inputCost != null) {
+                                syncDirectCostForMenu(editingId, String(inputCost))
                               }
                             }}
+                            disabled={!editingId || getEstimateInputCost(estimate) == null}
                             style={{
                               background: '#1f5d3a',
                               color: '#ffffff',
@@ -810,15 +827,16 @@ export default function MenusClient(props: {
                               fontSize: 12,
                               fontWeight: 500,
                               marginTop: 8,
-                              cursor: 'pointer',
+                              cursor: !editingId || getEstimateInputCost(estimate) == null ? 'not-allowed' : 'pointer',
                               fontFamily: 'inherit',
+                              opacity: !editingId || getEstimateInputCost(estimate) == null ? 0.5 : 1,
                             }}
                           >
-                            이 금액으로 입력하기
+                            평균 원가로 입력하기
                           </button>
                         </div>
                       )}
-                      {estimate && estimate.estimated_cost == null && !estimateLoading && (
+                      {estimate && getEstimateInputCost(estimate) == null && !estimateLoading && (
                         <p style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.5, marginTop: 8, marginBottom: 0 }}>
                           비슷한 메뉴 데이터를 찾지 못했어요.
                           <br />
