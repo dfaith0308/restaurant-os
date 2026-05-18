@@ -373,14 +373,168 @@ export async function removeMenuIngredient(id: string): Promise<ActionResult> {
   return { success: true }
 }
 
-export async function getMenuCostEstimate(menu_name: string): Promise<ActionResult<{
+export interface MenuCostEstimateIngredients {
+  cost_range_min?: number | null
+  cost_range_max?: number | null
+  main_ingredients?: string[]
+  hidden_cost_note?: string | null
+}
+
+export interface MenuCostEstimateData {
   menu_name: string
   estimated_cost: number | null
-  estimated_ingredients: any | null
+  estimated_ingredients: MenuCostEstimateIngredients | null
   source: 'gpt' | 'internal'
   confidence_level: number | null
   updated_at: string
-} | null>> {
+  cost_range_min: number | null
+  cost_range_max: number | null
+  main_ingredients: string[]
+  hidden_cost_note: string | null
+}
+
+type MenuCostCacheRow = {
+  menu_name: string
+  estimated_cost: number | null
+  estimated_ingredients: unknown
+  source: 'gpt' | 'internal'
+  confidence_level: number | null
+  updated_at: string
+}
+
+interface GptMenuCostPayload {
+  estimated_cost: number
+  cost_range_min: number
+  cost_range_max: number
+  main_ingredients: string[]
+  hidden_cost_note: string
+}
+
+const MENU_COST_GPT_SYSTEM_PROMPT = `당신은 한국 외식업(식당) 운영 감각을 보조하는 전문가입니다. 회계 계산기가 아닙니다.
+
+목표: 사장님이 "이 메뉴 대충 원가가 얼마쯤일까?" 감을 잡도록 돕습니다.
+
+반드시 반영할 관점:
+- 일반적인 한국 식당(중소형) 기준 1인분 원가
+- 숨은 원가: 공깃밥, 기본 반찬, 소스/양념, 포장용기 가능성
+- 지역·매장 규모·재료 등급에 따라 편차가 큼
+- 정확한 레시피가 아니라 "운영 감" 제공
+
+응답은 JSON 객체 하나만 출력하세요. 다른 텍스트 금지.
+
+JSON 스키마:
+{
+  "estimated_cost": number (대표 예상 원가, 원 단위 정수),
+  "cost_range_min": number (보수적 하한),
+  "cost_range_max": number (넉넉한 상한),
+  "main_ingredients": string[] (주요 재료 3~6개, 짧은 한글명),
+  "hidden_cost_note": string (공깃밥·기본반찬 등 숨은 원가 한 줄 안내)
+}`
+
+function parsePositiveInt(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, Math.round(value))
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) return Math.max(0, parseInt(value.trim(), 10))
+  return null
+}
+
+function parseEstimatedIngredients(raw: unknown): MenuCostEstimateIngredients {
+  if (!raw || typeof raw !== 'object') return {}
+  const o = raw as Record<string, unknown>
+  const main = Array.isArray(o.main_ingredients)
+    ? o.main_ingredients.map((x) => String(x).trim()).filter(Boolean)
+    : undefined
+  const note =
+    o.hidden_cost_note != null ? String(o.hidden_cost_note).trim() || null : undefined
+  return {
+    cost_range_min: parsePositiveInt(o.cost_range_min),
+    cost_range_max: parsePositiveInt(o.cost_range_max),
+    main_ingredients: main,
+    hidden_cost_note: note,
+  }
+}
+
+function mapCacheRowToEstimate(row: MenuCostCacheRow): MenuCostEstimateData {
+  const ing = parseEstimatedIngredients(row.estimated_ingredients)
+  return {
+    menu_name: row.menu_name,
+    estimated_cost: row.estimated_cost,
+    estimated_ingredients: Object.keys(ing).length > 0 ? ing : null,
+    source: row.source,
+    confidence_level: row.confidence_level,
+    updated_at: row.updated_at,
+    cost_range_min: ing.cost_range_min ?? null,
+    cost_range_max: ing.cost_range_max ?? null,
+    main_ingredients: ing.main_ingredients ?? [],
+    hidden_cost_note: ing.hidden_cost_note ?? null,
+  }
+}
+
+function parseGptMenuCostJson(text: string): GptMenuCostPayload | null {
+  const match = text.match(/\{[\s\S]*\}/)
+  if (!match) return null
+  try {
+    const o = JSON.parse(match[0]) as Record<string, unknown>
+    const estimated_cost = parsePositiveInt(o.estimated_cost)
+    const cost_range_min = parsePositiveInt(o.cost_range_min)
+    const cost_range_max = parsePositiveInt(o.cost_range_max)
+    if (estimated_cost == null || estimated_cost <= 0) return null
+    const main_ingredients = Array.isArray(o.main_ingredients)
+      ? o.main_ingredients.map((x) => String(x).trim()).filter(Boolean).slice(0, 8)
+      : []
+    const hidden_cost_note =
+      (o.hidden_cost_note != null ? String(o.hidden_cost_note).trim() : '') ||
+      '공깃밥·기본반찬 포함 시 실제 원가는 더 높을 수 있습니다.'
+    const min = cost_range_min ?? estimated_cost
+    const max = cost_range_max ?? estimated_cost
+    return {
+      estimated_cost,
+      cost_range_min: Math.min(min, max),
+      cost_range_max: Math.max(min, max),
+      main_ingredients,
+      hidden_cost_note,
+    }
+  } catch {
+    return null
+  }
+}
+
+async function fetchMenuCostFromGpt(menuName: string): Promise<GptMenuCostPayload | null> {
+  const apiKey = process.env.OPENAI_API_KEY?.trim()
+  if (!apiKey) return null
+
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 25000)
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    signal: controller.signal,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: 'gpt-4o-mini',
+      temperature: 0.3,
+      messages: [
+        { role: 'system', content: MENU_COST_GPT_SYSTEM_PROMPT },
+        {
+          role: 'user',
+          content: `다음 메뉴의 1인분 예상 원가 감을 JSON으로 알려주세요. 메뉴명: ${menuName}`,
+        },
+      ],
+    }),
+  }).catch(() => null)
+  clearTimeout(timeout)
+  if (!res?.ok) return null
+
+  const body = (await res.json().catch(() => null)) as {
+    choices?: Array<{ message?: { content?: string } }>
+  } | null
+  const content = body?.choices?.[0]?.message?.content ?? ''
+  if (!content) return null
+  return parseGptMenuCostJson(content)
+}
+
+export async function getMenuCostEstimate(menu_name: string): Promise<ActionResult<MenuCostEstimateData | null>> {
   const supabase = await createServerClient()
   const tenant_id = await getTenantId().catch(() => null)
   if (!tenant_id) return { success: false, error: '인증 필요', data: null }
@@ -388,27 +542,68 @@ export async function getMenuCostEstimate(menu_name: string): Promise<ActionResu
   const name = (menu_name ?? '').trim()
   if (!name) return { success: true, data: null }
 
-  // 1) exact match
+  const selectCols =
+    'menu_name, estimated_cost, estimated_ingredients, source, confidence_level, updated_at'
+
   const { data: exact, error: e1 } = await supabase
     .from('menu_cost_cache')
-    .select('menu_name, estimated_cost, estimated_ingredients, source, confidence_level, updated_at')
+    .select(selectCols)
     .eq('tenant_id', tenant_id)
     .eq('menu_name', name)
     .maybeSingle()
 
   if (e1) return { success: false, error: e1.message, data: null }
-  if (exact) return { success: true, data: exact as any }
+  if (exact) return { success: true, data: mapCacheRowToEstimate(exact as MenuCostCacheRow) }
 
-  // 2) fallback: ilike first row
   const { data: like, error: e2 } = await supabase
     .from('menu_cost_cache')
-    .select('menu_name, estimated_cost, estimated_ingredients, source, confidence_level, updated_at')
+    .select(selectCols)
     .eq('tenant_id', tenant_id)
     .ilike('menu_name', `%${name}%`)
     .order('updated_at', { ascending: false })
     .limit(1)
 
   if (e2) return { success: false, error: e2.message, data: null }
-  return { success: true, data: (like?.[0] ?? null) as any }
+  if (like?.[0]) return { success: true, data: mapCacheRowToEstimate(like[0] as MenuCostCacheRow) }
+
+  const gpt = await fetchMenuCostFromGpt(name)
+  if (!gpt) return { success: true, data: null }
+
+  const estimated_ingredients: MenuCostEstimateIngredients = {
+    cost_range_min: gpt.cost_range_min,
+    cost_range_max: gpt.cost_range_max,
+    main_ingredients: gpt.main_ingredients,
+    hidden_cost_note: gpt.hidden_cost_note,
+  }
+  const updated_at = new Date().toISOString()
+
+  await supabase.from('menu_cost_cache').upsert(
+    {
+      tenant_id,
+      menu_name: name,
+      estimated_cost: gpt.estimated_cost,
+      estimated_ingredients,
+      source: 'gpt',
+      confidence_level: 70,
+      updated_at,
+    },
+    { onConflict: 'tenant_id,menu_name' },
+  )
+
+  return {
+    success: true,
+    data: {
+      menu_name: name,
+      estimated_cost: gpt.estimated_cost,
+      estimated_ingredients,
+      source: 'gpt',
+      confidence_level: 70,
+      updated_at,
+      cost_range_min: gpt.cost_range_min,
+      cost_range_max: gpt.cost_range_max,
+      main_ingredients: gpt.main_ingredients,
+      hidden_cost_note: gpt.hidden_cost_note,
+    },
+  }
 }
 

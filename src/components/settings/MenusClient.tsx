@@ -11,6 +11,7 @@ import {
   getMenuCostEstimate,
   removeMenuIngredient,
   updateMenu,
+  type MenuCostEstimateData,
   type MenuWithCost,
 } from '@/actions/menus'
 
@@ -265,13 +266,8 @@ export default function MenusClient(props: {
   const [directCostFocused, setDirectCostFocused] = useState(false)
   const [confirmHideMenuId, setConfirmHideMenuId] = useState<string | null>(null)
 
-  const [estimate, setEstimate] = useState<{
-    menu_name: string
-    estimated_cost: number | null
-    source: 'gpt' | 'internal'
-    confidence_level: number | null
-    updated_at: string
-  } | null>(null)
+  const [estimate, setEstimate] = useState<MenuCostEstimateData | null>(null)
+  const [estimateLoading, setEstimateLoading] = useState(false)
 
   const categories = useMemo(() => {
     const set = new Set<string>()
@@ -306,6 +302,7 @@ export default function MenusClient(props: {
     setIngQty('1')
     setIngUnit('')
     setEstimate(null)
+    setEstimateLoading(false)
     setCostInputTab('direct')
     setDirectCost('')
     setPriceFocused(false)
@@ -480,24 +477,52 @@ export default function MenusClient(props: {
   function handleFetchEstimate() {
     const n = name.trim()
     if (!n) return
+    setEstimateLoading(true)
     startTr(async () => {
-      const res = await getMenuCostEstimate(n)
-      if (!res.success) {
-        alert(res.error ?? '조회 실패')
-        return
-      }
-      if (res.data) {
-        setEstimate({
-          menu_name: res.data.menu_name,
-          estimated_cost: res.data.estimated_cost,
-          source: res.data.source,
-          confidence_level: res.data.confidence_level,
-          updated_at: res.data.updated_at,
-        })
-      } else {
-        setEstimate(null)
+      try {
+        const res = await getMenuCostEstimate(n)
+        if (!res.success) {
+          alert(res.error ?? '조회 실패')
+          return
+        }
+        if (res.data) {
+          setEstimate(res.data)
+        } else {
+          setEstimate({
+            menu_name: n,
+            estimated_cost: null,
+            estimated_ingredients: null,
+            source: 'gpt',
+            confidence_level: null,
+            updated_at: new Date().toISOString(),
+            cost_range_min: null,
+            cost_range_max: null,
+            main_ingredients: [],
+            hidden_cost_note: null,
+          })
+        }
+      } finally {
+        setEstimateLoading(false)
       }
     })
+  }
+
+  function formatEstimateCostLine(e: MenuCostEstimateData): string {
+    const min = e.cost_range_min
+    const max = e.cost_range_max
+    if (
+      min != null &&
+      max != null &&
+      min > 0 &&
+      max > 0 &&
+      min !== max
+    ) {
+      return `약 ${formatKRW(min)} ~ ${formatKRW(max)}`
+    }
+    if (e.estimated_cost != null && e.estimated_cost > 0) {
+      return `약 ${formatKRW(e.estimated_cost)}`
+    }
+    return ''
   }
 
   const selectedIngredient = useMemo(() => {
@@ -739,7 +764,7 @@ export default function MenusClient(props: {
                       <button
                         type="button"
                         onClick={handleFetchEstimate}
-                        disabled={isPending || !name.trim()}
+                        disabled={estimateLoading || isPending || !name.trim()}
                         style={{
                           background: 'transparent',
                           border: '0.5px solid #e8e5de',
@@ -747,11 +772,12 @@ export default function MenusClient(props: {
                           padding: '8px 14px',
                           fontSize: 12,
                           color: '#6b7280',
-                          cursor: 'pointer',
+                          cursor: estimateLoading ? 'wait' : 'pointer',
                           fontFamily: 'inherit',
+                          opacity: estimateLoading ? 0.7 : 1,
                         }}
                       >
-                        비슷한 메뉴 예상 원가 보기
+                        {estimateLoading ? '원가 분석 중...' : '비슷한 메뉴 예상 원가 보기'}
                       </button>
                       {estimate?.estimated_cost != null && (
                         <div
@@ -766,10 +792,42 @@ export default function MenusClient(props: {
                             lineHeight: 1.5,
                           }}
                         >
-                          <p style={{ margin: 0 }}>
-                            비슷한 메뉴 기준 예상 원가: 약 {formatKRW(estimate.estimated_cost)}
+                          <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>
+                            비슷한 메뉴 기준 예상 원가
                           </p>
-                          <p style={{ margin: '6px 0 0' }}>참고용입니다. 실제 원가와 다를 수 있어요.</p>
+                          <p
+                            style={{
+                              margin: '6px 0 0',
+                              fontSize: 22,
+                              fontWeight: 700,
+                              color: '#1f5d3a',
+                              lineHeight: 1.2,
+                            }}
+                          >
+                            {formatEstimateCostLine(estimate)}
+                          </p>
+                          {estimate.main_ingredients.length > 0 && (
+                            <p style={{ margin: '8px 0 0', fontSize: 12, color: '#6b7280' }}>
+                              주요 재료: {estimate.main_ingredients.join(', ')}
+                            </p>
+                          )}
+                          {estimate.hidden_cost_note && (
+                            <p
+                              style={{
+                                margin: '8px 0 0',
+                                fontSize: 12,
+                                color: '#6b7280',
+                                display: 'flex',
+                                alignItems: 'flex-start',
+                                gap: 4,
+                              }}
+                            >
+                              <span aria-hidden style={{ flexShrink: 0 }}>
+                                ⓘ
+                              </span>
+                              <span>{estimate.hidden_cost_note}</span>
+                            </p>
+                          )}
                           <button
                             type="button"
                             onClick={() => {
@@ -794,7 +852,7 @@ export default function MenusClient(props: {
                           </button>
                         </div>
                       )}
-                      {estimate && estimate.estimated_cost == null && (
+                      {estimate && estimate.estimated_cost == null && !estimateLoading && (
                         <p style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.5, marginTop: 8, marginBottom: 0 }}>
                           비슷한 메뉴 데이터를 찾지 못했어요.
                           <br />
