@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useTransition, useEffect, useCallback } from 'react'
+import { useState, useTransition, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateRestaurant } from '@/actions/restaurant'
 import type { RestaurantInfo } from '@/actions/restaurant'
-import { fetchNaverPlaceInfo } from '@/lib/naver-place-parser'
+import { parseNaverPlaceImage } from '@/lib/naver-place-parser'
+import type { NaverPlaceInfo } from '@/lib/naver-place-parser'
 import Link from 'next/link'
 
 const BRAND_ORANGE = '#F97316'
@@ -16,8 +17,11 @@ const INPUT_BASE: React.CSSProperties = {
   fontFamily: 'inherit', background: '#fff',
 }
 
+type PlaceImportStatus = 'idle' | 'loading' | 'success' | 'partial' | 'failed'
+
 export default function RestaurantSettingsClient({ restaurant }: { restaurant: RestaurantInfo }) {
   const router = useRouter()
+  const placeImageInputRef = useRef<HTMLInputElement>(null)
   const [name,           setName]           = useState(restaurant.name ?? '')
   const [region,         setRegion]         = useState(restaurant.region ?? '')
   const [ownerName,      setOwnerName]      = useState(restaurant.owner_name ?? '')
@@ -27,66 +31,58 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
     restaurant.business_hours_text ?? '',
   )
   const [workingDays, setWorkingDays] = useState(restaurant.working_days_per_month ?? 25)
-  const [placeUrl, setPlaceUrl] = useState('')
-  const [placeFetching, setPlaceFetching] = useState(false)
-  const [placeFetchResult, setPlaceFetchResult] =
-    useState<'success' | 'partial' | 'failed' | null>(null)
+  const [selectedPlaceImage, setSelectedPlaceImage] = useState<File | null>(null)
+  const [placeImportStatus, setPlaceImportStatus] = useState<PlaceImportStatus>('idle')
   const [status,    setStatus]    = useState<'idle' | 'dirty' | 'saved'>('idle')
   const [isPending, startTr]      = useTransition()
 
-  async function handleFetchPlace() {
-    const trimmed = placeUrl.trim()
-    if (!trimmed) {
-      setPlaceFetchResult('failed')
-      return
+  function applyPlaceInfo(info: NaverPlaceInfo): 'success' | 'partial' | 'failed' {
+    let filledCount = 0
+
+    if (info.name?.trim()) {
+      setName(info.name.trim())
+      filledCount += 1
+    }
+    if (info.address?.trim()) {
+      setRegion(info.address.trim())
+      filledCount += 1
+    }
+    if (info.phone?.trim()) {
+      setPhone(info.phone.trim())
+      filledCount += 1
+    }
+    if (info.business_hours_text?.trim()) {
+      setBusinessHoursText(info.business_hours_text.trim())
+      filledCount += 1
     }
 
-    setPlaceFetching(true)
-    setPlaceFetchResult(null)
+    // 향후: 메뉴/가격 hydrate 추가 가능 (info.menus)
 
-    try {
-      const info = await fetchNaverPlaceInfo(trimmed)
-      if (!info) {
-        setPlaceFetchResult('failed')
-        return
-      }
+    if (filledCount === 0) return 'failed'
+    if (filledCount === 4) return 'success'
+    return 'partial'
+  }
 
-      const hydrated: boolean[] = []
+  function handlePlaceImageSelect(file: File | undefined) {
+    if (!file) return
 
-      if (info.name?.trim()) {
-        setName(info.name.trim())
-        hydrated.push(true)
-      }
-      if (info.address?.trim()) {
-        setRegion(info.address.trim())
-        hydrated.push(true)
-      }
-      if (info.phone?.trim()) {
-        setPhone(info.phone.trim())
-        hydrated.push(true)
-      }
-      if (info.business_hours_text?.trim()) {
-        setBusinessHoursText(info.business_hours_text.trim())
-        hydrated.push(true)
-      }
+    setSelectedPlaceImage(file)
+    setPlaceImportStatus('loading')
 
-      // 향후: 메뉴/가격 hydrate 추가 가능 (info.menus)
-
-      const filledCount = hydrated.length
-      if (filledCount === 0) {
-        setPlaceFetchResult('failed')
-      } else if (filledCount === 4) {
-        setPlaceFetchResult('success')
-        setStatus('dirty')
-      } else {
-        setPlaceFetchResult('partial')
-        setStatus('dirty')
+    window.setTimeout(async () => {
+      try {
+        const info = await parseNaverPlaceImage(file)
+        if (!info) {
+          setPlaceImportStatus('failed')
+          return
+        }
+        const result = applyPlaceInfo(info)
+        setPlaceImportStatus(result)
+        if (result !== 'failed') setStatus('dirty')
+      } catch {
+        setPlaceImportStatus('failed')
       }
-    } catch {
-      setPlaceFetchResult('failed')
-    } finally {
-      setPlaceFetching(false)
-    }
+    }, 1500)
   }
 
   // dirty 감지 — 초기값과 비교
@@ -146,6 +142,7 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
   const isDisabled = isPending || !name.trim()
   const isSaved    = status === 'saved'
   const showDirty  = status === 'dirty'
+  const isPlaceLoading = placeImportStatus === 'loading'
 
   const btnBg = isDisabled ? '#d1d5db' : isSaved ? '#15803D' : 'var(--color-primary)'
 
@@ -161,6 +158,17 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
 
       <style>{'@keyframes naverPlaceSpin { to { transform: rotate(360deg); } }'}</style>
 
+      <input
+        ref={placeImageInputRef}
+        type="file"
+        accept="image/*"
+        style={{ display: 'none' }}
+        onChange={e => {
+          handlePlaceImageSelect(e.target.files?.[0])
+          e.target.value = ''
+        }}
+      />
+
       <div style={{
         background: '#f7f6f2',
         borderRadius: 12,
@@ -169,88 +177,95 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
         border: '0.5px solid #e8e5de',
       }}>
         <p style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', margin: 0 }}>
-          네이버 플레이스 주소로 자동 입력
+          네이버 플레이스 화면 업로드
         </p>
-        <p style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.5, marginTop: 4, marginBottom: 12 }}>
-          플레이스 URL을 붙여넣으면 가능한 정보를 자동으로 가져옵니다.
-          일부 정보는 직접 수정이 필요할 수 있어요.
+        <p style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5, marginTop: 4, marginBottom: 14 }}>
+          플레이스 화면을 캡쳐해서 올리면
+          매장 정보를 자동으로 입력해드려요.
         </p>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
-          <input
-            value={placeUrl}
-            onChange={e => {
-              setPlaceUrl(e.target.value)
-              if (placeFetchResult) setPlaceFetchResult(null)
-            }}
-            placeholder="https://map.naver.com/..."
-            disabled={placeFetching}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              padding: '9px 12px',
-              border: '0.5px solid #e8e5de',
-              borderRadius: 10,
-              fontSize: 13,
-              background: '#ffffff',
-              boxSizing: 'border-box',
-              fontFamily: 'inherit',
-            }}
-          />
-          <button
-            type="button"
-            onClick={handleFetchPlace}
-            disabled={placeFetching || !placeUrl.trim()}
-            style={{
-              flexShrink: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 6,
-              background: BRAND_ORANGE,
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: 10,
-              padding: '9px 14px',
-              fontSize: 13,
-              fontWeight: 600,
-              cursor: placeFetching || !placeUrl.trim() ? 'not-allowed' : 'pointer',
-              opacity: placeFetching || !placeUrl.trim() ? 0.65 : 1,
-              fontFamily: 'inherit',
-            }}
-          >
-            {placeFetching && (
+
+        <div style={{
+          border: '1px dashed #F97316',
+          borderRadius: 14,
+          background: '#fff7ed',
+          padding: 20,
+          textAlign: 'center',
+        }}>
+          {isPlaceLoading ? (
+            <>
               <span
                 aria-hidden
                 style={{
                   display: 'inline-block',
-                  width: 12,
-                  height: 12,
-                  border: '2px solid rgba(255,255,255,0.35)',
-                  borderTopColor: '#ffffff',
+                  width: 28,
+                  height: 28,
+                  border: '3px solid rgba(249,115,22,0.25)',
+                  borderTopColor: BRAND_ORANGE,
                   borderRadius: '50%',
                   animation: 'naverPlaceSpin 0.7s linear infinite',
+                  marginBottom: 12,
                 }}
               />
-            )}
-            {placeFetching ? '정보 분석 중...' : '가져오기'}
-          </button>
+              <p style={{ fontSize: 14, fontWeight: 500, color: '#2b2b2b', margin: '0 0 4px' }}>
+                정보 분석 중...
+              </p>
+              {selectedPlaceImage && (
+                <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>
+                  {selectedPlaceImage.name}
+                </p>
+              )}
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 32, marginBottom: 8 }}>📸</div>
+              <p style={{ fontSize: 14, fontWeight: 500, color: '#2b2b2b', margin: '0 0 4px' }}>
+                네이버 플레이스 화면 올리기
+              </p>
+              <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 14px', lineHeight: 1.4 }}>
+                매장명 · 주소 · 전화번호 · 영업시간 자동 분석
+              </p>
+              <button
+                type="button"
+                onClick={() => placeImageInputRef.current?.click()}
+                style={{
+                  background: BRAND_ORANGE,
+                  color: '#ffffff',
+                  border: 'none',
+                  borderRadius: 10,
+                  padding: '10px 18px',
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                이미지 선택
+              </button>
+            </>
+          )}
         </div>
-        {placeFetchResult === 'success' && (
+
+        <p style={{ fontSize: 11, color: '#9ca3af', marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
+          ※ AI가 화면을 분석합니다.
+          일부 정보는 직접 수정이 필요할 수 있어요.
+        </p>
+
+        {placeImportStatus === 'success' && (
           <p style={{ fontSize: 12, color: '#1f5d3a', marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
             매장 정보를 가져왔어요.
             아래 내용을 확인하고 저장하세요.
           </p>
         )}
-        {placeFetchResult === 'partial' && (
+        {placeImportStatus === 'partial' && (
           <p style={{ fontSize: 12, color: BRAND_ORANGE, marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
             일부 정보를 가져왔어요.
             비어있는 항목은 직접 입력해주세요.
           </p>
         )}
-        {placeFetchResult === 'failed' && (
+        {placeImportStatus === 'failed' && (
           <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
-            정보를 가져오지 못했어요.
-            URL을 확인하거나 아래 항목을 직접 입력해주세요.
+            정보를 분석하지 못했어요.
+            다른 이미지를 시도하거나 아래 항목을 직접 입력해주세요.
           </p>
         )}
       </div>
