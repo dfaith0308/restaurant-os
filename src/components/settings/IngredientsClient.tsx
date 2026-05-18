@@ -73,6 +73,12 @@ function findCanonicalIngredient(
   return ingredients.find((row) => isLikelySameIngredient(row.name, ocrName))
 }
 
+function sanitizeOcrUnitInput(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed || trimmed.length > 20) return null
+  return trimmed
+}
+
 function todayDateString(): string {
   const now = new Date()
   const y = now.getFullYear()
@@ -365,6 +371,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     linkedCount: number
   } | null>(null)
   const [bulkRegisterError, setBulkRegisterError] = useState<string | null>(null)
+  const [bulkRegistering, setBulkRegistering] = useState(false)
 
   const categories = useMemo(() => {
     const set = new Set<string>()
@@ -438,6 +445,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     setDuplicateInvoiceWarning(false)
     setBulkRegisterSummary(null)
     setBulkRegisterError(null)
+    setBulkRegistering(false)
   }
 
   function resetForm() {
@@ -471,7 +479,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
           return { ...row, name: value, priceAction: undefined }
         }
         if (field === 'unit') {
-          return { ...row, unit: value.trim() || null }
+          return { ...row, unit: sanitizeOcrUnitInput(value) }
         }
         if (field === 'quantity') {
           const n = parseFloat(value.replace(/,/g, ''))
@@ -557,7 +565,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     setOcrIngredients(
       result.items.map((item, idx) => ({
         ...item,
-        rowKey: `ocr_${Date.now()}_${idx}`,
+        rowKey: `ocr_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 7)}`,
         effectiveFrom: effDefault,
         priceAction: undefined,
       })),
@@ -566,6 +574,8 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
   }
 
   function handleBulkRegister() {
+    if (bulkRegistering || isPending) return
+
     const rows = ocrIngredients
       .filter((row) => row.name.trim().length > 0)
       .map((row) => {
@@ -583,7 +593,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
         }
         return {
           name: row.name.trim(),
-          unit: row.unit?.trim() || '개',
+          unit: row.unit ?? '',
           price: row.price,
           memo:
             row.quantity != null
@@ -595,6 +605,10 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
       })
 
     if (rows.length === 0) return
+
+    setBulkRegistering(true)
+    setBulkRegisterError(null)
+    setBulkRegisterSummary(null)
 
     let newCount = 0
     let linkedCount = 0
@@ -610,33 +624,37 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     )
 
     startTr(async () => {
-      const res = await registerInvoiceIngredients(rows)
-      if (!res.success || !res.data) {
-        setBulkRegisterError('등록에 실패했어요. 다시 시도해주세요.')
-        return
-      }
-      const { successCount, created, updated } = res.data
-      if (created.length > 0 || updated.length > 0) {
-        setList((prev) => {
-          const byId = new Map(prev.map((i) => [i.id, i]))
-          for (const u of updated) byId.set(u.id, u)
-          const merged = [...byId.values()]
-          for (const c of created) {
-            if (!byId.has(c.id)) merged.push(c)
-          }
-          return merged
+      try {
+        const res = await registerInvoiceIngredients(rows)
+        if (!res.success || !res.data) {
+          setBulkRegisterError('등록에 실패했어요. 다시 시도해주세요.')
+          return
+        }
+        const { successCount, created, updated } = res.data
+        if (created.length > 0 || updated.length > 0) {
+          setList((prev) => {
+            const byId = new Map(prev.map((i) => [i.id, i]))
+            for (const u of updated) byId.set(u.id, u)
+            const merged = [...byId.values()]
+            for (const c of created) {
+              if (!byId.has(c.id)) merged.push(c)
+            }
+            return merged
+          })
+        }
+        if (successCount > 0 && fingerprint) {
+          saveInvoiceFingerprint(fingerprint)
+        }
+        setBulkRegisterSummary({
+          total: successCount,
+          newCount,
+          linkedCount,
         })
-      }
-      if (successCount > 0 && fingerprint) {
-        saveInvoiceFingerprint(fingerprint)
-      }
-      setBulkRegisterSummary({
-        total: successCount,
-        newCount,
-        linkedCount,
-      })
-      if (successCount > 0) {
-        setTimeout(() => closeRegistration(), 2000)
+        if (successCount > 0) {
+          setTimeout(() => closeRegistration(), 2000)
+        }
+      } finally {
+        setBulkRegistering(false)
       }
     })
   }
@@ -1245,6 +1263,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                     type="button"
                     onClick={handleBulkRegister}
                     disabled={
+                      bulkRegistering ||
                       isPending ||
                       pendingPriceChoices ||
                       ocrIngredients.every((r) => !r.name.trim())
@@ -1259,12 +1278,15 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                       borderRadius: 10,
                       fontSize: 14,
                       fontWeight: 600,
-                      cursor: isPending ? 'not-allowed' : 'pointer',
+                      cursor:
+                        bulkRegistering || isPending ? 'not-allowed' : 'pointer',
                       fontFamily: 'inherit',
-                      opacity: isPending ? 0.65 : 1,
+                      opacity: bulkRegistering || isPending ? 0.6 : 1,
                     }}
                   >
-                    {isPending ? '등록 중...' : '식자재 한번에 등록'}
+                    {bulkRegistering || isPending
+                      ? '등록 중...'
+                      : '식자재 한번에 등록'}
                   </button>
                   {bulkRegisterError && (
                     <p style={{ fontSize: 13, color: '#b45309', textAlign: 'center', marginTop: 10, fontWeight: 500 }}>

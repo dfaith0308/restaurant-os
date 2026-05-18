@@ -86,20 +86,84 @@ function isValidEffectiveDate(value: string): boolean {
   )
 }
 
+const UNIT_ALIASES: Record<string, string> = {
+  kilogram: 'kg',
+  kilograms: 'kg',
+  박스: 'box',
+  개: 'ea',
+}
+
+function normalizeIngredientUnit(unit: string): string {
+  const base = unit.trim().toLowerCase()
+  if (!base) return ''
+  return UNIT_ALIASES[base] ?? base
+}
+
+function sanitizeIngredientUnitInput(unit: string | null | undefined): string | null {
+  if (unit == null) return null
+  const trimmed = unit.trim()
+  if (!trimmed || trimmed.length > 20) return null
+  const normalized = normalizeIngredientUnit(trimmed)
+  return normalized || null
+}
+
+function resolveIngredientUnit(unit: string | null | undefined): string {
+  return sanitizeIngredientUnitInput(unit) ?? '개'
+}
+
+function unitsAreEquivalent(a: string, b: string): boolean {
+  return normalizeIngredientUnit(a) === normalizeIngredientUnit(b)
+}
+
+// 식자재 가격/unit은 overwrite보다 append-only history 보존이 우선이다.
+// 과거 운영 데이터 보호 목적.
 async function insertIngredientPriceHistory(
   supabase: Awaited<ReturnType<typeof createServerClient>>,
   tenant_id: string,
   ingredient_id: string,
   price: number,
   effective_from: string,
-): Promise<boolean> {
-  const { error } = await supabase.from('ingredient_price_history').insert({
+): Promise<void> {
+  await supabase.from('ingredient_price_history').insert({
     tenant_id,
     ingredient_id,
     price,
     effective_from,
   })
-  return !error
+}
+
+async function insertIngredientUnitHistory(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  tenant_id: string,
+  ingredient_id: string,
+  unit: string,
+  effective_from: string,
+): Promise<void> {
+  const resolved = resolveIngredientUnit(unit)
+  await supabase.from('ingredient_unit_history').insert({
+    tenant_id,
+    ingredient_id,
+    unit: resolved,
+    effective_from,
+  })
+}
+
+async function appendUnitHistoryIfChanged(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  tenant_id: string,
+  ingredient_id: string,
+  previousUnit: string,
+  nextUnit: string,
+  effective_from: string,
+): Promise<void> {
+  if (unitsAreEquivalent(previousUnit, nextUnit)) return
+  await insertIngredientUnitHistory(
+    supabase,
+    tenant_id,
+    ingredient_id,
+    nextUnit,
+    effective_from,
+  )
 }
 
 // 메뉴 원가는 현재 가격이 아니라
@@ -175,9 +239,8 @@ export async function createIngredient(input: {
   if (!tenant_id) return { success: false, error: '인증 필요' }
 
   const name = (input.name ?? '').trim()
-  const unit = (input.unit ?? '').trim()
+  const unit = resolveIngredientUnit(input.unit)
   if (!name) return { success: false, error: '식자재명은 필수입니다.' }
-  if (!unit) return { success: false, error: '단위는 필수입니다.' }
 
   const current_price = input.current_price ?? null
   const effective_from =
@@ -212,6 +275,13 @@ export async function createIngredient(input: {
       effective_from,
     )
   }
+  await insertIngredientUnitHistory(
+    supabase,
+    tenant_id,
+    data.id,
+    unit,
+    effective_from,
+  )
 
   revalidatePath('/settings/ingredients')
   revalidatePath('/today')
@@ -235,9 +305,18 @@ export async function updateIngredient(
   if (!tenant_id) return { success: false, error: '인증 필요' }
 
   const name = (input.name ?? '').trim()
-  const unit = (input.unit ?? '').trim()
+  const unit = resolveIngredientUnit(input.unit)
   if (!name) return { success: false, error: '식자재명은 필수입니다.' }
-  if (!unit) return { success: false, error: '단위는 필수입니다.' }
+
+  const { data: currentRow } = await supabase
+    .from('ingredients')
+    .select('unit')
+    .eq('id', id)
+    .eq('tenant_id', tenant_id)
+    .maybeSingle()
+
+  const previousUnit = currentRow?.unit ?? ''
+  const effective_from = todayDateString()
 
   const patch: Record<string, unknown> = {
     name,
@@ -259,6 +338,15 @@ export async function updateIngredient(
     .eq('tenant_id', tenant_id)
 
   if (error) return { success: false, error: error.message }
+
+  await appendUnitHistoryIfChanged(
+    supabase,
+    tenant_id,
+    id,
+    previousUnit,
+    unit,
+    effective_from,
+  )
 
   revalidatePath('/settings/ingredients')
   revalidatePath('/today')
@@ -288,7 +376,7 @@ export async function createIngredientsBatch(
 
   for (const input of inputs) {
     const name = (input.name ?? '').trim()
-    const unit = (input.unit ?? '').trim() || '개'
+    const unit = resolveIngredientUnit(input.unit)
     if (!name) continue
 
     const current_price = input.current_price ?? null
@@ -323,6 +411,13 @@ export async function createIngredientsBatch(
           effective_from,
         )
       }
+      await insertIngredientUnitHistory(
+        supabase,
+        tenant_id,
+        data.id,
+        unit,
+        effective_from,
+      )
       successCount += 1
       created.push(data as IngredientRow)
     }
@@ -376,7 +471,7 @@ export async function registerInvoiceIngredients(
 
   for (const row of rows) {
     const name = (row.name ?? '').trim()
-    const unit = (row.unit ?? '').trim() || '개'
+    const unit = resolveIngredientUnit(row.unit)
     if (!name) continue
 
     const effective_from = isValidEffectiveDate(row.effective_from)
@@ -411,6 +506,13 @@ export async function registerInvoiceIngredients(
             effective_from,
           )
         }
+        await insertIngredientUnitHistory(
+          supabase,
+          tenant_id,
+          ing.id,
+          unit,
+          effective_from,
+        )
         ingredientPool.push(ing)
         created.push(ing)
         successCount += 1
@@ -418,18 +520,53 @@ export async function registerInvoiceIngredients(
       continue
     }
 
+    const unitChanged = !unitsAreEquivalent(existing.unit, unit)
+
     if (row.mode === 'keep') {
+      if (unitChanged) {
+        const { data, error } = await supabase
+          .from('ingredients')
+          .update({
+            unit,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', existing.id)
+          .eq('tenant_id', tenant_id)
+          .select(INGREDIENT_SELECT)
+          .single()
+
+        if (!error && data) {
+          await appendUnitHistoryIfChanged(
+            supabase,
+            tenant_id,
+            existing.id,
+            existing.unit,
+            unit,
+            effective_from,
+          )
+          const ing = data as IngredientRow
+          const poolIdx = ingredientPool.findIndex((r) => r.id === existing.id)
+          if (poolIdx >= 0) {
+            ingredientPool[poolIdx] = ing
+          }
+        }
+      }
       successCount += 1
       continue
     }
 
     if (row.mode === 'apply' && row.price != null && row.price > 0) {
+      const patch: Record<string, unknown> = {
+        current_price: row.price,
+        updated_at: new Date().toISOString(),
+      }
+      if (unitChanged) {
+        patch.unit = unit
+      }
+
       const { data, error } = await supabase
         .from('ingredients')
-        .update({
-          current_price: row.price,
-          updated_at: new Date().toISOString(),
-        })
+        .update(patch)
         .eq('id', existing.id)
         .eq('tenant_id', tenant_id)
         .select(INGREDIENT_SELECT)
@@ -443,6 +580,16 @@ export async function registerInvoiceIngredients(
           row.price,
           effective_from,
         )
+        if (unitChanged) {
+          await appendUnitHistoryIfChanged(
+            supabase,
+            tenant_id,
+            existing.id,
+            existing.unit,
+            unit,
+            effective_from,
+          )
+        }
         const ing = data as IngredientRow
         const poolIdx = ingredientPool.findIndex((r) => r.id === existing.id)
         if (poolIdx >= 0) {
