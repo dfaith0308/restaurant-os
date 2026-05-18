@@ -1,6 +1,6 @@
 'use server'
 
-// 거래명세서 화면 → Vision OCR → 날짜 + 다량 식자재 추출
+// 거래명세서 화면 → Vision OCR → 날짜·공급업체·다량 식자재 추출
 
 export type InvoiceIngredient = {
   name: string
@@ -9,8 +9,16 @@ export type InvoiceIngredient = {
   price: number | null
 }
 
+export type InvoiceSupplier = {
+  supplier_name: string | null
+  phone: string | null
+  business_number: string | null
+  address: string | null
+}
+
 export type InvoiceOcrResult = {
   invoice_date: string | null
+  supplier: InvoiceSupplier | null
   items: InvoiceIngredient[]
 }
 
@@ -19,10 +27,14 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024
 const SYSTEM_PROMPT = `당신은 한국 식자재 거래명세서 분석 AI입니다.
 
 사용자가 업로드한 거래명세서 이미지를 보고
-거래명세서 날짜와 식자재 목록을 추출하세요.
+거래명세서 날짜, 공급업체 정보, 식자재 목록을 추출하세요.
 
 추출 대상:
 - 거래명세서 날짜
+- 공급업체명
+- 전화번호
+- 사업자번호
+- 주소
 - 식자재명
 - 수량
 - 단위
@@ -34,7 +46,9 @@ YYYY-MM-DD
 주의:
 - 보이는 것만 추출
 - 추측 금지
+- 없으면 null
 - 날짜가 없으면 invoice_date는 null
+- 공급업체 정보가 없으면 supplier는 null
 - 여러 품목 가능
 - JSON 외 다른 텍스트 금지
 
@@ -42,6 +56,12 @@ YYYY-MM-DD
 
 {
   "invoice_date": "2026-05-18",
+  "supplier": {
+    "supplier_name": "대한유통",
+    "phone": "02-1234-5678",
+    "business_number": "123-45-67890",
+    "address": "서울시 강남구 ..."
+  },
   "items": [
     {
       "name": "양파",
@@ -77,6 +97,12 @@ function parsePositiveNumber(value: unknown): number | null {
   return Number.isFinite(n) && n > 0 ? n : null
 }
 
+function parseOptionalString(value: unknown): string | null {
+  if (value == null) return null
+  const s = String(value).trim()
+  return s || null
+}
+
 function parseInvoiceDate(value: unknown): string | null {
   if (value == null) return null
   const s = String(value).trim()
@@ -91,6 +117,26 @@ function parseInvoiceDate(value: unknown): string | null {
     return null
   }
   return s
+}
+
+function parseSupplier(raw: unknown): InvoiceSupplier | null {
+  if (!raw || typeof raw !== 'object') return null
+  const row = raw as Record<string, unknown>
+  const supplier: InvoiceSupplier = {
+    supplier_name: parseOptionalString(row.supplier_name),
+    phone: parseOptionalString(row.phone),
+    business_number: parseOptionalString(row.business_number),
+    address: parseOptionalString(row.address),
+  }
+  if (
+    !supplier.supplier_name &&
+    !supplier.phone &&
+    !supplier.business_number &&
+    !supplier.address
+  ) {
+    return null
+  }
+  return supplier
 }
 
 function parseItemsArray(raw: unknown): InvoiceIngredient[] | null {
@@ -120,6 +166,7 @@ function parseInvoiceObject(text: string): InvoiceOcrResult | null {
     if (!items) return null
     return {
       invoice_date: parseInvoiceDate(raw.invoice_date),
+      supplier: parseSupplier(raw.supplier),
       items,
     }
   } catch {
@@ -134,7 +181,7 @@ function parseLegacyArray(text: string): InvoiceOcrResult | null {
     const raw = JSON.parse(match[0]) as unknown
     const items = parseItemsArray(raw)
     if (!items) return null
-    return { invoice_date: null, items }
+    return { invoice_date: null, supplier: null, items }
   } catch {
     return null
   }
@@ -165,7 +212,7 @@ export async function analyzeInvoiceImage(
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       temperature: 0.1,
-      max_tokens: 600,
+      max_tokens: 750,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         {
@@ -177,7 +224,7 @@ export async function analyzeInvoiceImage(
             },
             {
               type: 'text',
-              text: '첨부한 거래명세서 이미지에서 거래 날짜와 식자재 목록을 추출해 주세요.',
+              text: '첨부한 거래명세서 이미지에서 거래 날짜, 공급업체 정보, 식자재 목록을 추출해 주세요.',
             },
           ],
         },

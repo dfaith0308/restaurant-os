@@ -6,10 +6,11 @@ import {
   updateIngredient,
   deactivateIngredient,
   registerInvoiceIngredients,
+  upsertInvoiceSupplierFromOcr,
 } from '@/actions/ingredients'
 import { formatKRW, toKoreanAmount } from '@/lib/utils'
 import { analyzeInvoiceImage } from '@/lib/invoice-ocr'
-import type { InvoiceIngredient } from '@/lib/invoice-ocr'
+import type { InvoiceIngredient, InvoiceSupplier } from '@/lib/invoice-ocr'
 import Link from 'next/link'
 import IngredientBarcodeSection from '@/components/product/IngredientBarcodeSection'
 import type { IngredientBarcodeApplyHints } from '@/components/product/IngredientBarcodeSection'
@@ -241,6 +242,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
   const [invoiceAnalyzeStatus, setInvoiceAnalyzeStatus] =
     useState<InvoiceAnalyzeStatus>('idle')
   const [invoiceDate, setInvoiceDate] = useState<string | null>(null)
+  const [invoiceSupplier, setInvoiceSupplier] = useState<InvoiceSupplier | null>(null)
   const [ocrIngredients, setOcrIngredients] = useState<OcrIngredientRow[]>([])
   const [bulkRegisterMessage, setBulkRegisterMessage] = useState<string | null>(null)
 
@@ -302,6 +304,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     setInvoiceImage(null)
     setInvoiceAnalyzeStatus('idle')
     setInvoiceDate(null)
+    setInvoiceSupplier(null)
     setOcrIngredients([])
     setBulkRegisterMessage(null)
   }
@@ -380,6 +383,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     setInvoiceImage(file)
     setInvoiceAnalyzeStatus('loading')
     setInvoiceDate(null)
+    setInvoiceSupplier(null)
     setOcrIngredients([])
     setBulkRegisterMessage(null)
 
@@ -390,6 +394,10 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     }
     const effDefault = defaultEffectiveFrom(result.invoice_date)
     setInvoiceDate(result.invoice_date)
+    setInvoiceSupplier(result.supplier)
+    if (result.supplier) {
+      void upsertInvoiceSupplierFromOcr(result.supplier)
+    }
     setOcrIngredients(
       result.items.map((item, idx) => ({
         ...item,
@@ -810,6 +818,12 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                       {defaultEffectiveFrom(invoiceDate)}
                     </span>
                   </p>
+                  {invoiceSupplier?.supplier_name && (
+                    <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 10px', lineHeight: 1.5 }}>
+                      공급업체: {invoiceSupplier.supplier_name}
+                      {invoiceSupplier.phone ? ` · ${invoiceSupplier.phone}` : ''}
+                    </p>
+                  )}
                   <p style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', margin: '0 0 10px' }}>
                     추출된 식자재 {ocrIngredients.length}개
                   </p>

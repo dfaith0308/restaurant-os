@@ -424,6 +424,80 @@ export async function registerInvoiceIngredients(
   return { success: true, data: { successCount, created, updated } }
 }
 
+export type InvoiceSupplierOcrInput = {
+  supplier_name: string | null
+  phone: string | null
+  business_number: string | null
+  address: string | null
+}
+
+function normalizeSupplierName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .replace(/\(주\)|주식회사/g, '')
+    .replace(/[\s()[\]{}·.,\-_/\\|"'`~!@#$%^&*+=?:;<>]/g, '')
+}
+
+export async function upsertInvoiceSupplierFromOcr(
+  supplier: InvoiceSupplierOcrInput | null,
+): Promise<void> {
+  const supplierName = supplier?.supplier_name?.trim()
+  if (!supplier || !supplierName) return
+
+  const supabase = await createServerClient()
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id) return
+
+  const normalized_name = normalizeSupplierName(supplierName)
+  if (!normalized_name) return
+
+  const now = new Date().toISOString()
+  const phone = supplier.phone?.trim() || null
+  const business_number = supplier.business_number?.trim() || null
+  const address = supplier.address?.trim() || null
+
+  const { data: existing, error: loadError } = await supabase
+    .from('invoice_suppliers')
+    .select('id, supplier_name, phone, business_number, address, bank_info')
+    .eq('tenant_id', tenant_id)
+    .eq('normalized_name', normalized_name)
+    .maybeSingle()
+
+  if (loadError) return
+
+  if (!existing) {
+    await supabase.from('invoice_suppliers').insert({
+      tenant_id,
+      normalized_name,
+      supplier_name: supplierName,
+      phone,
+      business_number,
+      address,
+      bank_info: null,
+      first_seen_at: now,
+      last_seen_at: now,
+    })
+    return
+  }
+
+  const patch: Record<string, string> = {
+    last_seen_at: now,
+  }
+  if (!existing.supplier_name?.trim()) patch.supplier_name = supplierName
+  if (!existing.phone?.trim() && phone) patch.phone = phone
+  if (!existing.business_number?.trim() && business_number) {
+    patch.business_number = business_number
+  }
+  if (!existing.address?.trim() && address) patch.address = address
+
+  await supabase
+    .from('invoice_suppliers')
+    .update(patch)
+    .eq('id', existing.id)
+    .eq('tenant_id', tenant_id)
+}
+
 export async function deactivateIngredient(id: string): Promise<ActionResult> {
   const supabase = await createServerClient()
   const tenant_id = await getTenantId().catch(() => null)
