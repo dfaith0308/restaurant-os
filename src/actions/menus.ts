@@ -6,10 +6,27 @@ import { getTenantId } from '@/lib/get-restaurant'
 import {
   getIngredientPriceAtDate,
   getIngredientPriceRiskMap,
+  getIngredientsOperationData,
   type IngredientPriceRisk,
   type IngredientPriceRiskLevel,
+  type OcrActivityEntry,
 } from '@/actions/ingredients'
 import type { ActionResult } from '@/types'
+
+type ServerSupabase = Awaited<ReturnType<typeof createServerClient>>
+
+type MenuTableRow = {
+  id: string
+  tenant_id: string
+  name: string
+  price: number | null
+  category: string | null
+  memo: string | null
+  is_representative: boolean
+  is_active: boolean
+  created_at: string
+  updated_at: string | null
+}
 
 export interface MenuIngredientRow {
   id: string
@@ -43,17 +60,35 @@ export interface MenuWithCost {
   ingredients: MenuIngredientRow[]
   calculated_cost: number
   margin_rate: number | null
+  expected_margin_amount: number | null
+  margin_risk_level: MenuCostRiskLevel
+  operation_risk_level: MenuCostRiskLevel
   cost_risk_level: MenuCostRiskLevel
   cost_direction_label: string | null
   cost_change_percent: number | null
   impacting_ingredients: MenuIngredientImpact[]
 }
 
-const MENU_RISK_DEFAULTS = {
-  cost_risk_level: 'normal' as const,
-  cost_direction_label: null,
-  cost_change_percent: null,
-  impacting_ingredients: [] as MenuIngredientImpact[],
+function computeMarginRiskLevel(marginRate: number | null): MenuCostRiskLevel {
+  if (marginRate == null || !Number.isFinite(marginRate)) return 'normal'
+  if (marginRate < 40) return 'danger'
+  if (marginRate < 55) return 'warning'
+  return 'normal'
+}
+
+function mergeOperationRiskLevel(
+  cost: MenuCostRiskLevel,
+  margin: MenuCostRiskLevel,
+): MenuCostRiskLevel {
+  if (cost === 'danger' || margin === 'danger') return 'danger'
+  if (cost === 'warning' || margin === 'warning') return 'warning'
+  return 'normal'
+}
+
+function computeExpectedMarginAmount(price: number, cost: number): number | null {
+  if (!Number.isFinite(price) || price <= 0) return null
+  if (!Number.isFinite(cost) || cost < 0) return null
+  return Math.round(price - cost)
 }
 
 function subtractDaysFromDate(dateStr: string, days: number): string {
@@ -134,7 +169,7 @@ const RISK_SORT_ORDER: Record<MenuCostRiskLevel, number> = {
 function sortMenusByOperationRisk(menus: MenuWithCost[]): MenuWithCost[] {
   return [...menus].sort((a, b) => {
     const riskDiff =
-      RISK_SORT_ORDER[a.cost_risk_level] - RISK_SORT_ORDER[b.cost_risk_level]
+      RISK_SORT_ORDER[a.operation_risk_level] - RISK_SORT_ORDER[b.operation_risk_level]
     if (riskDiff !== 0) return riskDiff
     const ua = a.updated_at ?? a.created_at
     const ub = b.updated_at ?? b.created_at
@@ -247,7 +282,12 @@ async function buildMenuIngredientsWithPrices(
   return byMenu
 }
 
-async function assertRepresentativeLimit(supabase: any, tenant_id: string, nextIsRepresentative: boolean, excludingMenuId?: string) {
+async function assertRepresentativeLimit(
+  supabase: ServerSupabase,
+  tenant_id: string,
+  nextIsRepresentative: boolean,
+  excludingMenuId?: string,
+) {
   if (!nextIsRepresentative) return
 
   const q = supabase
@@ -280,7 +320,7 @@ export async function getMenus(): Promise<ActionResult<MenuWithCost[]>> {
     .order('created_at', { ascending: false })
 
   if (menusErr) return { success: false, error: menusErr.message, data: [] }
-  const menus = (menusRaw ?? []) as any[]
+  const menus = (menusRaw ?? []) as MenuTableRow[]
   const ids = menus.map((m) => m.id).filter(Boolean)
   if (ids.length === 0) return { success: true, data: [] }
 
@@ -310,6 +350,10 @@ export async function getMenus(): Promise<ActionResult<MenuWithCost[]>> {
     const ingredients = byMenuToday.get(m.id) ?? []
     const calculated_cost = computeCost(ingredients)
     const margin_rate = computeMarginRate(m.price ?? 0, calculated_cost)
+    const expected_margin_amount = computeExpectedMarginAmount(m.price ?? 0, calculated_cost)
+    const margin_risk_level = computeMarginRiskLevel(margin_rate)
+    const cost_risk_level = computeMenuCostRiskLevel(ingredients, riskMap)
+    const operation_risk_level = mergeOperationRiskLevel(cost_risk_level, margin_risk_level)
     const costPast = computeCost(byMenuPast.get(m.id) ?? [])
     const direction = computeMenuCostDirection(calculated_cost, costPast)
 
@@ -327,7 +371,10 @@ export async function getMenus(): Promise<ActionResult<MenuWithCost[]>> {
       ingredients,
       calculated_cost,
       margin_rate,
-      cost_risk_level: computeMenuCostRiskLevel(ingredients, riskMap),
+      expected_margin_amount,
+      margin_risk_level,
+      operation_risk_level,
+      cost_risk_level,
       cost_direction_label: direction.label,
       cost_change_percent: direction.percent,
       impacting_ingredients: buildImpactingIngredients(ingredients, riskMap),
@@ -351,7 +398,7 @@ export async function getInactiveMenus(): Promise<ActionResult<MenuWithCost[]>> 
     .order('created_at', { ascending: false })
 
   if (menusErr) return { success: false, error: menusErr.message, data: [] }
-  const menus = (menusRaw ?? []) as any[]
+  const menus = (menusRaw ?? []) as MenuTableRow[]
   const ids = menus.map((m) => m.id).filter(Boolean)
   if (ids.length === 0) return { success: true, data: [] }
 
@@ -374,6 +421,8 @@ export async function getInactiveMenus(): Promise<ActionResult<MenuWithCost[]>> 
     const ingredients = byMenu.get(m.id) ?? []
     const calculated_cost = computeCost(ingredients)
     const margin_rate = computeMarginRate(m.price ?? 0, calculated_cost)
+    const expected_margin_amount = computeExpectedMarginAmount(m.price ?? 0, calculated_cost)
+    const margin_risk_level = computeMarginRiskLevel(margin_rate)
     return {
       id: m.id,
       tenant_id: m.tenant_id,
@@ -388,11 +437,99 @@ export async function getInactiveMenus(): Promise<ActionResult<MenuWithCost[]>> 
       ingredients,
       calculated_cost,
       margin_rate,
-      ...MENU_RISK_DEFAULTS,
+      expected_margin_amount,
+      margin_risk_level,
+      operation_risk_level: mergeOperationRiskLevel('normal', margin_risk_level),
+      cost_risk_level: 'normal',
+      cost_direction_label: null,
+      cost_change_percent: null,
+      impacting_ingredients: [],
     }
   })
 
   return { success: true, data: result }
+}
+
+export type TodayHubMenuSnapshot = {
+  id: string
+  name: string
+  operation_risk_level: MenuCostRiskLevel
+}
+
+export type TodayOperationHubData = {
+  risk_menu_count: number
+  spike_ingredient_count: number
+  ocr_recent_count: number
+  avg_margin_rate: number | null
+  top_risk_menus: TodayHubMenuSnapshot[]
+  top_spike_ingredients: Array<{
+    ingredient_id: string
+    name: string
+    change_percent: number
+  }>
+  recent_ocr: OcrActivityEntry[]
+}
+
+export async function getTodayOperationHubData(): Promise<
+  ActionResult<TodayOperationHubData>
+> {
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id) {
+    return { success: false, error: '인증 필요', data: undefined }
+  }
+
+  const [menusRes, opRes] = await Promise.all([
+    getMenus(),
+    getIngredientsOperationData(),
+  ])
+
+  if (!menusRes.success) {
+    return {
+      success: false,
+      error: menusRes.error ?? '메뉴 조회 실패',
+      data: undefined,
+    }
+  }
+
+  const menus = menusRes.data ?? []
+  const op = opRes.success && opRes.data ? opRes.data : null
+
+  const risk_menu_count = menus.filter(
+    (m) => m.operation_risk_level !== 'normal',
+  ).length
+  const spike_ingredient_count = op?.insights.spike_count ?? 0
+  const ocr_recent_count = op?.insights.ocr_last_7_days ?? 0
+
+  const margins = menus
+    .map((m) => m.margin_rate)
+    .filter((r): r is number => r != null && Number.isFinite(r))
+  const avg_margin_rate =
+    margins.length === 0
+      ? null
+      : Math.round(margins.reduce((a, b) => a + b, 0) / margins.length)
+
+  const top_risk_menus = sortMenusByOperationRisk(
+    menus.filter((m) => m.operation_risk_level !== 'normal'),
+  )
+    .slice(0, 5)
+    .map((m) => ({
+      id: m.id,
+      name: m.name,
+      operation_risk_level: m.operation_risk_level,
+    }))
+
+  return {
+    success: true,
+    data: {
+      risk_menu_count,
+      spike_ingredient_count,
+      ocr_recent_count,
+      avg_margin_rate,
+      top_risk_menus,
+      top_spike_ingredients: op?.top_spike_ingredients ?? [],
+      recent_ocr: op?.recentOcrActivities ?? [],
+    },
+  }
 }
 
 export async function createMenu(input: {
@@ -414,8 +551,9 @@ export async function createMenu(input: {
 
   try {
     await assertRepresentativeLimit(supabase, tenant_id, isRep)
-  } catch (e: any) {
-    return { success: false, error: e?.message ?? '대표메뉴 제한 오류' }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : '대표메뉴 제한 오류'
+    return { success: false, error: msg }
   }
 
   const { data, error } = await supabase
@@ -460,8 +598,9 @@ export async function updateMenu(
 
   try {
     await assertRepresentativeLimit(supabase, tenant_id, isRep, id)
-  } catch (e: any) {
-    return { success: false, error: e?.message ?? '대표메뉴 제한 오류' }
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : '대표메뉴 제한 오류'
+    return { success: false, error: msg }
   }
 
   const { error } = await supabase

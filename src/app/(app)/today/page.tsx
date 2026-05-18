@@ -1,30 +1,59 @@
 import Link from 'next/link'
 import { getTodayDashboard } from '@/actions/today'
 import { getMoneyDashboard } from '@/actions/money'
+import { getTodayOperationHubData } from '@/actions/menus'
 import { formatKRW } from '@/lib/utils'
 import type { SavingOpportunity, TodayDashboard } from '@/types'
 import { getTenantId } from '@/lib/get-restaurant'
+import { TodayOperationInsights } from '@/components/today/TodayOperationInsights'
+import { TodayRiskSection } from '@/components/today/TodayRiskSection'
 
 export default async function TodayPage() {
   const tenant_id = await getTenantId()
 
-  const result = await getTodayDashboard(tenant_id).catch(() => ({
-    success: false as const,
-    data: undefined,
-  }))
+  const [result, money, hubRes] = await Promise.all([
+    getTodayDashboard(tenant_id).catch(() => ({
+      success: false as const,
+      data: undefined,
+    })),
+    getMoneyDashboard(tenant_id).catch(() => ({
+      success: false as const,
+      data: undefined,
+    })),
+    getTodayOperationHubData().catch(() => ({
+      success: false as const,
+      data: undefined,
+    })),
+  ])
 
   const d = result.data
-  const money = await getMoneyDashboard(tenant_id).catch(() => ({
-    success: false as const,
-    data: undefined,
-  }))
+  const hub = hubRes.success && hubRes.data ? hubRes.data : null
 
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
       <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 6px' }}>오늘운영</h1>
+      <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 6px' }}>
+        최근 공급가와 메뉴 원가 흐름 기준 운영 위험을 보여드려요.
+      </p>
       <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 16px' }}>
         오늘 해야 할 일을 3가지 이내로 정리해요
       </p>
+
+      {hub ? (
+        <>
+          <TodayOperationInsights
+            risk_menu_count={hub.risk_menu_count}
+            spike_ingredient_count={hub.spike_ingredient_count}
+            ocr_recent_count={hub.ocr_recent_count}
+            avg_margin_rate={hub.avg_margin_rate}
+          />
+          <TodayRiskSection
+            top_risk_menus={hub.top_risk_menus}
+            top_spike_ingredients={hub.top_spike_ingredients}
+            recent_ocr={hub.recent_ocr}
+          />
+        </>
+      ) : null}
 
       {!d ? (
         <div style={{ padding: 20, borderRadius: 12, border: '1px solid #e5e7eb', background: '#fff', color: '#6b7280' }}>

@@ -54,7 +54,8 @@ const MENU_RISK_SORT_ORDER: Record<MenuCostRiskLevel, number> = {
 function sortMenusByOperationRisk(menus: MenuWithCost[]): MenuWithCost[] {
   return [...menus].sort((a, b) => {
     const riskDiff =
-      MENU_RISK_SORT_ORDER[a.cost_risk_level] - MENU_RISK_SORT_ORDER[b.cost_risk_level]
+      MENU_RISK_SORT_ORDER[a.operation_risk_level] -
+      MENU_RISK_SORT_ORDER[b.operation_risk_level]
     if (riskDiff !== 0) return riskDiff
     const ua = a.updated_at ?? a.created_at
     const ub = b.updated_at ?? b.created_at
@@ -62,28 +63,64 @@ function sortMenusByOperationRisk(menus: MenuWithCost[]): MenuWithCost[] {
   })
 }
 
-function MenuCostRiskBadge({ level }: { level: MenuCostRiskLevel }) {
-  if (level === 'normal') return null
-  const isDanger = level === 'danger'
+function computeMarginRiskFromRate(rate: number | null): MenuCostRiskLevel {
+  if (rate == null || !Number.isFinite(rate)) return 'normal'
+  if (rate < 40) return 'danger'
+  if (rate < 55) return 'warning'
+  return 'normal'
+}
+
+function mergeMenuOperationRisk(
+  cost: MenuCostRiskLevel,
+  margin: MenuCostRiskLevel,
+): MenuCostRiskLevel {
+  if (cost === 'danger' || margin === 'danger') return 'danger'
+  if (cost === 'warning' || margin === 'warning') return 'warning'
+  return 'normal'
+}
+
+function marginStatColor(level: MenuCostRiskLevel): string {
+  if (level === 'danger') return '#dc2626'
+  if (level === 'warning') return '#F97316'
+  return '#1f5d3a'
+}
+
+function MenuUnifiedRiskBadge({
+  costLevel,
+  marginLevel,
+}: {
+  costLevel: MenuCostRiskLevel
+  marginLevel: MenuCostRiskLevel
+}) {
+  const lines: string[] = []
+  if (costLevel === 'danger') lines.push('원가 급등')
+  else if (costLevel === 'warning') lines.push('원가 상승')
+  if (marginLevel === 'danger') lines.push('마진 위험')
+  else if (marginLevel === 'warning') lines.push('마진 주의')
+  const merged = mergeMenuOperationRisk(costLevel, marginLevel)
+  if (merged === 'normal' || lines.length === 0) return null
+  const isDanger = merged === 'danger'
   return (
     <span
       style={{
         display: 'inline-flex',
         flexDirection: 'column',
-        alignItems: 'center',
-        gap: 1,
+        alignItems: 'flex-end',
+        gap: 2,
         background: isDanger ? '#fef2f2' : '#fff7ed',
         color: isDanger ? '#dc2626' : '#F97316',
         borderRadius: 999,
-        padding: '4px 10px',
+        padding: '5px 10px',
         fontSize: 10,
         fontWeight: 600,
         flexShrink: 0,
-        lineHeight: 1.2,
+        lineHeight: 1.25,
+        textAlign: 'right',
       }}
     >
-      <span>{isDanger ? '위험' : '주의'}</span>
-      <span style={{ fontSize: 9, fontWeight: 600 }}>{isDanger ? '원가 급등' : '원가 상승'}</span>
+      {lines.map((line) => (
+        <span key={line}>{line}</span>
+      ))}
     </span>
   )
 }
@@ -138,7 +175,18 @@ const costEstimateRowStyle = {
   color: '#6b7280',
 } as const
 
-function MenuMetricsHero(props: { grossProfit: string; marginRate: number | null }) {
+function formatMarginAmountKRW(price: number, cost: number): string {
+  const diff = Math.round(price - cost)
+  const abs = Math.abs(diff).toLocaleString('ko-KR')
+  if (diff < 0) return `-${abs}원`
+  return `${abs}원`
+}
+
+function MenuMetricsHero(props: {
+  marginAmountLabel: string
+  marginRate: number | null
+  toneColor: string
+}) {
   return (
     <div
       style={{
@@ -149,12 +197,14 @@ function MenuMetricsHero(props: { grossProfit: string; marginRate: number | null
       }}
     >
       <div>
-        <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>재료 제외 금액</div>
-        <div style={{ fontSize: 32, fontWeight: 500, color: '#1f5d3a', lineHeight: 1.1 }}>{props.grossProfit}</div>
+        <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>예상 마진액</div>
+        <div style={{ fontSize: 32, fontWeight: 500, color: props.toneColor, lineHeight: 1.1 }}>
+          {props.marginAmountLabel}
+        </div>
       </div>
       <div style={{ textAlign: 'right' }}>
-        <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>예상 마진</div>
-        <div style={{ fontSize: 20, fontWeight: 500, color: '#1f5d3a' }}>{pct(props.marginRate)}</div>
+        <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>예상 마진율</div>
+        <div style={{ fontSize: 20, fontWeight: 500, color: props.toneColor }}>마진율 {pct(props.marginRate)}</div>
       </div>
     </div>
   )
@@ -351,7 +401,7 @@ export default function MenusClient(props: {
   }, [menus, query, categoryFilter])
 
   const menuOperationInsights = useMemo(() => {
-    const atRiskMenuCount = menus.filter((m) => m.cost_risk_level !== 'normal').length
+    const atRiskMenuCount = menus.filter((m) => m.operation_risk_level !== 'normal').length
     let risingIngredientCount = 0
     if (operationData?.metaByIngredient) {
       for (const meta of Object.values(operationData.metaByIngredient)) {
@@ -1220,20 +1270,20 @@ export default function MenusClient(props: {
               <span style={{ fontSize: 16, fontWeight: 500, color: '#2b2b2b' }}>김치찌개</span>
               <span style={{ fontSize: 11, fontWeight: 600, background: '#edf7f1', color: '#1f5d3a', padding: '4px 10px', borderRadius: 999 }}>마진 우수</span>
             </div>
-                        <MenuMetricsHero grossProfit="+6,300원" marginRate={70} />
+                        <MenuMetricsHero marginAmountLabel="6,300원" marginRate={70} toneColor="#1f5d3a" />
             <MenuPriceCostRow price={9000} cost={2700} />
             <HiddenCostNotice />
 
           </div>
           <div className="menus-fade-up menus-anim-card2 menus-card-hover" style={{ background: '#ffffff', border: '0.5px solid #e8e5de', borderRadius: 16, padding: '16px 18px 12px', marginBottom: 10, opacity: 0.7 }}>
             <div style={{ fontSize: 15, fontWeight: 500, color: '#2b2b2b', marginBottom: 10 }}>제육볶음</div>
-                        <MenuMetricsHero grossProfit="+5,500원" marginRate={55} />
+                        <MenuMetricsHero marginAmountLabel="5,500원" marginRate={55} toneColor="#1f5d3a" />
             <MenuPriceCostRow price={10000} cost={4500} />
 
           </div>
           <div className="menus-fade-up menus-anim-card3" style={{ background: '#ffffff', border: '0.5px solid #e8e5de', borderRadius: 16, padding: '16px 18px 12px', opacity: 0.25, filter: 'blur(2px)', pointerEvents: 'none' }}>
             <div style={{ fontSize: 15, fontWeight: 500, color: '#2b2b2b', marginBottom: 10 }}>된장찌개</div>
-            <MenuMetricsHero grossProfit="+2,400원" marginRate={40} />
+            <MenuMetricsHero marginAmountLabel="2,400원" marginRate={40} toneColor="#F97316" />
             <MenuPriceCostRow price={8000} cost={5600} />
           </div>
         </>
@@ -1244,6 +1294,12 @@ export default function MenusClient(props: {
           const display = getMenuCardDisplay(m, directCostByMenuId)
           const badge = display.showMetrics ? marginBadge(display.marginRate) : null
           const isExpanded = expandedMenuId === m.id
+          const marginRiskDisplay = computeMarginRiskFromRate(display.marginRate)
+          const marginTone = marginStatColor(marginRiskDisplay)
+          const marginAmountLabel =
+            display.showMetrics && m.price != null && Number.isFinite(display.costForRow)
+              ? formatMarginAmountKRW(m.price ?? 0, display.costForRow)
+              : '-'
           return (
             <div key={m.id} style={{ marginBottom: 10 }}>
             <div
@@ -1279,7 +1335,10 @@ export default function MenusClient(props: {
                   ) : null}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                  <MenuCostRiskBadge level={m.cost_risk_level} />
+                  <MenuUnifiedRiskBadge
+                    costLevel={m.cost_risk_level}
+                    marginLevel={marginRiskDisplay}
+                  />
                   {badge ? (
                     <span style={{ fontSize: 11, fontWeight: 600, background: badge.bg, color: badge.color, padding: '4px 10px', borderRadius: 999 }}>{badge.label}</span>
                   ) : null}
@@ -1287,7 +1346,11 @@ export default function MenusClient(props: {
               </div>
               {display.showMetrics ? (
                 <>
-                  <MenuMetricsHero grossProfit={display.grossProfit} marginRate={display.marginRate} />
+                  <MenuMetricsHero
+                    marginAmountLabel={marginAmountLabel}
+                    marginRate={display.marginRate}
+                    toneColor={marginTone}
+                  />
                   <MenuPriceCostRow price={m.price ?? 0} cost={display.costForRow} />
                   <HiddenCostNotice />
                 </>

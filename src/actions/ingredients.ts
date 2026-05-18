@@ -404,6 +404,12 @@ export type IngredientsOperationInsights = {
   ocr_last_7_days: number
 }
 
+export type SpikeIngredientHubRow = {
+  ingredient_id: string
+  name: string
+  change_percent: number
+}
+
 export type IngredientsOperationData = {
   priceHistoryByIngredient: Record<string, IngredientPriceHistoryEntry[]>
   supplierComparisonByIngredient: Record<string, SupplierPriceComparisonEntry[]>
@@ -411,6 +417,7 @@ export type IngredientsOperationData = {
   invoiceSupplierNames: string[]
   recentOcrActivities: OcrActivityEntry[]
   insights: IngredientsOperationInsights
+  top_spike_ingredients: SpikeIngredientHubRow[]
 }
 
 export type IngredientPriceRiskLevel = 'normal' | 'warning' | 'danger'
@@ -700,6 +707,9 @@ export async function getIngredientsOperationData(): Promise<
   const supplierComparisonByIngredient: Record<string, SupplierPriceComparisonEntry[]> = {}
   const metaByIngredient: Record<string, IngredientOperationMeta> = {}
   let spike_count = 0
+  const nameByIngredientId = new Map(
+    (ingredients ?? []).map((row) => [row.id as string, String(row.name ?? '').trim() || '식자재']),
+  )
 
   for (const [ingredientId, histories] of Object.entries(fullHistoryByIngredient)) {
     priceHistoryByIngredient[ingredientId] = histories.slice(0, 5)
@@ -751,6 +761,24 @@ export async function getIngredientsOperationData(): Promise<
     .map((r) => (r.supplier_name as string | null)?.trim())
     .filter((name): name is string => !!name)
 
+  const spikeCandidates: SpikeIngredientHubRow[] = []
+  for (const [ingredientId, meta] of Object.entries(metaByIngredient)) {
+    if (
+      meta.price_change_percent == null ||
+      meta.price_change_percent <= 0 ||
+      meta.price_change_direction !== 'up'
+    ) {
+      continue
+    }
+    spikeCandidates.push({
+      ingredient_id: ingredientId,
+      name: nameByIngredientId.get(ingredientId) ?? '식자재',
+      change_percent: meta.price_change_percent,
+    })
+  }
+  spikeCandidates.sort((a, b) => b.change_percent - a.change_percent)
+  const top_spike_ingredients = spikeCandidates.slice(0, 5)
+
   return {
     success: true,
     data: {
@@ -764,6 +792,7 @@ export async function getIngredientsOperationData(): Promise<
         spike_count,
         ocr_last_7_days,
       },
+      top_spike_ingredients,
     },
   }
 }
