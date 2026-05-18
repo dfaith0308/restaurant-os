@@ -9,6 +9,7 @@ import {
   upsertInvoiceSupplierFromOcr,
   getIngredientsOperationData,
   type IngredientPriceHistoryEntry,
+  type IngredientOperationMeta,
   type IngredientsOperationData,
 } from '@/actions/ingredients'
 import { formatKRW, toKoreanAmount } from '@/lib/utils'
@@ -128,18 +129,37 @@ function buildInvoiceMemo(
   return parts.join(' · ')
 }
 
-function detectPriceSpike(
-  history: IngredientPriceHistoryEntry[],
-): { previous: number; current: number } | null {
-  if (history.length < 2) return null
-  const latest = history[0]
-  const prev = history[1]
-  if (prev.price <= 0) return null
-  const rise = (latest.price - prev.price) / prev.price
-  if (rise >= 0.3) {
-    return { previous: prev.price, current: latest.price }
+function formatRelativeTime(isoDate: string): string {
+  const then = new Date(isoDate)
+  if (Number.isNaN(then.getTime())) return ''
+  const diffMs = Date.now() - then.getTime()
+  const mins = Math.floor(diffMs / (1000 * 60))
+  if (mins < 1) return '방금 전'
+  if (mins < 60) return `${mins}분 전`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}시간 전`
+  return formatRelativeDays(isoDate)
+}
+
+function formatPriceChangeIndicator(
+  meta: IngredientOperationMeta | undefined,
+): { label: string; color: string } | null {
+  if (
+    !meta?.price_change_percent ||
+    meta.price_change_percent === 0 ||
+    !meta.price_change_direction
+  ) {
+    return null
   }
-  return null
+  const prefix = meta.price_change_direction === 'up' ? '▲' : '▼'
+  const signed =
+    meta.price_change_percent > 0
+      ? `+${meta.price_change_percent}%`
+      : `${meta.price_change_percent}%`
+  return {
+    label: `${prefix} ${signed}`,
+    color: meta.price_change_direction === 'up' ? BRAND_ORANGE : '#2563eb',
+  }
 }
 
 function matchesIngredientSearch(
@@ -511,9 +531,23 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     })
   }, [list, query, categoryFilter, invoiceSupplierNames])
 
+  const sortedFiltered = useMemo(() => {
+    const meta = operationData?.metaByIngredient
+    if (!meta) return filtered
+    return [...filtered].sort((a, b) => {
+      const da = meta[a.id]?.last_price_change_date ?? ''
+      const db = meta[b.id]?.last_price_change_date ?? ''
+      if (da !== db) return db.localeCompare(da)
+      return a.name.localeCompare(b.name, 'ko')
+    })
+  }, [filtered, operationData])
+
+  const operationInsights = operationData?.insights
+  const recentOcrActivities = operationData?.recentOcrActivities ?? []
+
   const grouped = useMemo(() => {
     const map = new Map<string, Ingredient[]>()
-    for (const i of filtered) {
+    for (const i of sortedFiltered) {
       const key = (i.category ?? '').trim() || '미분류'
       const arr = map.get(key) ?? []
       arr.push(i)
@@ -525,7 +559,10 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
       return a.localeCompare(b)
     })
     return keys.map((k) => ({ category: k, items: map.get(k)! }))
-  }, [filtered])
+  }, [sortedFiltered])
+
+  const hasSearchQuery = query.trim().length > 0
+  const showSearchEmpty = list.length > 0 && filtered.length === 0 && hasSearchQuery
 
   const registrationOpen = registerMode !== null
   const showManualForm =
@@ -1021,6 +1058,104 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
           ))}
         </select>
       </div>
+
+      {operationInsights ? (
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(3, 1fr)',
+            gap: 8,
+            marginBottom: 12,
+          }}
+        >
+          {[
+            {
+              label: '최근 가격 변동',
+              value: `${operationInsights.changed_last_7_days}개`,
+            },
+            {
+              label: '급등 주의',
+              value: `${operationInsights.spike_count}개`,
+            },
+            {
+              label: '최근 거래명세서 등록',
+              value: `${operationInsights.ocr_last_7_days}건`,
+            },
+          ].map((item) => (
+            <div
+              key={item.label}
+              style={{
+                background: '#ffffff',
+                border: '0.5px solid #ece8df',
+                borderRadius: 14,
+                padding: 14,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 18,
+                  fontWeight: 700,
+                  color: BRAND_GREEN,
+                  marginBottom: 4,
+                  fontVariantNumeric: 'tabular-nums',
+                }}
+              >
+                {item.value}
+              </div>
+              <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
+                {item.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {recentOcrActivities.length > 0 ? (
+        <div
+          style={{
+            background: '#ffffff',
+            border: '0.5px solid #ece8df',
+            borderRadius: 12,
+            padding: 12,
+            marginBottom: 12,
+          }}
+        >
+          <p style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', margin: '0 0 8px' }}>
+            최근 OCR 활동
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {recentOcrActivities.map((activity) => (
+              <p
+                key={`${activity.supplier_name}_${activity.ingredient_name}_${activity.occurred_at}`}
+                style={{ fontSize: 12, color: '#374151', margin: 0, lineHeight: 1.45 }}
+              >
+                {activity.supplier_name} 거래명세서 등록 ·{' '}
+                {formatRelativeTime(activity.occurred_at)}
+                {activity.ingredient_name
+                  ? ` · ${activity.ingredient_name}`
+                  : ''}
+              </p>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {showSearchEmpty ? (
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '28px 16px',
+            color: '#9ca3af',
+            fontSize: 13,
+            lineHeight: 1.55,
+            marginBottom: 12,
+          }}
+        >
+          검색 결과가 없습니다.
+          <br />
+          다른 식자재명이나 공급업체명으로 검색해보세요.
+        </div>
+      ) : null}
 
       {registerMode === 'select' && (
         <div
@@ -1744,7 +1879,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
           자주 사는 식자재를 입력해주세요<br />
           <span style={{ fontSize: 12 }}>입력하면 절약 기회를 더 잘 찾을 수 있어요</span>
         </div>
-      ) : (
+      ) : showSearchEmpty ? null : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {grouped.map((g) => (
             <div key={g.category}>
@@ -1757,14 +1892,22 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                   const expanded = expandedId === i.id
                   const history =
                     operationData?.priceHistoryByIngredient[i.id] ?? []
+                  const meta = operationData?.metaByIngredient[i.id]
+                  const supplierComparison =
+                    operationData?.supplierComparisonByIngredient[i.id] ?? []
                   const recentSupplier = parseSupplierFromMemo(i.memo)
-                  const lastPriceChange = history[0]?.effective_from ?? null
+                  const lastPriceChange =
+                    meta?.last_price_change_date ?? history[0]?.effective_from ?? null
                   const regLabel = inferRegistrationLabel(i.memo, i.barcode)
                   const ocrRelative =
                     (i.memo ?? '').includes('거래명세서 OCR') && i.updated_at
                       ? formatRelativeDays(i.updated_at)
                       : null
-                  const spike = detectPriceSpike(history)
+                  const spike =
+                    meta?.is_spike_risk && history.length >= 2
+                      ? { previous: history[1].price, current: history[0].price }
+                      : null
+                  const priceChangeIndicator = formatPriceChangeIndicator(meta)
                   const editingThis = expanded && cardEdit
 
                   return (
@@ -1792,13 +1935,48 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 14, fontWeight: 600, color: '#2b2b2b', marginBottom: 6 }}>
-                              {i.name}
+                            <div
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 6,
+                                flexWrap: 'wrap',
+                                marginBottom: 6,
+                              }}
+                            >
+                              <span style={{ fontSize: 14, fontWeight: 600, color: '#2b2b2b' }}>
+                                {i.name}
+                              </span>
+                              {meta?.is_spike_risk ? (
+                                <span
+                                  style={{
+                                    background: '#fff7ed',
+                                    color: BRAND_ORANGE,
+                                    borderRadius: 999,
+                                    padding: '3px 8px',
+                                    fontSize: 10,
+                                    fontWeight: 600,
+                                  }}
+                                >
+                                  가격 급등
+                                </span>
+                              ) : null}
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
                               <span style={{ fontSize: 17, fontWeight: 600, color: BRAND_GREEN, fontVariantNumeric: 'tabular-nums' }}>
                                 {i.current_price != null ? formatKRW(i.current_price) : '가격 미입력'}
                               </span>
+                              {priceChangeIndicator ? (
+                                <span
+                                  style={{
+                                    fontSize: 12,
+                                    fontWeight: 600,
+                                    color: priceChangeIndicator.color,
+                                  }}
+                                >
+                                  {priceChangeIndicator.label}
+                                </span>
+                              ) : null}
                               <span style={{ fontSize: 11, color: '#6b7280' }}>{i.unit}</span>
                             </div>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -1847,6 +2025,53 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                             </div>
                           ) : null}
 
+                          {supplierComparison.length > 0 ? (
+                            <div
+                              style={{
+                                background: '#f7f6f2',
+                                borderRadius: 12,
+                                padding: 12,
+                                marginTop: 10,
+                                marginBottom: 10,
+                              }}
+                            >
+                              <p style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', margin: '0 0 4px' }}>
+                                최근 공급업체 가격 비교
+                              </p>
+                              {supplierComparison.map((row, idx) => (
+                                <div
+                                  key={`${row.supplier_name}_${row.effective_from}`}
+                                  style={{
+                                    padding: '8px 0',
+                                    borderBottom:
+                                      idx < supplierComparison.length - 1
+                                        ? '0.5px solid #ece8df'
+                                        : 'none',
+                                  }}
+                                >
+                                  <div style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', marginBottom: 2 }}>
+                                    {row.supplier_name}
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                    <span
+                                      style={{
+                                        fontSize: 14,
+                                        fontWeight: 600,
+                                        color: BRAND_GREEN,
+                                        fontVariantNumeric: 'tabular-nums',
+                                      }}
+                                    >
+                                      {formatKRW(row.price)}
+                                    </span>
+                                    <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                                      {formatDateLabel(row.effective_from)}
+                                    </span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+
                           {recentSupplier && history.length > 0 ? (
                             <div style={{ marginBottom: 10 }}>
                               <p style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', margin: '0 0 6px' }}>
@@ -1880,28 +2105,50 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                               <p style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', margin: '0 0 4px' }}>
                                 최근 가격 히스토리
                               </p>
-                              {history.map((row) => (
-                                <div
-                                  key={`hist_${row.effective_from}_${row.created_at}`}
-                                  style={{
-                                    borderTop: '0.5px solid #f0ede7',
-                                    paddingTop: 8,
-                                    paddingBottom: 8,
-                                  }}
-                                >
-                                  <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 2 }}>
-                                    {formatDateLabel(row.effective_from)}
+                              {history.map((row, histIdx) => {
+                                const prevRow = history[histIdx + 1]
+                                let rowChange: { label: string; color: string } | null = null
+                                if (prevRow && prevRow.price > 0) {
+                                  const delta = Math.round(
+                                    ((row.price - prevRow.price) / prevRow.price) * 100,
+                                  )
+                                  if (delta !== 0) {
+                                    rowChange = {
+                                      label: `${delta > 0 ? '▲' : '▼'} ${delta > 0 ? '+' : ''}${delta}%`,
+                                      color: delta > 0 ? BRAND_ORANGE : '#2563eb',
+                                    }
+                                  }
+                                }
+                                return (
+                                  <div
+                                    key={`hist_${row.effective_from}_${row.created_at}`}
+                                    style={{
+                                      borderTop: '0.5px solid #f0ede7',
+                                      paddingTop: 8,
+                                      paddingBottom: 8,
+                                    }}
+                                  >
+                                    <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 2 }}>
+                                      {formatDateLabel(row.effective_from)}
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                                      <span style={{ fontSize: 13, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                                        {formatKRW(row.price)}
+                                      </span>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        {rowChange ? (
+                                          <span style={{ fontSize: 11, fontWeight: 600, color: rowChange.color }}>
+                                            {rowChange.label}
+                                          </span>
+                                        ) : null}
+                                        {row.supplier_name ? (
+                                          <span style={{ fontSize: 11, color: '#6b7280' }}>{row.supplier_name}</span>
+                                        ) : null}
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                                    <span style={{ fontSize: 13, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
-                                      {formatKRW(row.price)}
-                                    </span>
-                                    {row.supplier_name ? (
-                                      <span style={{ fontSize: 11, color: '#6b7280' }}>{row.supplier_name}</span>
-                                    ) : null}
-                                  </div>
-                                </div>
-                              ))}
+                                )
+                              })}
                             </div>
                           ) : (
                             <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 12px' }}>
@@ -1975,6 +2222,10 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                               </button>
                             </div>
                           ) : null}
+
+                          <p style={{ fontSize: 10, color: '#9ca3af', margin: '0 0 10px', lineHeight: 1.45 }}>
+                            가격과 단위 변경 이력은 자동 저장됩니다.
+                          </p>
 
                           <div style={{ display: 'flex', gap: 8 }}>
                             <button

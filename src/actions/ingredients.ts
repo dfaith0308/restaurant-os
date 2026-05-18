@@ -379,10 +379,41 @@ export type IngredientPriceHistoryEntry = {
   supplier_name: string | null
 }
 
+export type SupplierPriceComparisonEntry = {
+  supplier_name: string
+  price: number
+  effective_from: string
+}
+
+export type OcrActivityEntry = {
+  supplier_name: string
+  ingredient_name: string
+  occurred_at: string
+}
+
+export type IngredientOperationMeta = {
+  last_price_change_date: string | null
+  is_spike_risk: boolean
+  price_change_percent: number | null
+  price_change_direction: 'up' | 'down' | null
+}
+
+export type IngredientsOperationInsights = {
+  changed_last_7_days: number
+  spike_count: number
+  ocr_last_7_days: number
+}
+
 export type IngredientsOperationData = {
   priceHistoryByIngredient: Record<string, IngredientPriceHistoryEntry[]>
+  supplierComparisonByIngredient: Record<string, SupplierPriceComparisonEntry[]>
+  metaByIngredient: Record<string, IngredientOperationMeta>
   invoiceSupplierNames: string[]
+  recentOcrActivities: OcrActivityEntry[]
+  insights: IngredientsOperationInsights
 }
+
+const SUPPLIER_SNAPSHOT_RE = /;공급:([^,]+),(\d{4}-\d{2}-\d{2}),(\d+(?:\.\d+)?)/g
 
 function parseSupplierFromMemo(memo: string | null): string | null {
   if (!memo) return null
@@ -400,6 +431,128 @@ function parseSupplierFromMemo(memo: string | null): string | null {
   return null
 }
 
+function parseSupplierPriceSnapshots(
+  memo: string | null,
+): SupplierPriceComparisonEntry[] {
+  if (!memo) return []
+  const entries: SupplierPriceComparisonEntry[] = []
+  const re = new RegExp(SUPPLIER_SNAPSHOT_RE.source, 'g')
+  let match: RegExpExecArray | null
+  while ((match = re.exec(memo)) !== null) {
+    const price = Number(match[3])
+    if (!Number.isFinite(price)) continue
+    entries.push({
+      supplier_name: match[1].trim(),
+      effective_from: match[2],
+      price,
+    })
+  }
+  return entries
+}
+
+function appendSupplierPriceSnapshot(
+  memo: string,
+  supplierName: string,
+  effectiveFrom: string,
+  price: number,
+): string {
+  const supplier = supplierName.trim()
+  const roundedPrice = Math.round(price)
+  const withoutSupplier = memo.replace(
+    new RegExp(`;공급:${supplier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')},\\d{4}-\\d{2}-\\d{2},\\d+(?:\\.\\d+)?`, 'g'),
+    '',
+  )
+  return `${withoutSupplier};공급:${supplier},${effectiveFrom},${roundedPrice}`
+}
+
+function finalizeIngredientMemoWithSnapshot(
+  memo: string | null,
+  effectiveFrom: string,
+  price: number | null,
+): string | null {
+  if (!memo) return null
+  const supplier = parseSupplierFromMemo(memo)
+  if (supplier && price != null && price > 0) {
+    return appendSupplierPriceSnapshot(memo, supplier, effectiveFrom, price)
+  }
+  return memo
+}
+
+function isWithinDays(dateStr: string, days: number): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return false
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const target = new Date(y, m - 1, d)
+  const cutoff = new Date()
+  cutoff.setHours(0, 0, 0, 0)
+  cutoff.setDate(cutoff.getDate() - days)
+  return target >= cutoff
+}
+
+function buildSupplierComparison(
+  memo: string | null,
+  histories: IngredientPriceHistoryEntry[],
+): SupplierPriceComparisonEntry[] {
+  const bySupplier = new Map<string, SupplierPriceComparisonEntry>()
+  for (const snap of parseSupplierPriceSnapshots(memo)) {
+    const key = snap.supplier_name.toLowerCase()
+    const prev = bySupplier.get(key)
+    if (!prev || snap.effective_from > prev.effective_from) {
+      bySupplier.set(key, snap)
+    }
+  }
+
+  const recentSupplier = parseSupplierFromMemo(memo)
+  if (recentSupplier && histories.length > 0) {
+    const latest = histories[0]
+    const key = recentSupplier.toLowerCase()
+    const prev = bySupplier.get(key)
+    if (!prev || latest.effective_from > prev.effective_from) {
+      bySupplier.set(key, {
+        supplier_name: recentSupplier,
+        price: latest.price,
+        effective_from: latest.effective_from,
+      })
+    }
+  }
+
+  return Array.from(bySupplier.values()).sort((a, b) =>
+    b.effective_from.localeCompare(a.effective_from),
+  )
+}
+
+function computeIngredientOperationMeta(
+  histories: IngredientPriceHistoryEntry[],
+): IngredientOperationMeta {
+  const last_price_change_date = histories[0]?.effective_from ?? null
+  let is_spike_risk = false
+  let price_change_percent: number | null = null
+  let price_change_direction: 'up' | 'down' | null = null
+
+  if (histories.length >= 2) {
+    const latest = histories[0]
+    const prev = histories[1]
+    if (prev.price > 0) {
+      const delta = (latest.price - prev.price) / prev.price
+      price_change_percent = Math.round(delta * 100)
+      if (delta > 0) price_change_direction = 'up'
+      if (delta < 0) price_change_direction = 'down'
+      if (
+        isWithinDays(latest.effective_from, 30) &&
+        delta >= 0.3
+      ) {
+        is_spike_risk = true
+      }
+    }
+  }
+
+  return {
+    last_price_change_date,
+    is_spike_risk,
+    price_change_percent,
+    price_change_direction,
+  }
+}
+
 export async function getIngredientsOperationData(): Promise<
   ActionResult<IngredientsOperationData>
 > {
@@ -411,7 +564,7 @@ export async function getIngredientsOperationData(): Promise<
 
   const { data: ingredients, error: ingError } = await supabase
     .from('ingredients')
-    .select('id, memo')
+    .select('id, name, memo, updated_at')
     .eq('tenant_id', tenant_id)
     .eq('is_active', true)
 
@@ -434,24 +587,69 @@ export async function getIngredientsOperationData(): Promise<
     return { success: false, error: histError.message, data: undefined }
   }
 
-  const priceHistoryByIngredient: Record<string, IngredientPriceHistoryEntry[]> = {}
+  const fullHistoryByIngredient: Record<string, IngredientPriceHistoryEntry[]> = {}
+  const changedLast7DayIds = new Set<string>()
+
   for (const row of rawHistories ?? []) {
     const ingredientId = row.ingredient_id as string
-    const bucket = priceHistoryByIngredient[ingredientId] ?? []
-    if (bucket.length >= 5) continue
     const price = Number(row.price)
     if (!Number.isFinite(price)) continue
-    const supplier_name =
-      bucket.length === 0
-        ? parseSupplierFromMemo(memoById.get(ingredientId) ?? null)
-        : null
+    const effective_from = row.effective_from as string
+    const bucket = fullHistoryByIngredient[ingredientId] ?? []
     bucket.push({
-      effective_from: row.effective_from as string,
+      effective_from,
       price,
       created_at: row.created_at as string,
-      supplier_name,
+      supplier_name:
+        bucket.length === 0
+          ? parseSupplierFromMemo(memoById.get(ingredientId) ?? null)
+          : null,
     })
-    priceHistoryByIngredient[ingredientId] = bucket
+    fullHistoryByIngredient[ingredientId] = bucket
+    if (isWithinDays(effective_from, 7)) {
+      changedLast7DayIds.add(ingredientId)
+    }
+  }
+
+  const priceHistoryByIngredient: Record<string, IngredientPriceHistoryEntry[]> = {}
+  const supplierComparisonByIngredient: Record<string, SupplierPriceComparisonEntry[]> = {}
+  const metaByIngredient: Record<string, IngredientOperationMeta> = {}
+  let spike_count = 0
+
+  for (const [ingredientId, histories] of Object.entries(fullHistoryByIngredient)) {
+    priceHistoryByIngredient[ingredientId] = histories.slice(0, 5)
+    const memo = memoById.get(ingredientId) ?? null
+    supplierComparisonByIngredient[ingredientId] = buildSupplierComparison(
+      memo,
+      histories,
+    )
+    const meta = computeIngredientOperationMeta(histories)
+    metaByIngredient[ingredientId] = meta
+    if (meta.is_spike_risk) spike_count += 1
+  }
+
+  const recentOcrActivities: OcrActivityEntry[] = (ingredients ?? [])
+    .filter((row) => ((row.memo as string | null) ?? '').includes('거래명세서 OCR'))
+    .map((row) => {
+      const supplier = parseSupplierFromMemo((row.memo as string | null) ?? null)
+      if (!supplier) return null
+      return {
+        supplier_name: supplier,
+        ingredient_name: (row.name as string) ?? '',
+        occurred_at: (row.updated_at as string | null) ?? '',
+      }
+    })
+    .filter((row): row is OcrActivityEntry => !!row && !!row.occurred_at)
+    .sort((a, b) => b.occurred_at.localeCompare(a.occurred_at))
+    .slice(0, 5)
+
+  let ocr_last_7_days = 0
+  for (const row of ingredients ?? []) {
+    const memo = (row.memo as string | null) ?? ''
+    const updatedAt = row.updated_at as string | null
+    if (!memo.includes('거래명세서 OCR') || !updatedAt) continue
+    const updatedDate = updatedAt.slice(0, 10)
+    if (isWithinDays(updatedDate, 7)) ocr_last_7_days += 1
   }
 
   const { data: supplierRows, error: supError } = await supabase
@@ -470,7 +668,18 @@ export async function getIngredientsOperationData(): Promise<
 
   return {
     success: true,
-    data: { priceHistoryByIngredient, invoiceSupplierNames },
+    data: {
+      priceHistoryByIngredient,
+      supplierComparisonByIngredient,
+      metaByIngredient,
+      invoiceSupplierNames,
+      recentOcrActivities,
+      insights: {
+        changed_last_7_days: changedLast7DayIds.size,
+        spike_count,
+        ocr_last_7_days,
+      },
+    },
   }
 }
 
@@ -610,7 +819,11 @@ export async function registerInvoiceIngredients(
           name,
           unit,
           current_price,
-          memo: row.memo?.trim() || null,
+          memo: finalizeIngredientMemoWithSnapshot(
+            row.memo?.trim() || null,
+            effective_from,
+            current_price,
+          ),
           is_active: true,
         })
         .select(INGREDIENT_SELECT)
@@ -681,8 +894,13 @@ export async function registerInvoiceIngredients(
         current_price: row.price,
         updated_at: new Date().toISOString(),
       }
-      if (row.memo?.trim()) {
-        patch.memo = row.memo.trim()
+      const baseMemo = row.memo?.trim() || existing.memo
+      if (baseMemo) {
+        patch.memo = finalizeIngredientMemoWithSnapshot(
+          baseMemo,
+          effective_from,
+          row.price,
+        )
       }
       if (unitChanged) {
         patch.unit = unit
