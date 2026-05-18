@@ -139,6 +139,25 @@ function parseSupplier(raw: unknown): InvoiceSupplier | null {
   return supplier
 }
 
+function sanitizeOcrItems(items: InvoiceIngredient[]): InvoiceIngredient[] {
+  return items.filter((item) => item.name.trim().length > 0)
+}
+
+function sortOcrItems(items: InvoiceIngredient[]): InvoiceIngredient[] {
+  return [...items].sort((a, b) => {
+    const aHasPrice = a.price != null ? 1 : 0
+    const bHasPrice = b.price != null ? 1 : 0
+    if (aHasPrice !== bHasPrice) return bHasPrice - aHasPrice
+    return a.name.localeCompare(b.name, 'ko')
+  })
+}
+
+function finalizeInvoiceOcrResult(result: InvoiceOcrResult): InvoiceOcrResult | null {
+  const items = sortOcrItems(sanitizeOcrItems(result.items))
+  if (items.length === 0) return null
+  return { ...result, items }
+}
+
 function parseItemsArray(raw: unknown): InvoiceIngredient[] | null {
   if (!Array.isArray(raw)) return null
   const items: InvoiceIngredient[] = []
@@ -154,7 +173,8 @@ function parseItemsArray(raw: unknown): InvoiceIngredient[] | null {
       price: parsePositiveNumber(row.price),
     })
   }
-  return items.length > 0 ? items : null
+  const sanitized = sanitizeOcrItems(items)
+  return sanitized.length > 0 ? sanitized : null
 }
 
 function parseInvoiceObject(text: string): InvoiceOcrResult | null {
@@ -164,11 +184,11 @@ function parseInvoiceObject(text: string): InvoiceOcrResult | null {
     const raw = JSON.parse(match[0]) as Record<string, unknown>
     const items = parseItemsArray(raw.items)
     if (!items) return null
-    return {
+    return finalizeInvoiceOcrResult({
       invoice_date: parseInvoiceDate(raw.invoice_date),
       supplier: parseSupplier(raw.supplier),
       items,
-    }
+    })
   } catch {
     return null
   }
@@ -181,7 +201,11 @@ function parseLegacyArray(text: string): InvoiceOcrResult | null {
     const raw = JSON.parse(match[0]) as unknown
     const items = parseItemsArray(raw)
     if (!items) return null
-    return { invoice_date: null, supplier: null, items }
+    return finalizeInvoiceOcrResult({
+      invoice_date: null,
+      supplier: null,
+      items,
+    })
   } catch {
     return null
   }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition, useCallback, useRef } from 'react'
+import { useMemo, useState, useTransition, useCallback, useRef, useEffect } from 'react'
 import {
   createIngredient,
   updateIngredient,
@@ -92,6 +92,80 @@ function pricesDiffer(
   if (incoming == null) return false
   if (existing == null) return true
   return existing !== incoming
+}
+
+const OCR_PROGRESS_STEPS = [
+  '이미지 업로드 중...',
+  '거래명세서 읽는 중...',
+  '식자재 분석 중...',
+  '가격 비교 중...',
+  '등록 준비 완료',
+] as const
+
+const INVOICE_FP_STORAGE_KEY = 'restaurant_os_invoice_ocr_fps'
+
+function buildInvoiceFingerprint(
+  invoiceDate: string | null,
+  supplier: InvoiceSupplier | null,
+  items: InvoiceIngredient[],
+): string {
+  const date = invoiceDate ?? ''
+  const supplierName = supplier?.supplier_name?.trim() ?? ''
+  const topNames = items
+    .map((item) => item.name.trim())
+    .filter(Boolean)
+    .slice(0, 3)
+    .join('|')
+  return `${date}::${supplierName}::${items.length}::${topNames}`
+}
+
+function loadRecentInvoiceFingerprints(): string[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = window.localStorage.getItem(INVOICE_FP_STORAGE_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed.filter((entry): entry is string => typeof entry === 'string')
+  } catch {
+    return []
+  }
+}
+
+function saveInvoiceFingerprint(fingerprint: string): void {
+  if (typeof window === 'undefined' || !fingerprint) return
+  const recent = loadRecentInvoiceFingerprints()
+  const next = [fingerprint, ...recent.filter((fp) => fp !== fingerprint)].slice(0, 30)
+  window.localStorage.setItem(INVOICE_FP_STORAGE_KEY, JSON.stringify(next))
+}
+
+function isDuplicateInvoiceFingerprint(fingerprint: string): boolean {
+  if (!fingerprint) return false
+  return loadRecentInvoiceFingerprints().includes(fingerprint)
+}
+
+function InvoiceOcrProgress({ activeStep }: { activeStep: number }) {
+  return (
+    <ul style={{ listStyle: 'none', margin: '12px 0 0', padding: 0, textAlign: 'left' }}>
+      {OCR_PROGRESS_STEPS.map((label, idx) => {
+        const active = idx === activeStep
+        const done = idx < activeStep
+        return (
+          <li
+            key={label}
+            style={{
+              fontSize: 12,
+              lineHeight: 1.6,
+              color: active ? BRAND_ORANGE : done ? '#6b7280' : '#9ca3af',
+              fontWeight: active ? 600 : 400,
+            }}
+          >
+            {label}
+          </li>
+        )
+      })}
+    </ul>
+  )
 }
 
 const INPUT_STYLE: React.CSSProperties = {
@@ -274,14 +348,23 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
 
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('')
-  const invoiceInputRef = useRef<HTMLInputElement>(null)
+  const invoiceCameraInputRef = useRef<HTMLInputElement>(null)
+  const invoiceGalleryInputRef = useRef<HTMLInputElement>(null)
+  const ocrStepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [invoiceImage, setInvoiceImage] = useState<File | null>(null)
   const [invoiceAnalyzeStatus, setInvoiceAnalyzeStatus] =
     useState<InvoiceAnalyzeStatus>('idle')
+  const [ocrLoadingStep, setOcrLoadingStep] = useState(0)
   const [invoiceDate, setInvoiceDate] = useState<string | null>(null)
   const [invoiceSupplier, setInvoiceSupplier] = useState<InvoiceSupplier | null>(null)
   const [ocrIngredients, setOcrIngredients] = useState<OcrIngredientRow[]>([])
-  const [bulkRegisterMessage, setBulkRegisterMessage] = useState<string | null>(null)
+  const [duplicateInvoiceWarning, setDuplicateInvoiceWarning] = useState(false)
+  const [bulkRegisterSummary, setBulkRegisterSummary] = useState<{
+    total: number
+    newCount: number
+    linkedCount: number
+  } | null>(null)
+  const [bulkRegisterError, setBulkRegisterError] = useState<string | null>(null)
 
   const categories = useMemo(() => {
     const set = new Set<string>()
@@ -329,13 +412,32 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     })
   }, [ocrIngredients, list])
 
+  useEffect(() => {
+    return () => {
+      if (ocrStepTimerRef.current) {
+        clearInterval(ocrStepTimerRef.current)
+      }
+    }
+  }, [])
+
+  function clearOcrStepTimer() {
+    if (ocrStepTimerRef.current) {
+      clearInterval(ocrStepTimerRef.current)
+      ocrStepTimerRef.current = null
+    }
+  }
+
   function resetInvoiceFlow() {
+    clearOcrStepTimer()
     setInvoiceImage(null)
     setInvoiceAnalyzeStatus('idle')
+    setOcrLoadingStep(0)
     setInvoiceDate(null)
     setInvoiceSupplier(null)
     setOcrIngredients([])
-    setBulkRegisterMessage(null)
+    setDuplicateInvoiceWarning(false)
+    setBulkRegisterSummary(null)
+    setBulkRegisterError(null)
   }
 
   function resetForm() {
@@ -386,7 +488,8 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
         }
       }),
     )
-    setBulkRegisterMessage(null)
+    setBulkRegisterSummary(null)
+    setBulkRegisterError(null)
   }
 
   function updateOcrEffectiveFrom(rowKey: string, value: string) {
@@ -395,7 +498,8 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
         row.rowKey === rowKey ? { ...row, effectiveFrom: value } : row,
       ),
     )
-    setBulkRegisterMessage(null)
+    setBulkRegisterSummary(null)
+    setBulkRegisterError(null)
   }
 
   function setOcrPriceAction(rowKey: string, action: 'apply' | 'keep') {
@@ -404,26 +508,49 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
         row.rowKey === rowKey ? { ...row, priceAction: action } : row,
       ),
     )
-    setBulkRegisterMessage(null)
+    setBulkRegisterSummary(null)
+    setBulkRegisterError(null)
   }
 
   async function handleInvoiceFileSelect(file: File | undefined) {
     if (!file) return
+    clearOcrStepTimer()
     setInvoiceImage(file)
     setInvoiceAnalyzeStatus('loading')
+    setOcrLoadingStep(0)
     setInvoiceDate(null)
     setInvoiceSupplier(null)
     setOcrIngredients([])
-    setBulkRegisterMessage(null)
+    setDuplicateInvoiceWarning(false)
+    setBulkRegisterSummary(null)
+    setBulkRegisterError(null)
+
+    ocrStepTimerRef.current = setInterval(() => {
+      setOcrLoadingStep((prev) => (prev < 3 ? prev + 1 : prev))
+    }, 550)
 
     const result = await analyzeInvoiceImage(file)
+    clearOcrStepTimer()
+
     if (!result || result.items.length === 0) {
       setInvoiceAnalyzeStatus('failed')
+      setOcrLoadingStep(0)
       return
     }
+
     const effDefault = defaultEffectiveFrom(result.invoice_date)
+    const fingerprint = buildInvoiceFingerprint(
+      result.invoice_date,
+      result.supplier,
+      result.items,
+    )
+
+    setOcrLoadingStep(4)
+    await new Promise((resolve) => setTimeout(resolve, 280))
+
     setInvoiceDate(result.invoice_date)
     setInvoiceSupplier(result.supplier)
+    setDuplicateInvoiceWarning(isDuplicateInvoiceFingerprint(fingerprint))
     if (result.supplier) {
       void upsertInvoiceSupplierFromOcr(result.supplier)
     }
@@ -469,10 +596,23 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
 
     if (rows.length === 0) return
 
+    let newCount = 0
+    let linkedCount = 0
+    for (const row of rows) {
+      if (findCanonicalIngredient(list, row.name)) linkedCount += 1
+      else newCount += 1
+    }
+
+    const fingerprint = buildInvoiceFingerprint(
+      invoiceDate,
+      invoiceSupplier,
+      ocrIngredients,
+    )
+
     startTr(async () => {
       const res = await registerInvoiceIngredients(rows)
       if (!res.success || !res.data) {
-        setBulkRegisterMessage('등록에 실패했어요. 다시 시도해주세요.')
+        setBulkRegisterError('등록에 실패했어요. 다시 시도해주세요.')
         return
       }
       const { successCount, created, updated } = res.data
@@ -487,9 +627,16 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
           return merged
         })
       }
-      setBulkRegisterMessage(`${successCount}개 등록 완료`)
+      if (successCount > 0 && fingerprint) {
+        saveInvoiceFingerprint(fingerprint)
+      }
+      setBulkRegisterSummary({
+        total: successCount,
+        newCount,
+        linkedCount,
+      })
       if (successCount > 0) {
-        setTimeout(() => closeRegistration(), 1200)
+        setTimeout(() => closeRegistration(), 2000)
       }
     })
   }
@@ -763,7 +910,18 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
           }}
         >
           <input
-            ref={invoiceInputRef}
+            ref={invoiceCameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              handleInvoiceFileSelect(e.target.files?.[0])
+              e.target.value = ''
+            }}
+          />
+          <input
+            ref={invoiceGalleryInputRef}
             type="file"
             accept="image/*"
             style={{ display: 'none' }}
@@ -798,38 +956,60 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                   marginBottom: 12,
                 }}
               />
-              <p style={{ fontSize: 14, fontWeight: 500, color: '#2b2b2b', margin: '0 0 4px' }}>
-                거래명세서 분석 중...
+              <p style={{ fontSize: 14, fontWeight: 600, color: BRAND_ORANGE, margin: '0 0 4px' }}>
+                {OCR_PROGRESS_STEPS[ocrLoadingStep]}
               </p>
               {invoiceImage && (
-                <p style={{ fontSize: 11, color: '#9ca3af', margin: 0 }}>
+                <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 4px' }}>
                   {invoiceImage.name}
                 </p>
               )}
+              <InvoiceOcrProgress activeStep={ocrLoadingStep} />
             </div>
           ) : (
             <>
-              <button
-                type="button"
-                onClick={() => invoiceInputRef.current?.click()}
-                disabled={isPending}
-                style={{
-                  width: '100%',
-                  padding: 13,
-                  background: BRAND_ORANGE,
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: 10,
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: isPending ? 'not-allowed' : 'pointer',
-                  fontFamily: 'inherit',
-                  opacity: isPending ? 0.65 : 1,
-                  marginBottom: 12,
-                }}
-              >
-                거래명세서 사진 선택
-              </button>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => invoiceCameraInputRef.current?.click()}
+                  disabled={isPending}
+                  style={{
+                    flex: 1,
+                    padding: 13,
+                    background: BRAND_ORANGE,
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: 10,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: isPending ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                    opacity: isPending ? 0.65 : 1,
+                  }}
+                >
+                  사진 찍기
+                </button>
+                <button
+                  type="button"
+                  onClick={() => invoiceGalleryInputRef.current?.click()}
+                  disabled={isPending}
+                  style={{
+                    flex: 1,
+                    padding: 13,
+                    background: '#ffffff',
+                    color: '#374151',
+                    border: '0.5px solid #e8e5de',
+                    borderRadius: 10,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    cursor: isPending ? 'not-allowed' : 'pointer',
+                    fontFamily: 'inherit',
+                    opacity: isPending ? 0.65 : 1,
+                  }}
+                >
+                  갤러리에서 선택
+                </button>
+              </div>
 
               {invoiceAnalyzeStatus === 'failed' && (
                 <p style={{ fontSize: 12, color: '#9ca3af', textAlign: 'center', lineHeight: 1.6, margin: '0 0 12px' }}>
@@ -841,6 +1021,29 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
 
               {invoiceAnalyzeStatus === 'success' && ocrIngredients.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
+                  <p style={{ fontSize: 11, color: '#9ca3af', lineHeight: 1.5, margin: '0 0 10px' }}>
+                    OCR 결과를 확인 후 등록해주세요.
+                    <br />
+                    거래명세서 상태에 따라 일부 인식이 달라질 수 있어요.
+                  </p>
+                  {duplicateInvoiceWarning && (
+                    <p
+                      style={{
+                        fontSize: 12,
+                        color: BRAND_ORANGE,
+                        background: '#fff8f3',
+                        border: `0.5px solid ${BRAND_ORANGE}`,
+                        borderRadius: 10,
+                        padding: '10px 12px',
+                        lineHeight: 1.5,
+                        margin: '0 0 10px',
+                      }}
+                    >
+                      최근 등록한 거래명세서와 매우 유사합니다.
+                      <br />
+                      중복 등록이 아닌지 확인해주세요.
+                    </p>
+                  )}
                   <p style={{ fontSize: 12, color: '#6b7280', margin: '0 0 10px' }}>
                     거래명세서 날짜:{' '}
                     <span style={{ fontWeight: 500, color: '#374151' }}>
@@ -868,7 +1071,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                         <div
                           key={row.rowKey}
                           style={{
-                            background: '#ffffff',
+                            background: priceChanged ? '#fff7ed' : '#ffffff',
                             border: priceChanged
                               ? `1px solid ${BRAND_ORANGE}`
                               : '0.5px solid #e8e5de',
@@ -876,22 +1079,46 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                             padding: 12,
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
-                              품목
-                            </span>
-                            <span
-                              style={{
-                                background: isNew ? '#edf7f1' : '#f3f4f6',
-                                color: isNew ? BRAND_GREEN : '#6b7280',
-                                borderRadius: 999,
-                                padding: '3px 8px',
-                                fontSize: 10,
-                                fontWeight: 500,
-                              }}
-                            >
-                              {isNew ? '신규' : '기존'}
-                            </span>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <p style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', margin: '0 0 4px' }}>
+                                {row.name.trim() || '식자재명 입력'}
+                              </p>
+                              <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>
+                                {row.quantity != null ? `${row.quantity}` : '-'}
+                                {row.unit ? ` ${row.unit}` : ''}
+                                {' · '}
+                                {row.price != null ? formatKRW(row.price) : '공급가 미입력'}
+                              </p>
+                            </div>
+                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                              <span
+                                style={{
+                                  background: isNew ? '#edf7f1' : '#f3f4f6',
+                                  color: isNew ? BRAND_GREEN : '#6b7280',
+                                  borderRadius: 999,
+                                  padding: '3px 8px',
+                                  fontSize: 10,
+                                  fontWeight: 500,
+                                }}
+                              >
+                                {isNew ? '신규' : '기존'}
+                              </span>
+                              {priceChanged && (
+                                <span
+                                  style={{
+                                    background: '#fff8f3',
+                                    color: BRAND_ORANGE,
+                                    borderRadius: 999,
+                                    padding: '3px 8px',
+                                    fontSize: 10,
+                                    fontWeight: 500,
+                                  }}
+                                >
+                                  가격 변경
+                                </span>
+                              )}
+                            </div>
                           </div>
                           {!isNew && (
                             <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 8px' }}>
@@ -1039,10 +1266,20 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                   >
                     {isPending ? '등록 중...' : '식자재 한번에 등록'}
                   </button>
-                  {bulkRegisterMessage && (
-                    <p style={{ fontSize: 13, color: BRAND_GREEN, textAlign: 'center', marginTop: 10, fontWeight: 500 }}>
-                      {bulkRegisterMessage}
+                  {bulkRegisterError && (
+                    <p style={{ fontSize: 13, color: '#b45309', textAlign: 'center', marginTop: 10, fontWeight: 500 }}>
+                      {bulkRegisterError}
                     </p>
+                  )}
+                  {bulkRegisterSummary && (
+                    <div style={{ textAlign: 'center', marginTop: 10 }}>
+                      <p style={{ fontSize: 14, fontWeight: 600, color: BRAND_GREEN, margin: '0 0 4px' }}>
+                        식자재 {bulkRegisterSummary.total}개 등록 완료
+                      </p>
+                      <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>
+                        신규 {bulkRegisterSummary.newCount}개 · 기존 연결 {bulkRegisterSummary.linkedCount}개
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
