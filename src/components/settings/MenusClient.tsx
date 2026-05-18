@@ -247,7 +247,8 @@ export default function MenusClient(props: {
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
 
-  const [showForm, setShowForm] = useState(false)
+  const [expandedMenuId, setExpandedMenuId] = useState<string | null>(null)
+  const [isCreating, setIsCreating] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [price, setPrice] = useState('')
@@ -309,13 +310,7 @@ export default function MenusClient(props: {
     setDirectCostFocused(false)
   }
 
-  function openCreate() {
-    resetForm()
-    setShowForm(true)
-  }
-
-  function openEdit(m: MenuWithCost) {
-    resetForm()
+  function loadMenuForm(m: MenuWithCost) {
     setEditingId(m.id)
     setName(m.name)
     setPrice(String(m.price ?? 0))
@@ -326,7 +321,32 @@ export default function MenusClient(props: {
     setCostInputTab('direct')
     setPriceFocused(false)
     setDirectCostFocused(false)
-    setShowForm(true)
+    setEstimate(null)
+    setEstimateLoading(false)
+  }
+
+  function closeEditPanel() {
+    setExpandedMenuId(null)
+    setIsCreating(false)
+    setConfirmHideMenuId(null)
+    resetForm()
+  }
+
+  function toggleExpandedMenu(m: MenuWithCost) {
+    if (expandedMenuId === m.id) {
+      closeEditPanel()
+      return
+    }
+    setIsCreating(false)
+    setConfirmHideMenuId(null)
+    loadMenuForm(m)
+    setExpandedMenuId(m.id)
+  }
+
+  function openCreate() {
+    resetForm()
+    setExpandedMenuId(null)
+    setIsCreating(true)
   }
 
   function syncDirectCostForMenu(menuId: string, value: string) {
@@ -405,9 +425,21 @@ export default function MenusClient(props: {
 
       // server 계산값 반영을 위해 refresh 대신 간단 재조회
       const next = await import('@/actions/menus').then((m) => m.getMenus())
-      if (next.success) setMenus(next.data ?? [])
-      setShowForm(false)
-      resetForm()
+      if (next.success) {
+        setMenus(next.data ?? [])
+        if (editingId) {
+          const updated = next.data?.find((x) => x.id === editingId)
+          if (updated) loadMenuForm(updated)
+        } else if (res.data && 'id' in res.data) {
+          setIsCreating(false)
+          const newId = res.data.id
+          const created = next.data?.find((x) => x.id === newId)
+          if (created) {
+            loadMenuForm(created)
+            setExpandedMenuId(created.id)
+          }
+        }
+      }
     })
   }
 
@@ -426,6 +458,7 @@ export default function MenusClient(props: {
         return
       }
       setConfirmHideMenuId(null)
+      if (expandedMenuId === menuId) closeEditPanel()
       await refreshMenuLists()
     })
   }
@@ -530,101 +563,9 @@ export default function MenusClient(props: {
     return props.ingredients.find((i) => i.id === ingId) ?? null
   }, [ingId, props.ingredients])
 
-  return (
-    <>
-      <style jsx>{`
-        @keyframes menusFadeUp {
-          from { opacity: 0; transform: translateY(16px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes menusPulse {
-          0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.3); }
-          50% { box-shadow: 0 0 0 8px rgba(249, 115, 22, 0); }
-        }
-        .menus-fade-up { opacity: 0; animation: menusFadeUp 0.5s ease forwards; }
-        .menus-anim-title { animation-delay: 0s; }
-        .menus-anim-hero { animation-delay: 0.1s; }
-        .menus-anim-divider { animation: menusFadeUp 0.4s ease forwards; animation-delay: 0.45s; opacity: 0; }
-        .menus-anim-card1 { animation-delay: 0.55s; }
-        .menus-anim-card2 { animation-delay: 0.68s; }
-        .menus-anim-card3 { animation-delay: 0.78s; }
-        .menus-anim-cta { animation: menusPulse 2.5s ease-in-out infinite; animation-delay: 1.2s; }
-        .menus-card-hover { transition: transform 200ms ease; }
-        .menus-card-hover:hover { transform: translateY(-2px); }
-        .menu-hide-btn { color: #9ca3af; transition: color 150ms ease; }
-        .menu-hide-btn:hover:not(:disabled) { color: #6b7280; }
-        .menu-restore-btn { transition: opacity 150ms ease; }
-        .menu-restore-btn:hover:not(:disabled) { opacity: 0.8; }
-      `}</style>
-      <main style={{ maxWidth: 520, margin: '0 auto', padding: '20px 16px 80px', background: '#f7f6f2', minHeight: '100vh', boxSizing: 'border-box' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <Link href="/settings" style={{ fontSize: 13, color: '#1f5d3a', fontWeight: 500, textDecoration: 'none' }}>← 설정</Link>
-
-          <button
-            type="button"
-            onClick={openCreate}
-            style={{ padding: '8px 14px', background: '#1f5d3a', color: '#ffffff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
-          >
-            + 메뉴 추가
-          </button>
-        </div>
-
-        <div className="menus-fade-up menus-anim-title" style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: 11, color: '#1f5d3a', fontWeight: 500, letterSpacing: '0.5px', marginBottom: 8 }}>메뉴 · 원가</div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#2b2b2b', letterSpacing: '-1px', lineHeight: 1.15, margin: 0 }}>
-            내 메뉴, 얼마나 남고 있나요?
-          </h1>
-        </div>
-
-      {props.error && (
-        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', padding: 12, borderRadius: 12, fontSize: 13, marginBottom: 12 }}>
-          {props.error}
-        </div>
-      )}
-
-      {menus.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="메뉴/식자재 검색"
-            style={{ flex: 1, padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 10, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }}
-          />
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            style={{ width: 160, padding: '9px 10px', border: '1px solid #e5e7eb', borderRadius: 10, fontSize: 13, fontFamily: 'inherit' }}
-          >
-            <option value="">전체 카테고리</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {showForm && (
-        <div style={{ background: '#ffffff', border: '0.5px solid #e8e5de', borderRadius: 18, padding: 20, marginBottom: 16, boxSizing: 'border-box' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, marginBottom: 16 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b' }}>
-              {editingId ? '메뉴 수정' : '메뉴 등록'}
-            </div>
-            {editingId && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (editingId) setConfirmHideMenuId(editingId)
-                  setShowForm(false)
-                  resetForm()
-                }}
-                disabled={isPending}
-                style={{ background: 'transparent', border: 'none', color: '#9ca3af', fontSize: 13, fontWeight: 500, cursor: 'pointer', minHeight: 44, padding: '10px 8px', fontFamily: 'inherit' }}
-              >
-                메뉴 숨기기
-              </button>
-            )}
-          </div>
-
+  function renderMenuEditPanel() {
+    return (
+      <>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }}>
             <div>
               <label style={formLabelStyle}>메뉴명 *</label>
@@ -979,11 +920,92 @@ export default function MenusClient(props: {
               style={{ width: '100%', minHeight: 44, padding: '12px', background: '#1f5d3a', color: '#ffffff', border: 'none', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
               {isPending ? '저장 중…' : '저장'}
             </button>
-            <button type="button" onClick={() => { setShowForm(false); resetForm() }} disabled={isPending}
+            <button type="button" onClick={() => { closeEditPanel() }} disabled={isPending}
               style={{ width: '100%', minHeight: 44, padding: '12px', background: '#ffffff', border: '0.5px solid #e8e5de', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer', color: '#9ca3af', fontFamily: 'inherit' }}>
               닫기
             </button>
           </div>
+      </>
+    )
+  }
+
+  return (
+    <>
+      <style jsx>{`
+        @keyframes menusFadeUp {
+          from { opacity: 0; transform: translateY(16px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes menusPulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.3); }
+          50% { box-shadow: 0 0 0 8px rgba(249, 115, 22, 0); }
+        }
+        .menus-fade-up { opacity: 0; animation: menusFadeUp 0.5s ease forwards; }
+        .menus-anim-title { animation-delay: 0s; }
+        .menus-anim-hero { animation-delay: 0.1s; }
+        .menus-anim-divider { animation: menusFadeUp 0.4s ease forwards; animation-delay: 0.45s; opacity: 0; }
+        .menus-anim-card1 { animation-delay: 0.55s; }
+        .menus-anim-card2 { animation-delay: 0.68s; }
+        .menus-anim-card3 { animation-delay: 0.78s; }
+        .menus-anim-cta { animation: menusPulse 2.5s ease-in-out infinite; animation-delay: 1.2s; }
+        .menus-card-hover { transition: transform 200ms ease; }
+        .menus-card-hover:hover { transform: translateY(-2px); }
+        .menu-hide-btn { color: #9ca3af; transition: color 150ms ease; }
+        .menu-hide-btn:hover:not(:disabled) { color: #6b7280; }
+        .menu-restore-btn { transition: opacity 150ms ease; }
+        .menu-restore-btn:hover:not(:disabled) { opacity: 0.8; }
+      `}</style>
+      <main style={{ maxWidth: 520, margin: '0 auto', padding: '20px 16px 80px', background: '#f7f6f2', minHeight: '100vh', boxSizing: 'border-box' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <Link href="/settings" style={{ fontSize: 13, color: '#1f5d3a', fontWeight: 500, textDecoration: 'none' }}>← 설정</Link>
+
+          <button
+            type="button"
+            onClick={openCreate}
+            style={{ padding: '8px 14px', background: '#1f5d3a', color: '#ffffff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}
+          >
+            + 메뉴 추가
+          </button>
+        </div>
+
+        <div className="menus-fade-up menus-anim-title" style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 11, color: '#1f5d3a', fontWeight: 500, letterSpacing: '0.5px', marginBottom: 8 }}>메뉴 · 원가</div>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#2b2b2b', letterSpacing: '-1px', lineHeight: 1.15, margin: 0 }}>
+            내 메뉴, 얼마나 남고 있나요?
+          </h1>
+        </div>
+
+      {props.error && (
+        <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', padding: 12, borderRadius: 12, fontSize: 13, marginBottom: 12 }}>
+          {props.error}
+        </div>
+      )}
+
+      {menus.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="메뉴/식자재 검색"
+            style={{ flex: 1, padding: '9px 12px', border: '1px solid #e5e7eb', borderRadius: 10, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit' }}
+          />
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            style={{ width: 160, padding: '9px 10px', border: '1px solid #e5e7eb', borderRadius: 10, fontSize: 13, fontFamily: 'inherit' }}
+          >
+            <option value="">전체 카테고리</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {isCreating && (
+        <div style={{ background: '#ffffff', border: '0.5px solid #e8e5de', borderRadius: 18, padding: 20, marginBottom: 16, boxSizing: 'border-box' }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', marginBottom: 16 }}>메뉴 등록</div>
+          {renderMenuEditPanel()}
         </div>
       )}
 
@@ -1046,7 +1068,24 @@ export default function MenusClient(props: {
                   <HiddenCostNotice />
                 </>
               ) : (
-                <MenuUnconfiguredBox price={m.price} onConfigure={() => openEdit(m)} />
+                <MenuUnconfiguredBox price={m.price} onConfigure={() => toggleExpandedMenu(m)} />
+              )}
+
+              {expandedMenuId === m.id && (
+                <div style={{ marginTop: 12, paddingTop: 14, borderTop: '1px solid #f3f4f6' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b' }}>메뉴 수정</div>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmHideMenuId(m.id)}
+                      disabled={isPending}
+                      style={{ background: 'transparent', border: 'none', color: '#9ca3af', fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
+                    >
+                      메뉴 숨기기
+                    </button>
+                  </div>
+                  {renderMenuEditPanel()}
+                </div>
               )}
 
               <div style={{ borderTop: '1px solid #f3f4f6', paddingTop: 10 }}>
@@ -1055,7 +1094,7 @@ export default function MenusClient(props: {
                     {display.showMetrics && (
                       <button
                         type="button"
-                        onClick={() => openEdit(m)}
+                        onClick={() => toggleExpandedMenu(m)}
                         style={{
                           background: 'transparent',
                           border: '1px solid #1f5d3a',
@@ -1069,7 +1108,7 @@ export default function MenusClient(props: {
                           fontFamily: 'inherit',
                         }}
                       >
-                        원가 수정
+                        {expandedMenuId === m.id ? '접기' : '원가 수정'}
                       </button>
                     )}
                     <button
