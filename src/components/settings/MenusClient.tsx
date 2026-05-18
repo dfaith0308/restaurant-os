@@ -731,6 +731,78 @@ export default function MenusClient(props: {
                       onFormInputBlur(e)
                     }}
                   />
+                  {name.trim().length > 0 && (
+                    <div style={{ marginTop: 10 }}>
+                      <p style={{ fontSize: 12, color: '#9ca3af', marginBottom: 6, marginTop: 0 }}>
+                        원가 감이 안 오세요?
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleFetchEstimate}
+                        disabled={isPending || !name.trim()}
+                        style={{
+                          background: 'transparent',
+                          border: '0.5px solid #e8e5de',
+                          borderRadius: 8,
+                          padding: '8px 14px',
+                          fontSize: 12,
+                          color: '#6b7280',
+                          cursor: 'pointer',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        비슷한 메뉴 예상 원가 보기
+                      </button>
+                      {estimate?.estimated_cost != null && (
+                        <div
+                          style={{
+                            background: '#f7f6f2',
+                            border: '0.5px solid #e8e5de',
+                            borderRadius: 10,
+                            padding: '10px 14px',
+                            fontSize: 12,
+                            color: '#6b7280',
+                            marginTop: 10,
+                            lineHeight: 1.5,
+                          }}
+                        >
+                          <p style={{ margin: 0 }}>
+                            비슷한 메뉴 기준 예상 원가: 약 {formatKRW(estimate.estimated_cost)}
+                          </p>
+                          <p style={{ margin: '6px 0 0' }}>참고용입니다. 실제 원가와 다를 수 있어요.</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (editingId && estimate.estimated_cost != null) {
+                                syncDirectCostForMenu(editingId, String(estimate.estimated_cost))
+                              }
+                            }}
+                            style={{
+                              background: '#1f5d3a',
+                              color: '#ffffff',
+                              border: 'none',
+                              borderRadius: 8,
+                              padding: '7px 14px',
+                              fontSize: 12,
+                              fontWeight: 500,
+                              marginTop: 8,
+                              cursor: 'pointer',
+                              fontFamily: 'inherit',
+                            }}
+                          >
+                            이 금액으로 입력하기
+                          </button>
+                        </div>
+                      )}
+                      {estimate && estimate.estimated_cost == null && (
+                        <p style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.5, marginTop: 8, marginBottom: 0 }}>
+                          비슷한 메뉴 데이터를 찾지 못했어요.
+                          <br />
+                          예상 원가를 직접 입력해 주세요.
+                        </p>
+                      )}
+                    </div>
+                  )}
                   {formDirectMargin != null && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
                       <div style={{ background: '#f7f6f2', borderRadius: 12, padding: 12 }}>
@@ -809,20 +881,6 @@ export default function MenusClient(props: {
                 {(currentMenu?.ingredients ?? []).length === 0 ? (
                   <div style={{ padding: 14, fontSize: 13, color: '#9ca3af', lineHeight: 1.5 }}>
                     식재료를 입력하면 원가가 계산됩니다.
-                    <div style={{ marginTop: 10 }}>
-                      <button type="button" onClick={handleFetchEstimate} disabled={isPending || !name.trim()}
-                        style={{ minHeight: 44, padding: '10px 16px', background: '#1f5d3a', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                        비슷한 메뉴 예상 원가 보기
-                      </button>
-                    </div>
-                    {estimate?.estimated_cost != null && (
-                      <div style={{ marginTop: 10, color: '#2b2b2b', fontWeight: 600, fontSize: 13 }}>
-                        예상 원가 약 {formatKRW(estimate.estimated_cost)} (±15% 오차)
-                      </div>
-                    )}
-                    {estimate && estimate.estimated_cost == null && (
-                      <div style={{ marginTop: 10 }}>추정 데이터가 없습니다. 식재료를 입력하면 원가가 계산됩니다.</div>
-                    )}
                   </div>
                 ) : (
                   currentMenu!.ingredients.map((r) => (
