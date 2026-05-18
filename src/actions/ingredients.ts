@@ -310,12 +310,17 @@ export async function updateIngredient(
 
   const { data: currentRow } = await supabase
     .from('ingredients')
-    .select('unit')
+    .select('unit, current_price')
     .eq('id', id)
     .eq('tenant_id', tenant_id)
     .maybeSingle()
 
   const previousUnit = currentRow?.unit ?? ''
+  const previousPrice =
+    currentRow?.current_price != null
+      ? Number(currentRow.current_price)
+      : null
+  const nextPrice = input.current_price ?? null
   const effective_from = todayDateString()
 
   const patch: Record<string, unknown> = {
@@ -348,9 +353,125 @@ export async function updateIngredient(
     effective_from,
   )
 
+  const priceChanged =
+    nextPrice != null &&
+    nextPrice > 0 &&
+    (previousPrice == null || previousPrice !== nextPrice)
+  if (priceChanged) {
+    await insertIngredientPriceHistory(
+      supabase,
+      tenant_id,
+      id,
+      nextPrice,
+      effective_from,
+    )
+  }
+
   revalidatePath('/settings/ingredients')
   revalidatePath('/today')
   return { success: true }
+}
+
+export type IngredientPriceHistoryEntry = {
+  effective_from: string
+  price: number
+  created_at: string
+  supplier_name: string | null
+}
+
+export type IngredientsOperationData = {
+  priceHistoryByIngredient: Record<string, IngredientPriceHistoryEntry[]>
+  invoiceSupplierNames: string[]
+}
+
+function parseSupplierFromMemo(memo: string | null): string | null {
+  if (!memo) return null
+  const explicit = memo.match(/공급[:：]\s*([^·\n]+)/)
+  if (explicit?.[1]) {
+    const name = explicit[1].trim()
+    if (name) return name
+  }
+  if (!memo.includes('거래명세서 OCR')) return null
+  const parts = memo.split('·').map((s) => s.trim())
+  if (parts.length >= 2) {
+    const seg = parts[1]
+    if (seg && !seg.startsWith('수량')) return seg
+  }
+  return null
+}
+
+export async function getIngredientsOperationData(): Promise<
+  ActionResult<IngredientsOperationData>
+> {
+  const supabase = await createServerClient()
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id) {
+    return { success: false, error: '인증 필요', data: undefined }
+  }
+
+  const { data: ingredients, error: ingError } = await supabase
+    .from('ingredients')
+    .select('id, memo')
+    .eq('tenant_id', tenant_id)
+    .eq('is_active', true)
+
+  if (ingError) {
+    return { success: false, error: ingError.message, data: undefined }
+  }
+
+  const memoById = new Map(
+    (ingredients ?? []).map((row) => [row.id as string, (row.memo as string | null) ?? null]),
+  )
+
+  const { data: rawHistories, error: histError } = await supabase
+    .from('ingredient_price_history')
+    .select('ingredient_id, price, effective_from, created_at')
+    .eq('tenant_id', tenant_id)
+    .order('effective_from', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  if (histError) {
+    return { success: false, error: histError.message, data: undefined }
+  }
+
+  const priceHistoryByIngredient: Record<string, IngredientPriceHistoryEntry[]> = {}
+  for (const row of rawHistories ?? []) {
+    const ingredientId = row.ingredient_id as string
+    const bucket = priceHistoryByIngredient[ingredientId] ?? []
+    if (bucket.length >= 5) continue
+    const price = Number(row.price)
+    if (!Number.isFinite(price)) continue
+    const supplier_name =
+      bucket.length === 0
+        ? parseSupplierFromMemo(memoById.get(ingredientId) ?? null)
+        : null
+    bucket.push({
+      effective_from: row.effective_from as string,
+      price,
+      created_at: row.created_at as string,
+      supplier_name,
+    })
+    priceHistoryByIngredient[ingredientId] = bucket
+  }
+
+  const { data: supplierRows, error: supError } = await supabase
+    .from('invoice_suppliers')
+    .select('supplier_name')
+    .eq('tenant_id', tenant_id)
+    .order('last_seen_at', { ascending: false })
+
+  if (supError) {
+    return { success: false, error: supError.message, data: undefined }
+  }
+
+  const invoiceSupplierNames = (supplierRows ?? [])
+    .map((r) => (r.supplier_name as string | null)?.trim())
+    .filter((name): name is string => !!name)
+
+  return {
+    success: true,
+    data: { priceHistoryByIngredient, invoiceSupplierNames },
+  }
 }
 
 export type CreateIngredientInput = {
@@ -559,6 +680,9 @@ export async function registerInvoiceIngredients(
       const patch: Record<string, unknown> = {
         current_price: row.price,
         updated_at: new Date().toISOString(),
+      }
+      if (row.memo?.trim()) {
+        patch.memo = row.memo.trim()
       }
       if (unitChanged) {
         patch.unit = unit

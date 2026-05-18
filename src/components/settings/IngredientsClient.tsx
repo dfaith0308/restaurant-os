@@ -7,6 +7,9 @@ import {
   deactivateIngredient,
   registerInvoiceIngredients,
   upsertInvoiceSupplierFromOcr,
+  getIngredientsOperationData,
+  type IngredientPriceHistoryEntry,
+  type IngredientsOperationData,
 } from '@/actions/ingredients'
 import { formatKRW, toKoreanAmount } from '@/lib/utils'
 import { analyzeInvoiceImage } from '@/lib/invoice-ocr'
@@ -71,6 +74,96 @@ function findCanonicalIngredient(
   ocrName: string,
 ): Ingredient | undefined {
   return ingredients.find((row) => isLikelySameIngredient(row.name, ocrName))
+}
+
+function parseSupplierFromMemo(memo: string | null): string | null {
+  if (!memo) return null
+  const explicit = memo.match(/공급[:：]\s*([^·\n]+)/)
+  if (explicit?.[1]) {
+    const name = explicit[1].trim()
+    if (name) return name
+  }
+  if (!memo.includes('거래명세서 OCR')) return null
+  const parts = memo.split('·').map((s) => s.trim())
+  if (parts.length >= 2) {
+    const seg = parts[1]
+    if (seg && !seg.startsWith('수량')) return seg
+  }
+  return null
+}
+
+function inferRegistrationLabel(memo: string | null, barcode: string | null): string {
+  const m = memo ?? ''
+  if (m.includes('거래명세서 OCR')) return '거래명세서 등록'
+  if (barcode || m.includes('제조사:') || m.includes('품목보고')) return '제품 사진 등록'
+  return '수동 등록'
+}
+
+function formatRelativeDays(isoDate: string): string {
+  const then = new Date(isoDate)
+  if (Number.isNaN(then.getTime())) return ''
+  const now = new Date()
+  const days = Math.floor((now.getTime() - then.getTime()) / (1000 * 60 * 60 * 24))
+  if (days <= 0) return '오늘'
+  if (days === 1) return '1일 전'
+  return `${days}일 전`
+}
+
+function formatDateLabel(dateStr: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr
+  return dateStr
+}
+
+function buildInvoiceMemo(
+  quantity: number | null,
+  unit: string | null | undefined,
+  supplierName: string | null | undefined,
+): string {
+  const parts = ['거래명세서 OCR']
+  const supplier = supplierName?.trim()
+  if (supplier) parts.push(supplier)
+  if (quantity != null) {
+    parts.push(`수량 ${quantity}${unit ? ` ${unit}` : ''}`)
+  }
+  return parts.join(' · ')
+}
+
+function detectPriceSpike(
+  history: IngredientPriceHistoryEntry[],
+): { previous: number; current: number } | null {
+  if (history.length < 2) return null
+  const latest = history[0]
+  const prev = history[1]
+  if (prev.price <= 0) return null
+  const rise = (latest.price - prev.price) / prev.price
+  if (rise >= 0.3) {
+    return { previous: prev.price, current: latest.price }
+  }
+  return null
+}
+
+function matchesIngredientSearch(
+  item: Ingredient,
+  rawQuery: string,
+  invoiceSupplierNames: string[],
+): boolean {
+  const q = rawQuery.trim().toLowerCase()
+  if (!q) return true
+  const tokens = q.split(/\s+/).filter(Boolean)
+  const nameNorm = normalizeIngredientName(item.name)
+  const supplier = (parseSupplierFromMemo(item.memo) ?? '').toLowerCase()
+  const unit = (item.unit ?? '').toLowerCase()
+
+  return tokens.every((token) => {
+    const tokenNorm = normalizeIngredientName(token)
+    return (
+      item.name.toLowerCase().includes(token) ||
+      (!!tokenNorm && nameNorm.includes(tokenNorm)) ||
+      unit.includes(token) ||
+      supplier.includes(token) ||
+      invoiceSupplierNames.some((sn) => sn.toLowerCase().includes(token))
+    )
+  })
 }
 
 function sanitizeOcrUnitInput(value: string): string | null {
@@ -195,6 +288,14 @@ interface Ingredient {
   category: string | null
   memo: string | null
   barcode: string | null
+  created_at?: string
+  updated_at?: string | null
+}
+
+type CardEditDraft = {
+  name: string
+  unit: string
+  price: string
 }
 interface Props { ingredients: Ingredient[]; restaurantId: string }
 
@@ -354,6 +455,12 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
 
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<string>('')
+  const [operationData, setOperationData] = useState<IngredientsOperationData | null>(null)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [cardEdit, setCardEdit] = useState<CardEditDraft | null>(null)
+  const [cardSavingId, setCardSavingId] = useState<string | null>(null)
+  const operationLoadRef = useRef(0)
+  const cardSaveInFlightRef = useRef(false)
   const invoiceCameraInputRef = useRef<HTMLInputElement>(null)
   const invoiceGalleryInputRef = useRef<HTMLInputElement>(null)
   const ocrStepTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -382,14 +489,27 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [list])
 
+  const invoiceSupplierNames = operationData?.invoiceSupplierNames ?? []
+
+  const refreshOperationData = useCallback(async () => {
+    const token = ++operationLoadRef.current
+    const res = await getIngredientsOperationData()
+    if (token !== operationLoadRef.current) return
+    if (res.success && res.data) {
+      setOperationData(res.data)
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshOperationData()
+  }, [refreshOperationData])
+
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
     return list.filter((i) => {
       if (categoryFilter && (i.category ?? '') !== categoryFilter) return false
-      if (!q) return true
-      return i.name.toLowerCase().includes(q)
+      return matchesIngredientSearch(i, query, invoiceSupplierNames)
     })
-  }, [list, query, categoryFilter])
+  }, [list, query, categoryFilter, invoiceSupplierNames])
 
   const grouped = useMemo(() => {
     const map = new Map<string, Ingredient[]>()
@@ -465,6 +585,10 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     setRegisterMode(null)
     resetForm()
     resetInvoiceFlow()
+  }
+
+  function removeOcrRow(rowKey: string) {
+    setOcrIngredients((prev) => prev.filter((row) => row.rowKey !== rowKey))
   }
 
   function updateOcrRow(
@@ -595,10 +719,11 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
           name: row.name.trim(),
           unit: row.unit ?? '',
           price: row.price,
-          memo:
-            row.quantity != null
-              ? `거래명세서 OCR · 수량 ${row.quantity}${row.unit ? ` ${row.unit}` : ''}`
-              : '거래명세서 OCR',
+          memo: buildInvoiceMemo(
+            row.quantity,
+            row.unit,
+            invoiceSupplier?.supplier_name,
+          ),
           mode,
           effective_from: row.effectiveFrom,
         }
@@ -651,10 +776,81 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
           linkedCount,
         })
         if (successCount > 0) {
+          void refreshOperationData()
           setTimeout(() => closeRegistration(), 2000)
         }
       } finally {
         setBulkRegistering(false)
+      }
+    })
+  }
+
+  function toggleExpand(ingredient: Ingredient) {
+    if (expandedId === ingredient.id) {
+      setExpandedId(null)
+      setCardEdit(null)
+      return
+    }
+    setExpandedId(ingredient.id)
+    setCardEdit({
+      name: ingredient.name,
+      unit: ingredient.unit,
+      price:
+        ingredient.current_price != null ? String(ingredient.current_price) : '',
+    })
+  }
+
+  function handleCardSave(ingredient: Ingredient) {
+    if (!cardEdit || cardSavingId || cardSaveInFlightRef.current) return
+    if (!cardEdit.name.trim() || !cardEdit.unit.trim()) return
+
+    const priceNum = parseInt(cardEdit.price.replace(/,/g, ''), 10)
+    const current_price = Number.isNaN(priceNum) ? null : priceNum
+    const nameTrimmed = cardEdit.name.trim()
+    const unitTrimmed = cardEdit.unit.trim()
+    const priceUnchanged =
+      (current_price == null && ingredient.current_price == null) ||
+      current_price === ingredient.current_price
+    if (
+      nameTrimmed === ingredient.name &&
+      unitTrimmed === ingredient.unit &&
+      priceUnchanged
+    ) {
+      return
+    }
+
+    cardSaveInFlightRef.current = true
+    setCardSavingId(ingredient.id)
+
+    startTr(async () => {
+      try {
+        const res = await updateIngredient(ingredient.id, {
+          name: nameTrimmed,
+          unit: unitTrimmed,
+          category: ingredient.category,
+          current_price,
+          target_price: ingredient.target_price,
+          memo: ingredient.memo,
+          barcode: ingredient.barcode,
+        })
+        if (!res.success) return
+
+        setList((prev) =>
+          prev.map((row) =>
+            row.id === ingredient.id
+              ? {
+                  ...row,
+                  name: nameTrimmed,
+                  unit: unitTrimmed,
+                  current_price,
+                }
+              : row,
+          ),
+        )
+        await refreshOperationData()
+      } finally {
+        cardSaveInFlightRef.current = false
+        setCardSavingId(null)
       }
     })
   }
@@ -728,6 +924,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
           ])
         }
         closeRegistration()
+        void refreshOperationData()
       }
     })
   }
@@ -773,6 +970,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
         .fade-up-delay-1 { animation-delay: 0.1s; }
         .reg-mode-card:hover { border-color: #F97316 !important; }
         @keyframes naverPlaceSpin { to { transform: rotate(360deg); } }
+        .ocr-row-delete:hover { background: #fee2e2 !important; color: #b91c1c !important; }
       `}</style>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
@@ -809,7 +1007,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="식자재명 검색"
+          placeholder="식자재·공급업체·단위 검색"
           style={{ ...INPUT_STYLE, flex: 1, background: '#ffffff' }}
         />
         <select
@@ -1089,6 +1287,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                         <div
                           key={row.rowKey}
                           style={{
+                            position: 'relative',
                             background: priceChanged ? '#fff7ed' : '#ffffff',
                             border: priceChanged
                               ? `1px solid ${BRAND_ORANGE}`
@@ -1097,7 +1296,34 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                             padding: 12,
                           }}
                         >
-                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            aria-label="이 행 삭제"
+                            onClick={() => removeOcrRow(row.rowKey)}
+                            className="ocr-row-delete"
+                            style={{
+                              position: 'absolute',
+                              top: 8,
+                              right: 8,
+                              width: 28,
+                              height: 28,
+                              borderRadius: '50%',
+                              border: 'none',
+                              background: '#e5e7eb',
+                              color: '#6b7280',
+                              fontSize: 16,
+                              lineHeight: 1,
+                              cursor: 'pointer',
+                              fontFamily: 'inherit',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: 0,
+                            }}
+                          >
+                            ×
+                          </button>
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8, flexWrap: 'wrap', paddingRight: 32 }}>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <p style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', margin: '0 0 4px' }}>
                                 {row.name.trim() || '식자재명 입력'}
@@ -1526,45 +1752,269 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                 {g.category} · {g.items.length}개
               </div>
 
-              <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1.7fr .7fr .8fr .8fr .7fr .8fr', gap: 0, background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
-                  {['식자재명', '단위', '현재가', '목표가', '차이', ''].map((h) => (
-                    <div key={h} style={{ padding: '10px 10px', fontSize: 11, fontWeight: 800, color: '#6b7280' }}>
-                      {h}
-                    </div>
-                  ))}
-                </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {g.items.map((i) => {
-                  const cur = i.current_price
-                  const tgt = i.target_price
-                  const diff = cur != null && tgt != null ? cur - tgt : null
-                  const diffTone = diff != null ? (diff > 0 ? 'expensive' : 'ok') : 'na'
-                  const diffColor = diffTone === 'expensive' ? '#DC2626' : diffTone === 'ok' ? '#16A34A' : '#9ca3af'
+                  const expanded = expandedId === i.id
+                  const history =
+                    operationData?.priceHistoryByIngredient[i.id] ?? []
+                  const recentSupplier = parseSupplierFromMemo(i.memo)
+                  const lastPriceChange = history[0]?.effective_from ?? null
+                  const regLabel = inferRegistrationLabel(i.memo, i.barcode)
+                  const ocrRelative =
+                    (i.memo ?? '').includes('거래명세서 OCR') && i.updated_at
+                      ? formatRelativeDays(i.updated_at)
+                      : null
+                  const spike = detectPriceSpike(history)
+                  const editingThis = expanded && cardEdit
+
                   return (
-                    <div key={i.id} style={{ display: 'grid', gridTemplateColumns: '1.7fr .7fr .8fr .8fr .7fr .8fr', borderBottom: '1px solid #f3f4f6' }}>
-                      <div style={{ padding: '10px 10px' }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, color: '#2b2b2b' }}>{i.name}</div>
-                        {i.barcode ? (
-                          <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2 }}>바코드 {i.barcode}</div>
-                        ) : null}
-                        {i.memo ? <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.memo}</div> : null}
-                      </div>
-                      <div style={{ padding: '10px 10px', fontSize: 12, color: '#6b7280' }}>{i.unit}</div>
-                      <div style={{ padding: '10px 10px', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{cur != null ? formatKRW(cur) : '-'}</div>
-                      <div style={{ padding: '10px 10px', fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>{tgt != null ? formatKRW(tgt) : '-'}</div>
-                      <div style={{ padding: '10px 10px', fontSize: 12, fontWeight: 900, color: diffColor, fontVariantNumeric: 'tabular-nums' }}>
-                        {diff != null ? formatKRW(diff) : '-'}
-                      </div>
-                      <div style={{ padding: '10px 10px', display: 'flex', justifyContent: 'flex-end', gap: 6 }}>
-                        <button onClick={() => openEdit(i)}
-                          style={{ padding: '6px 10px', background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 8, fontSize: 11, color: '#1D4ED8', cursor: 'pointer', fontWeight: 800 }}>
-                          수정
-                        </button>
-                        <button onClick={() => handleDelete(i.id)}
-                          style={{ padding: '6px 10px', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 8, fontSize: 11, color: '#B91C1C', cursor: 'pointer', fontWeight: 800 }}>
-                          비활성화
-                        </button>
-                      </div>
+                    <div
+                      key={i.id}
+                      style={{
+                        background: '#fff',
+                        borderRadius: 12,
+                        border: '0.5px solid #e8e5de',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => toggleExpand(i)}
+                        style={{
+                          width: '100%',
+                          padding: 14,
+                          background: 'transparent',
+                          border: 'none',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: '#2b2b2b', marginBottom: 6 }}>
+                              {i.name}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+                              <span style={{ fontSize: 17, fontWeight: 600, color: BRAND_GREEN, fontVariantNumeric: 'tabular-nums' }}>
+                                {i.current_price != null ? formatKRW(i.current_price) : '가격 미입력'}
+                              </span>
+                              <span style={{ fontSize: 11, color: '#6b7280' }}>{i.unit}</span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                              {recentSupplier ? (
+                                <span style={{ fontSize: 11, color: '#6b7280' }}>
+                                  최근 공급업체 · {recentSupplier}
+                                </span>
+                              ) : null}
+                              {lastPriceChange ? (
+                                <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                                  {formatDateLabel(lastPriceChange)} 가격변경
+                                </span>
+                              ) : null}
+                              {ocrRelative ? (
+                                <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                                  OCR 등록 {ocrRelative}
+                                </span>
+                              ) : null}
+                              <span style={{ fontSize: 11, color: '#9ca3af' }}>{regLabel}</span>
+                            </div>
+                          </div>
+                          <span style={{ fontSize: 12, color: '#9ca3af', flexShrink: 0 }}>
+                            {expanded ? '▲' : '▼'}
+                          </span>
+                        </div>
+                      </button>
+
+                      {expanded ? (
+                        <div style={{ padding: '0 14px 14px' }}>
+                          {spike ? (
+                            <div
+                              style={{
+                                background: '#fff7ed',
+                                border: '0.5px solid #F97316',
+                                borderRadius: 12,
+                                padding: 10,
+                                marginBottom: 10,
+                              }}
+                            >
+                              <p style={{ fontSize: 12, fontWeight: 600, color: '#c2410c', margin: '0 0 4px' }}>
+                                최근 공급가가 크게 상승했습니다.
+                              </p>
+                              <p style={{ fontSize: 12, color: '#9a3412', margin: 0, fontVariantNumeric: 'tabular-nums' }}>
+                                {formatKRW(spike.previous)} → {formatKRW(spike.current)}
+                              </p>
+                            </div>
+                          ) : null}
+
+                          {recentSupplier && history.length > 0 ? (
+                            <div style={{ marginBottom: 10 }}>
+                              <p style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', margin: '0 0 6px' }}>
+                                {recentSupplier} 기준 가격 흐름
+                              </p>
+                              {history.slice(0, 5).map((row) => (
+                                <div
+                                  key={`flow_${row.effective_from}_${row.created_at}`}
+                                  style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    fontSize: 12,
+                                    color: '#374151',
+                                    padding: '4px 0',
+                                  }}
+                                >
+                                  <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                                    {formatDateLabel(row.effective_from)}
+                                  </span>
+                                  <span style={{ fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                                    {formatKRW(row.price)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+
+                          {history.length > 0 ? (
+                            <div style={{ marginBottom: 12 }}>
+                              <p style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', margin: '0 0 4px' }}>
+                                최근 가격 히스토리
+                              </p>
+                              {history.map((row) => (
+                                <div
+                                  key={`hist_${row.effective_from}_${row.created_at}`}
+                                  style={{
+                                    borderTop: '0.5px solid #f0ede7',
+                                    paddingTop: 8,
+                                    paddingBottom: 8,
+                                  }}
+                                >
+                                  <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 2 }}>
+                                    {formatDateLabel(row.effective_from)}
+                                  </div>
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ fontSize: 13, fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                                      {formatKRW(row.price)}
+                                    </span>
+                                    {row.supplier_name ? (
+                                      <span style={{ fontSize: 11, color: '#6b7280' }}>{row.supplier_name}</span>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 12px' }}>
+                              아직 가격 히스토리가 없습니다.
+                            </p>
+                          )}
+
+                          {editingThis ? (
+                            <div style={{ marginBottom: 10 }}>
+                              <FormLabel required>식자재명</FormLabel>
+                              <input
+                                value={cardEdit.name}
+                                onChange={(e) =>
+                                  setCardEdit((prev) =>
+                                    prev ? { ...prev, name: e.target.value } : prev,
+                                  )
+                                }
+                                style={{ ...INPUT_STYLE, marginBottom: 8 }}
+                              />
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+                                <div>
+                                  <FormLabel required>공급가</FormLabel>
+                                  <input
+                                    value={cardEdit.price}
+                                    onChange={(e) =>
+                                      setCardEdit((prev) =>
+                                        prev ? { ...prev, price: e.target.value } : prev,
+                                      )
+                                    }
+                                    inputMode="numeric"
+                                    style={INPUT_STYLE}
+                                  />
+                                </div>
+                                <div>
+                                  <FormLabel required>단위</FormLabel>
+                                  <select
+                                    value={cardEdit.unit}
+                                    onChange={(e) =>
+                                      setCardEdit((prev) =>
+                                        prev ? { ...prev, unit: e.target.value } : prev,
+                                      )
+                                    }
+                                    style={INPUT_STYLE}
+                                  >
+                                    {UNITS.map((u) => (
+                                      <option key={u} value={u}>
+                                        {u}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                disabled={!!cardSavingId || isPending}
+                                onClick={() => handleCardSave(i)}
+                                style={{
+                                  width: '100%',
+                                  padding: 11,
+                                  background: cardSavingId ? '#9ca3af' : BRAND_GREEN,
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: 10,
+                                  fontSize: 13,
+                                  fontWeight: 600,
+                                  cursor: cardSavingId ? 'not-allowed' : 'pointer',
+                                  fontFamily: 'inherit',
+                                }}
+                              >
+                                {cardSavingId === i.id ? '저장 중...' : '변경 저장'}
+                              </button>
+                            </div>
+                          ) : null}
+
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                              type="button"
+                              onClick={() => openEdit(i)}
+                              style={{
+                                flex: 1,
+                                padding: '8px 10px',
+                                background: '#EFF6FF',
+                                border: '1px solid #BFDBFE',
+                                borderRadius: 8,
+                                fontSize: 11,
+                                color: '#1D4ED8',
+                                cursor: 'pointer',
+                                fontWeight: 600,
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              상세 수정
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(i.id)}
+                              style={{
+                                padding: '8px 10px',
+                                background: '#FEF2F2',
+                                border: '1px solid #FCA5A5',
+                                borderRadius: 8,
+                                fontSize: 11,
+                                color: '#B91C1C',
+                                cursor: 'pointer',
+                                fontWeight: 600,
+                                fontFamily: 'inherit',
+                              }}
+                            >
+                              비활성화
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   )
                 })}
