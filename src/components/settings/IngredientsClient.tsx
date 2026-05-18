@@ -1345,7 +1345,9 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
               {invoiceAnalyzeStatus === 'success' && ocrIngredients.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
                   <p style={{ fontSize: 11, color: '#9ca3af', lineHeight: 1.5, margin: '0 0 10px' }}>
-                    OCR 결과를 확인 후 등록해주세요.
+                    <span style={{ fontWeight: 800, color: '#374151' }}>검토 후 저장</span>
+                    <br />
+                    OCR은 읽기만 하며, 확인·수정 후에만 식자재·가격 데이터에 반영돼요.
                     <br />
                     거래명세서 상태에 따라 일부 인식이 달라질 수 있어요.
                   </p>

@@ -127,12 +127,18 @@ export default function OrderTodayParseInsights({
           </div>
           <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: '#78350f', lineHeight: 1.45 }}>
             {insights.repeat_unlinked.map((row) => (
-              <li key={row.name}>
+              <li key={row.name} style={{ marginBottom: 6 }}>
                 {row.name} {'\u00b7'} {'\ucd5c\uadfc 7\uc77c'} {row.count}
                 {'\ud68c \uc778\uc2dd'}
+                <p style={{ margin: '4px 0 0', fontSize: 11, color: '#92400e', lineHeight: 1.4 }}>
+                  {`\ucd5c\uadfc \uc8fc\ubb38\uc5d0 ${row.count}\ud68c \ub4f1\uc7a5\ud588\uc9c0\ub9cc \uc544\uc9c1 \uc2dd\uc790\uc7ac \ub4f1\ub85d\uc774 \uc548 \ub410\uc5b4\uc694.`}
+                </p>
               </li>
             ))}
           </ul>
+          <p style={{ margin: '8px 0 0', fontSize: 11, color: '#9ca3af', lineHeight: 1.4 }}>
+            {'\uc2dd\uc790\uc7ac \ub4f1\ub85d \ud6c4 \uc8fc\ubb38 \uc5f0\uacb0\ub960\uc744 \ub192\uc77c \uc218 \uc788\uc5b4\uc694.'}
+          </p>
         </div>
       ) : null}
 

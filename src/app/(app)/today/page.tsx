@@ -3,9 +3,11 @@ import { getTodayDashboard } from '@/actions/today'
 import { getMoneyDashboard } from '@/actions/money'
 import { getMenus } from '@/actions/menus'
 import {
+  buildTodayActionPriority,
   buildTodayMainOperationFeed,
   buildTodayOperationHubFromMenusAndIngredients,
   buildTodayOrderParseInsights,
+  buildTodayRiskFlowChains,
   buildTodaySupplierOperationInsights,
 } from '@/lib/order-capture'
 import { getOrdersOperationSlice } from '@/actions/orders'
@@ -19,6 +21,7 @@ import OrderTodayParseInsights from '@/components/orders/OrderTodayParseInsights
 import TodaySupplierInsights from '@/components/today/TodaySupplierInsights'
 import SupplierRiskSection from '@/components/today/SupplierRiskSection'
 import TodayMainOperationFeed from '@/components/today/TodayMainOperationFeed'
+import TodayActionPriorityCard from '@/components/today/TodayActionPriorityCard'
 
 export default async function TodayPage() {
   const tenant_id = await getTenantId()
@@ -80,24 +83,45 @@ export default async function TodayPage() {
     supplierPriceRisks: supplierInsights.price_risk_suppliers,
   })
 
+  const judgmentInput = {
+    topRiskMenus: hub?.top_risk_menus ?? [],
+    topSpikeIngredients: hub?.top_spike_ingredients ?? [],
+    repeatUnlinked: parseInsights.repeat_unlinked,
+    supplierPriceRisks: supplierInsights.price_risk_suppliers,
+    registrationCandidates: parseInsights.registration_candidates,
+    menus: menus.map((m) => ({
+      id: m.id,
+      name: m.name,
+      operation_risk_level: m.operation_risk_level,
+      impacting_ingredients: m.impacting_ingredients,
+    })),
+    orders: orderSlice,
+  }
+  const actionPriority = buildTodayActionPriority(judgmentInput)
+  const riskFlowChains = buildTodayRiskFlowChains(judgmentInput)
+
   return (
     <main style={{ maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' }}>
       <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 6px' }}>
         {'\uc624\ub298\uc6b4\uc601'}
       </h1>
-      <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 16px', lineHeight: 1.45 }}>
+      <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 14px', lineHeight: 1.45 }}>
         {
-          '\uc2dd\ub2f9 \uc6b4\uc601 \uba54\uc778 \ud5c8\ube0c \u2014 OCR\u00b7\uc8fc\ubb38\u00b7\uacf5\uae09\u00b7\uc6d0\uac00 \ud750\ub984\uc744 \ud55c\uacf3\uc5d0\uc11c \ud655\uc778\ud574\uc694.'
+          '\uc624\ub298 \uc2dd\ub2f9\uc5d0\uc11c \ubb34\uc2a8 \uc77c\uc774 \uc77c\uc5b4\ub098\uace0 \uc788\ub294\uc9c0, \ubb34\uc5c7\uc744 \uba3c\uc800 \ud655\uc778\ud560\uc9c0 \ubd10\uc694.'
         }
       </p>
 
+      <TodayActionPriorityCard priority={actionPriority} />
+
       {hub ? (
-        <TodayOperationInsights
-          risk_menu_count={hub.risk_menu_count}
-          spike_ingredient_count={hub.spike_ingredient_count}
-          ocr_recent_count={hub.ocr_recent_count}
-          avg_margin_rate={hub.avg_margin_rate}
-        />
+        <section style={{ marginBottom: 20 }}>
+          <TodayOperationInsights
+            risk_menu_count={hub.risk_menu_count}
+            spike_ingredient_count={hub.spike_ingredient_count}
+            ocr_recent_count={hub.ocr_recent_count}
+            avg_margin_rate={hub.avg_margin_rate}
+          />
+        </section>
       ) : null}
 
       {hub ? (
@@ -105,19 +129,23 @@ export default async function TodayPage() {
           top_risk_menus={hub.top_risk_menus}
           top_spike_ingredients={hub.top_spike_ingredients}
           recent_ocr={hub.recent_ocr}
+          flowChains={riskFlowChains}
         />
       ) : null}
 
-      <TodaySupplierInsights insights={supplierInsights} />
-      <OrderTodayParseInsights insights={parseInsights} />
+      <section style={{ marginBottom: 20, paddingTop: 4, borderTop: '1px solid #f3f4f6' }}>
+        <TodaySupplierInsights insights={supplierInsights} />
+        <OrderTodayParseInsights insights={parseInsights} />
+        <SupplierRiskSection
+          priceRisks={supplierInsights.price_risk_suppliers}
+          activeSuppliers={supplierInsights.top_active_suppliers_7d}
+          dependencies={supplierInsights.dependency_ingredients}
+        />
+      </section>
 
-      <SupplierRiskSection
-        priceRisks={supplierInsights.price_risk_suppliers}
-        activeSuppliers={supplierInsights.top_active_suppliers_7d}
-        dependencies={supplierInsights.dependency_ingredients}
-      />
-
-      <TodayMainOperationFeed items={operationFeed} />
+      <section style={{ marginBottom: 20, paddingTop: 4, borderTop: '1px solid #f3f4f6' }}>
+        <TodayMainOperationFeed items={operationFeed} />
+      </section>
 
       {!d ? (
         <div

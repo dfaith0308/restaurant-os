@@ -249,6 +249,22 @@ export default function OrderImageCaptureCard() {
 
       {step === 'review' ? (
         <div>
+          <div
+            style={{
+              background: '#f9fafb',
+              border: '1px solid #e5e7eb',
+              borderRadius: 12,
+              padding: '10px 12px',
+              marginBottom: 12,
+            }}
+          >
+            <p style={{ margin: 0, fontSize: 12, fontWeight: 800, color: '#374151', lineHeight: 1.45 }}>
+              검토 후 저장
+            </p>
+            <p style={{ margin: '6px 0 0', fontSize: 11, color: '#9ca3af', lineHeight: 1.45 }}>
+              이미지·주문 내용은 자동으로 읽기만 하며, 확인·수정 후에만 운영 데이터에 저장돼요.
+            </p>
+          </div>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 6 }}>
             거래처(상호)
           </label>
@@ -364,7 +380,7 @@ export default function OrderImageCaptureCard() {
                 fontFamily: 'inherit',
               }}
             >
-              {pending ? '저장 중…' : '주문 흐름 저장'}
+              {pending ? '저장 중…' : '검토 후 저장'}
             </button>
           </div>
         </div>

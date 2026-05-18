@@ -945,3 +945,211 @@ export function buildTodayMainOperationFeed(
   items.sort(compareFeedItems)
   return items.slice(0, 20)
 }
+
+export type TodayActionPriorityKind =
+  | 'menu_risk'
+  | 'spike'
+  | 'unlinked_order'
+  | 'supplier_risk'
+  | 'registration_candidate'
+
+export type TodayActionPriorityItem = {
+  kind: TodayActionPriorityKind
+  tone: OperationFeedTone
+  label: string
+  why: string
+  actionHint: string
+  href: string
+}
+
+export type TodayActionPriorityView = {
+  summary: string
+  items: TodayActionPriorityItem[]
+}
+
+export type TodayRiskFlowChain = {
+  id: string
+  steps: string[]
+  actionHint: string
+}
+
+type MenuForRiskFlow = {
+  id: string
+  name: string
+  operation_risk_level: 'normal' | 'warning' | 'danger'
+  impacting_ingredients: Array<{ ingredient_name: string }>
+}
+
+export type TodayJudgmentInput = {
+  topRiskMenus: Array<{
+    id: string
+    name: string
+    operation_risk_level: 'normal' | 'warning' | 'danger'
+  }>
+  topSpikeIngredients: Array<{
+    ingredient_id: string
+    name: string
+    change_percent: number
+  }>
+  repeatUnlinked: Array<{ name: string; count: number }>
+  supplierPriceRisks: SupplierPriceRiskView[]
+  registrationCandidates: Array<{ name: string; count: number }>
+  menus: MenuForRiskFlow[]
+  orders: Order[]
+}
+
+function joinSummaryLabels(labels: string[]): string {
+  if (labels.length === 0) {
+    return '\uc624\ub298\uc740 \ud2b9\ubcc4\ud788 \uae34\uae09\ud55c \uc6b4\uc601 \uc2e0\ud638\uac00 \uc5c6\uc5b4\uc694. \ud558\ubd80 \ud53c\ub4dc\uc5d0\uc11c \ud750\ub984\uc744 \ud655\uc778\ud574\ubcf4\uc138\uc694.'
+  }
+  if (labels.length === 1) {
+    return `\uc624\ub298\uc740 ${labels[0]}\uc744 \uba3c\uc800 \ud655\uc778\ud558\uc138\uc694.`
+  }
+  return `\uc624\ub298\uc740 ${labels[0]}\uacfc ${labels[1]}\uc744 \uba3c\uc800 \ud655\uc778\ud558\uc138\uc694.`
+}
+
+export function buildTodayActionPriority(
+  input: TodayJudgmentInput,
+): TodayActionPriorityView {
+  const items: TodayActionPriorityItem[] = []
+
+  const dangerMenu = input.topRiskMenus.find((m) => m.operation_risk_level === 'danger')
+  const warnMenu = dangerMenu
+    ? null
+    : input.topRiskMenus.find((m) => m.operation_risk_level === 'warning')
+  const focusMenu = dangerMenu ?? warnMenu
+  if (focusMenu) {
+    items.push({
+      kind: 'menu_risk',
+      tone: focusMenu.operation_risk_level === 'danger' ? 'danger' : 'warning',
+      label: `${focusMenu.name} \uba54\ub274 \uc6d0\uac00 \uc704\ud5d8`,
+      why: '\ucd5c\uadfc \uc6d0\uac00\u00b7\ub9c8\uc9c4 \uae30\uc900\uc73c\ub85c \uc704\ud5d8 \ub2e8\uacc4\uc5d0 \uc788\uc5b4\uc694.',
+      actionHint: '\uba54\ub274 \uc6d0\uac00\uc640 \uc2dd\uc790\uc7ac \uad6c\uc131\uc744 \ud655\uc778\ud574\ubcf4\uc138\uc694.',
+      href: '/settings/menus',
+    })
+  }
+
+  const spike = input.topSpikeIngredients[0]
+  if (spike) {
+    items.push({
+      kind: 'spike',
+      tone: 'danger',
+      label: `${spike.name} \uacf5\uae09\uac00 \uae09\ub4f1`,
+      why: `\ucd5c\uadfc 30\uc77c \uae30\uc900 \uacf5\uae09\uac00\uac00 ${spike.change_percent}%\uc0c1\uc2b9\ud588\uc5b4\uc694.`,
+      actionHint: '\uacf5\uae09\uc5c5\uccb4 \uac00\uaca9 \ud750\ub984\uacfc \ub300\uc2e0 \uba54\ub274\ub97c \ud655\uc778\ud574\ubcf4\uc138\uc694.',
+      href: '/settings/ingredients',
+    })
+  }
+
+  const unlinked = input.repeatUnlinked[0]
+  if (unlinked) {
+    items.push({
+      kind: 'unlinked_order',
+      tone: 'warning',
+      label: `\ubbf8\uc5f0\uacb0 \uc8fc\ubb38 \ud488\ubaa9 \u00b7 ${unlinked.name}`,
+      why: `\ucd5c\uadfc \uc8fc\ubb38\uc5d0 ${unlinked.count}\ud68c \ub4f1\uc7a5\ud588\uc9c0\ub9cc \uc544\uc9c1 \uc2dd\uc790\uc7ac \ub4f1\ub85d\uc774 \uc548 \ub410\uc5b4\uc694.`,
+      actionHint: '\uc2dd\uc790\uc7ac \ub4f1\ub85d \ud6c4 \uc8fc\ubb38 \uc5f0\uacb0\ub960\uc744 \ub192\uc77c \uc218 \uc788\uc5b4\uc694.',
+      href: '/settings/ingredients',
+    })
+  }
+
+  const supRisk = input.supplierPriceRisks[0]
+  if (supRisk) {
+    const topIng = supRisk.ingredients[0]
+    items.push({
+      kind: 'supplier_risk',
+      tone: 'warning',
+      label: `${supRisk.supplier_name} \uacf5\uae09 \uac00\uaca9 \ubcc0\ub3d9`,
+      why: topIng
+        ? `${topIng.name} \ud488\ubaa9\uc5d0\uc11c \ucd5c\uadfc \uacf5\uae09\uac00\uac00 ${topIng.change_percent}%\uc774\uc0c1 \ud655\uc778\ub410\uc5b4\uc694.`
+        : '\ucd5c\uadfc \uacf5\uae09 \uae30\ub85d\uc5d0 \uc0c1\uc2b9 \ud750\ub984\uc774 \uc788\uc5b4\uc694.',
+      actionHint: '\uacf5\uae09\uc5c5\uccb4 \uac00\uaca9 \ud750\ub984\uc744 \ud655\uc778\ud574\ubcf4\uc138\uc694.',
+      href: '/settings/ingredients',
+    })
+  }
+
+  const cand = input.registrationCandidates[0]
+  if (cand) {
+    items.push({
+      kind: 'registration_candidate',
+      tone: 'warning',
+      label: `\uc2e0\uaddc \uc2dd\uc790\uc7ac \ud6c4\ubcf4 \u00b7 ${cand.name}`,
+      why: `\ucd5c\uadfc 7\uc77c \uc8fc\ubb38\uc5d0 ${cand.count}\ud68c \ub4f1\uc7a5\ud588\uc5b4\uc694.`,
+      actionHint: '\uc2dd\uc790\uc7ac\ub97c \ub4f1\ub85d\ud558\uba74 \uc6d0\uac00\u00b7\uc8fc\ubb38 \uc778\uc0ac\uc774\ud2b8\uac00 \uc815\ud655\ud574\uc9c0\uc694.',
+      href: '/settings/ingredients',
+    })
+  }
+
+  const summary = joinSummaryLabels(items.slice(0, 2).map((i) => i.label))
+  return { summary, items: items.slice(0, 5) }
+}
+
+function countOrdersMentioningIngredient(
+  orders: Order[],
+  ingredientLabel: string,
+): number {
+  const key =
+    normalizeIngredientName(ingredientLabel) ||
+    ingredientLabel.trim().toLowerCase()
+  if (!key) return 0
+  let count = 0
+  for (const o of orders) {
+    if (!isWithinDaysOrder(o.created_at, 7)) continue
+    const cap = o.operation_capture
+    if (!cap?.parsed_items?.length) continue
+    const hit = cap.parsed_items.some((line) => {
+      const nk =
+        normalizeIngredientName(line.normalized_name) ||
+        line.normalized_name.trim().toLowerCase()
+      const mk = line.ingredient_match
+        ? normalizeIngredientName(line.ingredient_match)
+        : ''
+      return nk === key || mk === key
+    })
+    if (hit) count += 1
+  }
+  return count
+}
+
+export function buildTodayRiskFlowChains(
+  input: TodayJudgmentInput,
+): TodayRiskFlowChain[] {
+  const chains: TodayRiskFlowChain[] = []
+  const spike = input.topSpikeIngredients[0]
+  if (!spike) return chains
+
+  const spikeKey =
+    normalizeIngredientName(spike.name) || spike.name.trim().toLowerCase()
+  const relatedMenus = input.menus.filter((m) =>
+    m.impacting_ingredients.some(
+      (ing) =>
+        normalizeIngredientName(ing.ingredient_name) === spikeKey ||
+        ing.ingredient_name.includes(spike.name),
+    ),
+  )
+  const riskMenu = relatedMenus.find((m) => m.operation_risk_level !== 'normal')
+  const orderCount = countOrdersMentioningIngredient(input.orders, spike.name)
+
+  const steps: string[] = [
+    `${spike.name} \uacf5\uae09\uac00 \uae09\ub4f1 (+${spike.change_percent}%)`,
+  ]
+  if (riskMenu) {
+    steps.push(`${riskMenu.name} \uba54\ub274 \uc6d0\uac00 \uc704\ud5d8 \uc99d\uac00`)
+  }
+  if (orderCount > 0) {
+    steps.push(`\uad00\ub828 \uc8fc\ubb38 ${orderCount}\uac74 \ucd94\uac00`)
+  } else if (steps.length === 1 && input.topRiskMenus[0]) {
+    steps.push(`${input.topRiskMenus[0].name} \uba54\ub274 \uc6d0\uac00 \ud750\ub984 \uc810\uac80`)
+  }
+
+  if (steps.length >= 2) {
+    chains.push({
+      id: `flow:${spike.ingredient_id}`,
+      steps,
+      actionHint:
+        '\uc2dd\uc790\uc7ac \uac00\uaca9\u00b7\uba54\ub274 \uc6d0\uac00\u00b7\uc8fc\ubb38 \ud750\ub984\uc744 \ud568\uaed8 \ubcf4\uba74 \uc6b4\uc601 \ud310\ub2e8\uc774 \uc27d\uc5b4\uc838\uc694.',
+    })
+  }
+
+  return chains.slice(0, 2)
+}

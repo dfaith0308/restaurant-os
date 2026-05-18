@@ -51,12 +51,24 @@ export default function SupplierRiskSection({
                   가격 변동 주의
                 </div>
                 {row.ingredients.length > 0 ? (
-                  <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, lineHeight: 1.45 }}>
-                    {row.ingredients
-                      .map((ing) => `${ing.name} +${ing.change_percent}%`)
-                      .join(' · ')}
-                  </div>
-                ) : null}
+                  <>
+                    <div style={{ fontSize: 11, color: '#6b7280', marginTop: 4, lineHeight: 1.45 }}>
+                      {row.ingredients
+                        .map((ing) => `${ing.name} +${ing.change_percent}%`)
+                        .join(' · ')}
+                    </div>
+                    <p style={{ margin: '6px 0 0', fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
+                      {`최근 30일 기준 ${row.ingredients[0].name} 공급가가 ${row.ingredients[0].change_percent}% 이상 변동됐어요.`}
+                    </p>
+                  </>
+                ) : (
+                  <p style={{ margin: '6px 0 0', fontSize: 11, color: '#6b7280', lineHeight: 1.4 }}>
+                    최근 거래명세서·OCR 기록에서 공급가 상승 흐름이 확인됐어요.
+                  </p>
+                )}
+                <p style={{ margin: '6px 0 0', fontSize: 11, color: '#9ca3af', lineHeight: 1.4 }}>
+                  공급업체 가격 흐름을 확인해보세요.
+                </p>
               </li>
             ))}
           </ul>

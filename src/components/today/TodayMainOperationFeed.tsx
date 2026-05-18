@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import type { OperationFeedItem, OperationFeedTone } from '@/lib/order-capture'
+import TodayTrustNotice from '@/components/today/TodayTrustNotice'
 
 const cardStyle = {
   background: '#ffffff',
@@ -140,6 +141,7 @@ export default function TodayMainOperationFeed({
           )
         })}
       </ul>
+      <TodayTrustNotice />
     </section>
   )
 }
