@@ -258,10 +258,11 @@ export default function MenusClient(props: {
   const [ingQty, setIngQty] = useState('1')
   const [ingUnit, setIngUnit] = useState('')
 
-  const [costInputTab, setCostInputTab] = useState<'direct' | 'ingredient'>('ingredient')
+  const [costInputTab, setCostInputTab] = useState<'direct' | 'ingredient'>('direct')
   const [directCost, setDirectCost] = useState('')
   const [directCostByMenuId, setDirectCostByMenuId] = useState<Record<string, string>>({})
   const [priceFocused, setPriceFocused] = useState(false)
+  const [directCostFocused, setDirectCostFocused] = useState(false)
   const [confirmHideMenuId, setConfirmHideMenuId] = useState<string | null>(null)
 
   const [estimate, setEstimate] = useState<{
@@ -305,9 +306,10 @@ export default function MenusClient(props: {
     setIngQty('1')
     setIngUnit('')
     setEstimate(null)
-    setCostInputTab('ingredient')
+    setCostInputTab('direct')
     setDirectCost('')
     setPriceFocused(false)
+    setDirectCostFocused(false)
   }
 
   function openCreate() {
@@ -324,8 +326,9 @@ export default function MenusClient(props: {
     setIsRep(!!m.is_representative)
     setMemo(m.memo ?? '')
     setDirectCost(directCostByMenuId[m.id] ?? '')
-    setCostInputTab('ingredient')
+    setCostInputTab('direct')
     setPriceFocused(false)
+    setDirectCostFocused(false)
     setShowForm(true)
   }
 
@@ -353,6 +356,12 @@ export default function MenusClient(props: {
     ? price
     : price
       ? Number(price).toLocaleString('ko-KR')
+      : ''
+
+  const directCostDisplay = directCostFocused
+    ? directCost
+    : directCost
+      ? Number(directCost).toLocaleString('ko-KR')
       : ''
 
   const currentMenu = useMemo(() => {
@@ -653,32 +662,75 @@ export default function MenusClient(props: {
           </div>
           {editingId && (
             <div style={{ marginTop: 18, borderTop: '0.5px solid #e8e5de', paddingTop: 18 }}>
-              <p style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', margin: '0 0 12px' }}>원가를 알고 계시면 직접 입력하세요</p>
+              <p style={{ fontSize: 13, color: '#9ca3af', lineHeight: 1.5, margin: '0 0 12px' }}>
+                정확한 재료 입력 전에
+                <br />
+                대략 얼마 남는지 먼저 확인할 수 있어요
+              </p>
               <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                <button type="button" onClick={() => setCostInputTab('direct')} style={{
-                  flex: 1, minHeight: 44, padding: '10px 12px', borderRadius: 10,
-                  border: costInputTab === 'direct' ? '1.5px solid #1f5d3a' : '0.5px solid #e8e5de',
-                  background: costInputTab === 'direct' ? '#edf7f1' : '#f7f6f2',
-                  color: costInputTab === 'direct' ? '#1f5d3a' : '#6b7280',
-                  fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                }}>직접 입력</button>
-                <button type="button" onClick={() => setCostInputTab('ingredient')} style={{
-                  flex: 1, minHeight: 44, padding: '10px 12px', borderRadius: 10,
-                  border: costInputTab === 'ingredient' ? '1.5px solid #1f5d3a' : '0.5px solid #e8e5de',
-                  background: costInputTab === 'ingredient' ? '#edf7f1' : '#f7f6f2',
-                  color: costInputTab === 'ingredient' ? '#1f5d3a' : '#6b7280',
-                  fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
-                }}>식자재로 계산</button>
+                <button
+                  type="button"
+                  onClick={() => setCostInputTab('direct')}
+                  style={{
+                    flex: 1,
+                    minHeight: 44,
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    border: costInputTab === 'direct' ? 'none' : '0.5px solid #e8e5de',
+                    background: costInputTab === 'direct' ? '#1f5d3a' : '#ffffff',
+                    color: costInputTab === 'direct' ? '#ffffff' : '#6b7280',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  빠르게 계산
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCostInputTab('ingredient')}
+                  style={{
+                    flex: 1,
+                    minHeight: 44,
+                    padding: '10px 12px',
+                    borderRadius: 10,
+                    border: costInputTab === 'ingredient' ? 'none' : '0.5px solid #e8e5de',
+                    background: costInputTab === 'ingredient' ? '#1f5d3a' : '#ffffff',
+                    color: costInputTab === 'ingredient' ? '#ffffff' : '#6b7280',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  재료로 자세히 계산
+                </button>
               </div>
 
               {costInputTab === 'direct' ? (
                 <div style={{ marginBottom: 8 }}>
-                  <label style={formLabelStyle}>원가 (1인분)</label>
-                  <input value={directCost} onChange={(e) => syncDirectCostForMenu(editingId, e.target.value.replace(/[^0-9]/g, ''))}
-                    inputMode="numeric" placeholder="예: 4500" style={formInputStyle} onFocus={onFormInputFocus} onBlur={onFormInputBlur} />
-                  <p style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.5, margin: '10px 0 0' }}>
-                    직접 입력한 원가는 저장되지 않습니다.<br />정확한 계산을 위해 식자재를 입력해주세요.
+                  <p style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.5, margin: '0 0 12px' }}>
+                    재료를 자세히 입력하기 전에
+                    <br />
+                    대략적인 마진을 먼저 확인할 수 있어요.
                   </p>
+                  <label style={formLabelStyle}>예상 원가 (대략적인 금액)</label>
+                  <input
+                    value={directCostDisplay}
+                    onChange={(e) => syncDirectCostForMenu(editingId, e.target.value.replace(/[^0-9]/g, ''))}
+                    inputMode="numeric"
+                    placeholder="예: 8,000"
+                    style={formInputStyle}
+                    onFocus={(e) => {
+                      setDirectCostFocused(true)
+                      onFormInputFocus(e)
+                    }}
+                    onBlur={(e) => {
+                      setDirectCostFocused(false)
+                      onFormInputBlur(e)
+                    }}
+                  />
                   {formDirectMargin != null && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12 }}>
                       <div style={{ background: '#f7f6f2', borderRadius: 12, padding: 12 }}>
@@ -691,6 +743,27 @@ export default function MenusClient(props: {
                       </div>
                     </div>
                   )}
+                  <p style={{ fontSize: 12, color: '#9ca3af', lineHeight: 1.5, margin: '12px 0 0' }}>
+                    더 정확히 보려면{' '}
+                    <button
+                      type="button"
+                      onClick={() => setCostInputTab('ingredient')}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        padding: 0,
+                        color: '#1f5d3a',
+                        fontSize: 12,
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        textDecoration: 'underline',
+                      }}
+                    >
+                      재료로 자세히 계산
+                    </button>
+                    을 이용해보세요.
+                  </p>
                 </div>
               ) : (
                 <>
@@ -739,7 +812,7 @@ export default function MenusClient(props: {
                     <div style={{ marginTop: 10 }}>
                       <button type="button" onClick={handleFetchEstimate} disabled={isPending || !name.trim()}
                         style={{ minHeight: 44, padding: '10px 16px', background: '#1f5d3a', color: '#fff', border: 'none', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
-                        AI 추정 원가 조회
+                        비슷한 메뉴 예상 원가 보기
                       </button>
                     </div>
                     {estimate?.estimated_cost != null && (
