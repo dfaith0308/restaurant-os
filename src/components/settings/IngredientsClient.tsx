@@ -15,6 +15,7 @@ import {
 import { formatKRW, toKoreanAmount } from '@/lib/utils'
 import { analyzeInvoiceImage } from '@/lib/invoice-ocr'
 import type { InvoiceIngredient, InvoiceSupplier } from '@/lib/invoice-ocr'
+import { compressImageForInvoiceOcr } from '@/lib/image-compress'
 import Link from 'next/link'
 import IngredientBarcodeSection from '@/components/product/IngredientBarcodeSection'
 import type { IngredientBarcodeApplyHints } from '@/components/product/IngredientBarcodeSection'
@@ -656,7 +657,15 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
   async function handleInvoiceFileSelect(file: File | undefined) {
     if (!file) return
     clearOcrStepTimer()
-    setInvoiceImage(file)
+
+    let uploadFile = file
+    try {
+      uploadFile = await compressImageForInvoiceOcr(file)
+    } catch {
+      uploadFile = file
+    }
+
+    setInvoiceImage(uploadFile)
     setInvoiceAnalyzeStatus('loading')
     setOcrLoadingStep(0)
     setInvoiceDate(null)
@@ -671,7 +680,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     }, 550)
 
     try {
-      const result = await analyzeInvoiceImage(file)
+      const result = await analyzeInvoiceImage(uploadFile)
 
       if (!result || result.items.length === 0) {
         setInvoiceAnalyzeStatus('failed')
