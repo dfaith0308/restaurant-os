@@ -2,13 +2,22 @@
 
 // 거래명세서 화면 → Vision OCR → 날짜·공급업체·다량 식자재 추출
 
-import { isValidInvoiceItemName } from '@/lib/invoice-item-validation'
+import {
+  isValidInvoiceItemName,
+  normalizeInvoiceItemSpec,
+} from '@/lib/invoice-item-validation'
 
 export type InvoiceIngredient = {
   name: string
+  spec: string | null
   quantity: number | null
   unit: string | null
   price: number | null
+}
+
+export type InvoiceOcrAnalysis = {
+  result: InvoiceOcrResult
+  ocr_raw_text: string | null
 }
 
 export type InvoiceSupplier = {
@@ -32,11 +41,12 @@ const SYSTEM_PROMPT = `당신은 한국 식자재 거래명세서 표 OCR 전문
 
 이미지의 표(테이블)에서만 데이터를 읽으세요. 표가 아닌 영역·추측·예시 데이터는 금지합니다.
 
-## 읽을 컬럼 (표 기준)
-1. 품목명 컬럼만 → items[].name (품명·품목·제품명·상품명 열)
-2. 수량 컬럼 → items[].quantity
-3. 단위 컬럼 → items[].unit
-4. 공급가(공급가액·금액) 컬럼 → items[].price
+## 읽을 컬럼 (표 기준 — 아래 5열만)
+1. 품명 → items[].name (품목·제품명·상품명 열, 한글 상품명만)
+2. 규격 → items[].spec (14KG, 1.8L/10, 270ml/12, 2KG/30 등. 없으면 null. 단위 EA/BOX와 혼동 금지)
+3. 단위 → items[].unit (EA, BOX, kg 등 거래 단위. 없으면 null)
+4. 수량 → items[].quantity (이번 주문 수량. 없으면 null)
+5. 공급가 → items[].price (행 단위 공급가. 없으면 null)
 
 ## 읽지 말 것
 - 합계·소계·총계·부가세·공급가액 합계·청구금액·전표번호·비고·세액 열
@@ -57,7 +67,7 @@ const SYSTEM_PROMPT = `당신은 한국 식자재 거래명세서 표 OCR 전문
 ## 출력
 - JSON만, 설명·마크다운·코드펜스 금지
 
-{"invoice_date":"2026-05-18","supplier":{"supplier_name":"대한유통"},"items":[{"name":"에너지시골된장","quantity":1,"unit":"EA","price":12000}]}`
+{"invoice_date":"2026-05-18","supplier":{"supplier_name":"대한유통"},"items":[{"name":"고향집참기름","spec":"14KG","unit":"EA","quantity":1,"price":12000}]}`
 
 type InvoiceParseFailure =
   | 'no_json_candidate'
@@ -170,6 +180,9 @@ function parseItemsArray(raw: unknown): InvoiceIngredient[] | null {
     if (!name || !isValidInvoiceItemName(name)) continue
     items.push({
       name,
+      spec: normalizeInvoiceItemSpec(
+        row.spec != null ? String(row.spec) : null,
+      ),
       quantity: parsePositiveNumber(row.quantity),
       unit: row.unit != null ? String(row.unit).trim() || null : null,
       price: parsePositiveNumber(row.price),
@@ -304,9 +317,9 @@ function parseInvoiceContent(text: string): InvoiceParseAttempt {
   return arrayAttempt
 }
 
-export async function analyzeInvoiceImage(
+export async function analyzeInvoiceImageWithRaw(
   file: File,
-): Promise<InvoiceOcrResult | null> {
+): Promise<InvoiceOcrAnalysis | null> {
   if (!isImageFile(file)) return null
   if (file.size > MAX_FILE_BYTES) return null
 
@@ -341,7 +354,7 @@ export async function analyzeInvoiceImage(
             },
             {
               type: 'text',
-              text: '이 거래명세서 표에서 품목명·수량·단위·공급가 컬럼만 읽어 주세요. 헤더·합계·부가세·총계 행은 제외하고, 실제 상품명 행만 items에 넣으세요. JSON만 반환하세요.',
+              text: '이 거래명세서 표에서 품명·규격·단위·수량·공급가 5개 컬럼만 읽으세요. 추측 금지, 보이는 값만. 헤더·합계·부가세·총계·placeholder 행 제외. JSON만 반환하세요.',
             },
           ],
         },
@@ -361,7 +374,14 @@ export async function analyzeInvoiceImage(
 
   const parsed = parseInvoiceContent(content)
   if (parsed.kind === 'success') {
-    return parsed.result
+    return { result: parsed.result, ocr_raw_text: content }
   }
   return null
+}
+
+export async function analyzeInvoiceImage(
+  file: File,
+): Promise<InvoiceOcrResult | null> {
+  const analysis = await analyzeInvoiceImageWithRaw(file)
+  return analysis?.result ?? null
 }

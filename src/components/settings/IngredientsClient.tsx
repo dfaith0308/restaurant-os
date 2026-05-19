@@ -13,9 +13,18 @@ import {
   type IngredientsOperationData,
 } from '@/actions/ingredients'
 import { formatKRW, toKoreanAmount } from '@/lib/utils'
-import { analyzeInvoiceImage } from '@/lib/invoice-ocr'
+import { analyzeInvoiceImageWithRaw } from '@/lib/invoice-ocr'
 import type { InvoiceIngredient, InvoiceSupplier } from '@/lib/invoice-ocr'
 import { compressImageForInvoiceOcr } from '@/lib/image-compress'
+import {
+  buildInvoiceDocumentRuntime,
+  type InvoiceDocumentRuntime,
+} from '@/lib/invoice-document'
+import { uploadInvoiceDocumentImage } from '@/lib/invoice-document-upload'
+import {
+  formatInvoiceItemDisplayTitle,
+  normalizeInvoiceItemSpec,
+} from '@/lib/invoice-item-validation'
 import Link from 'next/link'
 import IngredientBarcodeSection from '@/components/product/IngredientBarcodeSection'
 import type { IngredientBarcodeApplyHints } from '@/components/product/IngredientBarcodeSection'
@@ -92,10 +101,13 @@ function buildInvoiceMemo(
   quantity: number | null,
   unit: string | null | undefined,
   supplierName: string | null | undefined,
+  spec: string | null | undefined,
 ): string {
   const parts = ['거래명세서 OCR']
   const supplier = supplierName?.trim()
   if (supplier) parts.push(supplier)
+  const specNorm = spec ? normalizeInvoiceItemSpec(spec) : null
+  if (specNorm) parts.push(`규격 ${specNorm}`)
   if (quantity != null) {
     parts.push(`수량 ${quantity}${unit ? ` ${unit}` : ''}`)
   }
@@ -464,6 +476,8 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
   const [invoiceDate, setInvoiceDate] = useState<string | null>(null)
   const [invoiceSupplier, setInvoiceSupplier] = useState<InvoiceSupplier | null>(null)
   const [ocrIngredients, setOcrIngredients] = useState<OcrIngredientRow[]>([])
+  const [invoiceDocument, setInvoiceDocument] =
+    useState<InvoiceDocumentRuntime | null>(null)
   const [duplicateInvoiceWarning, setDuplicateInvoiceWarning] = useState(false)
   const [bulkRegisterSummary, setBulkRegisterSummary] = useState<{
     total: number
@@ -612,6 +626,12 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
         if (field === 'name') {
           return { ...row, name: value, priceAction: undefined }
         }
+        if (field === 'spec') {
+          return {
+            ...row,
+            spec: normalizeInvoiceItemSpec(value),
+          }
+        }
         if (field === 'unit') {
           return { ...row, unit: sanitizeOcrUnitInput(value) }
         }
@@ -671,6 +691,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     setInvoiceDate(null)
     setInvoiceSupplier(null)
     setOcrIngredients([])
+    setInvoiceDocument(null)
     setDuplicateInvoiceWarning(false)
     setBulkRegisterSummary(null)
     setBulkRegisterError(null)
@@ -680,14 +701,15 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     }, 550)
 
     try {
-      const result = await analyzeInvoiceImage(uploadFile)
+      const analysis = await analyzeInvoiceImageWithRaw(uploadFile)
 
-      if (!result || result.items.length === 0) {
+      if (!analysis || analysis.result.items.length === 0) {
         setInvoiceAnalyzeStatus('failed')
         setOcrLoadingStep(0)
         return
       }
 
+      const result = analysis.result
       const effDefault = defaultEffectiveFrom(result.invoice_date)
       const fingerprint = buildInvoiceFingerprint(
         result.invoice_date,
@@ -707,10 +729,28 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
       setOcrIngredients(
         result.items.map((item, idx) => ({
           ...item,
+          spec: item.spec ?? null,
           rowKey: `ocr_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 7)}`,
           effectiveFrom: effDefault,
           priceAction: undefined,
         })),
+      )
+      setInvoiceDocument(
+        buildInvoiceDocumentRuntime(
+          result,
+          null,
+          analysis.ocr_raw_text,
+        ),
+      )
+      void uploadInvoiceDocumentImage(uploadFile, result.invoice_date).then(
+        (imagePath) => {
+          if (!imagePath) return
+          setInvoiceDocument((prev) =>
+            prev
+              ? { ...prev, image_path: imagePath }
+              : buildInvoiceDocumentRuntime(result, imagePath, analysis.ocr_raw_text),
+          )
+        },
       )
       setInvoiceAnalyzeStatus('success')
     } catch {
@@ -747,6 +787,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
             row.quantity,
             row.unit,
             invoiceSupplier?.supplier_name,
+            row.spec,
           ),
           mode,
           effective_from: row.effectiveFrom,
@@ -1366,6 +1407,11 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                     <br />
                     거래명세서 상태에 따라 일부 인식이 달라질 수 있어요.
                   </p>
+                  {invoiceDocument?.image_path && (
+                    <p style={{ fontSize: 11, color: '#1f5d3a', margin: '0 0 10px' }}>
+                      원본 명세서 이미지가 저장되었습니다.
+                    </p>
+                  )}
                   {duplicateInvoiceWarning && (
                     <p
                       style={{
@@ -1450,7 +1496,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8, flexWrap: 'wrap', paddingRight: 32 }}>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <p style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', margin: '0 0 4px' }}>
-                                {row.name.trim() || '식자재명 입력'}
+                                {formatInvoiceItemDisplayTitle(row.name, row.spec)}
                               </p>
                               <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>
                                 {row.quantity != null ? `${row.quantity}` : '-'}
@@ -1497,6 +1543,12 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                             value={row.name}
                             onChange={(e) => updateOcrRow(row.rowKey, 'name', e.target.value)}
                             placeholder="식자재명"
+                            style={{ ...INPUT_STYLE, marginBottom: 8 }}
+                          />
+                          <input
+                            value={row.spec ?? ''}
+                            onChange={(e) => updateOcrRow(row.rowKey, 'spec', e.target.value)}
+                            placeholder="규격 (예: 14KG, 1.8L/10)"
                             style={{ ...INPUT_STYLE, marginBottom: 8 }}
                           />
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
