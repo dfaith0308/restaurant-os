@@ -16,6 +16,7 @@ import { formatKRW, toKoreanAmount } from '@/lib/utils'
 import { analyzeInvoiceImageWithRaw } from '@/lib/invoice-ocr'
 import type { InvoiceIngredient, InvoiceSupplier } from '@/lib/invoice-ocr'
 import { compressImageForInvoiceOcr } from '@/lib/image-compress'
+import { cropInvoiceTableRegion } from '@/lib/invoice-table-crop'
 import {
   buildInvoiceDocumentRuntime,
   type InvoiceDocumentRuntime,
@@ -489,6 +490,9 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
   } | null>(null)
   const [bulkRegisterError, setBulkRegisterError] = useState<string | null>(null)
   const [bulkRegistering, setBulkRegistering] = useState(false)
+  /** 개발용: URL ?ocr_crop_debug=1 일 때만 품목표 crop 미리보기 */
+  const [ocrTableCropPreview, setOcrTableCropPreview] = useState<string | null>(null)
+  const [showOcrCropDebug, setShowOcrCropDebug] = useState(false)
 
   const categories = useMemo(() => {
     const set = new Set<string>()
@@ -591,6 +595,12 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     }
   }, [])
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    setShowOcrCropDebug(params.get('ocr_crop_debug') === '1')
+  }, [])
+
   function clearOcrStepTimer() {
     if (ocrStepTimerRef.current) {
       clearInterval(ocrStepTimerRef.current)
@@ -610,6 +620,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     setBulkRegisterSummary(null)
     setBulkRegisterError(null)
     setBulkRegistering(false)
+    setOcrTableCropPreview(null)
   }
 
   function resetForm() {
@@ -718,6 +729,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     }
 
     setInvoiceImage(uploadFile)
+    setOcrTableCropPreview(null)
     setInvoiceAnalyzeStatus('loading')
     setOcrLoadingStep(0)
     setInvoiceDate(null)
@@ -728,12 +740,22 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     setBulkRegisterSummary(null)
     setBulkRegisterError(null)
 
+    let ocrFile = uploadFile
+    try {
+      const cropped = await cropInvoiceTableRegion(uploadFile)
+      ocrFile = cropped.file
+      setOcrTableCropPreview(cropped.previewDataUrl)
+    } catch {
+      ocrFile = uploadFile
+      setOcrTableCropPreview(null)
+    }
+
     ocrStepTimerRef.current = setInterval(() => {
       setOcrLoadingStep((prev) => (prev < 3 ? prev + 1 : prev))
     }, 550)
 
     try {
-      const analysis = await analyzeInvoiceImageWithRaw(uploadFile)
+      const analysis = await analyzeInvoiceImageWithRaw(ocrFile)
 
       if (!analysis || analysis.result.items.length === 0) {
         setInvoiceAnalyzeStatus('failed')
@@ -1431,6 +1453,27 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                   <br />
                   직접 입력을 이용해주세요.
                 </p>
+              )}
+
+              {showOcrCropDebug && ocrTableCropPreview && (
+                <div
+                  style={{
+                    marginBottom: 12,
+                    padding: 10,
+                    background: '#f3f4f6',
+                    borderRadius: 8,
+                    border: '0.5px dashed #9ca3af',
+                  }}
+                >
+                  <p style={{ fontSize: 10, color: '#6b7280', margin: '0 0 6px' }}>
+                    [debug] 품목표 crop 영역
+                  </p>
+                  <img
+                    src={ocrTableCropPreview}
+                    alt="품목표 crop 미리보기"
+                    style={{ width: '100%', height: 'auto', borderRadius: 6 }}
+                  />
+                </div>
               )}
 
               {invoiceAnalyzeStatus === 'success' && ocrIngredients.length > 0 && (

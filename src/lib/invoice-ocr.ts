@@ -37,40 +37,43 @@ export type InvoiceOcrResult = {
 }
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024
-const MAX_OCR_ITEMS = 80
-const OPENAI_MAX_TOKENS = 2200
+const MAX_OCR_ITEMS = 100
+const OPENAI_MAX_TOKENS = 2800
 
-const SYSTEM_PROMPT = `당신은 한국 식자재 거래명세서 표 OCR 전문가입니다.
+const SYSTEM_PROMPT = `당신은 한국 식자재 거래명세서 "품목표" OCR 전문가입니다.
 
-이미지의 표(테이블)에서만 데이터를 읽으세요. 표가 아닌 영역·추측·예시 데이터는 금지합니다.
+이미지는 품목표(표) 영역만 잘린 이미지입니다. 표에 보이는 데이터만 읽으세요.
 
-## 읽을 컬럼 (표 기준 — 아래 5열만)
-1. 품명 → items[].name (품목·제품명·상품명 열, 한글 상품명만)
-2. 규격 → items[].spec (14KG, 1.8L/10, 270ml/12, 2KG/30 등. 없으면 null. 단위 EA/BOX와 혼동 금지)
-3. 단위 → items[].unit (EA, BOX, kg 등 거래 단위. 없으면 null)
-4. 수량 → items[].quantity (이번 주문 수량. 없으면 null)
+## 읽을 것 (표의 각 데이터 행 — 5컬럼)
+1. 품명 → items[].name (품목·제품명·상품명 열의 한글 상품명, 표에 보이는 글자 그대로)
+2. 규격 → items[].spec (14KG, 1.8L/10, 2KG/30 등. 없으면 null)
+3. 단위 → items[].unit (EA, BOX, kg 등. 없으면 null)
+4. 수량 → items[].quantity (없으면 null)
 5. 공급가 → items[].price (행 단위 공급가. 없으면 null)
 
-## 읽지 말 것
-- 합계·소계·총계·부가세·공급가액 합계·청구금액·전표번호·비고·세액 열
-- 표 헤더 행(품목, 수량, 단가, 공급가 등 제목 줄) — items에 넣지 말 것
-- "품목1", "품목2", "item1" 같은 placeholder·행번호·임의 이름 금지
-- 실제 상품명이 보이지 않으면 그 행은 제외
+## 절대 읽지 말 것 / items에 넣지 말 것
+- 합계·소계·총계·부가세·공급가액·청구금액·세액
+- 사업자번호·주소·도장·전표번호·작성일자·Page·비고
+- 표 헤더 행(품목, 수량, 단가, 공급가 등 제목 줄)
+- placeholder(품목1, item1 등)·행번호만 있는 줄
 
-## 품목명 규칙
-- 한글 상품명 그대로 (예: 에너지시골된장, 시골청국장, 고향집참기름)
-- 보이는 글자만, 없으면 행 제외
-- 양파·당근 등 다른 문서의 예시 품목을 넣지 말 것
+## 행 추출 (매우 중요)
+- 표의 모든 데이터 행을 빠짐없이 추출하세요. 중간 행 누락 금지.
+- 위에서 아래로 순서대로 items에 넣으세요.
+- 최대 ${MAX_OCR_ITEMS}행까지.
 
-## 기타 필드
-- invoice_date: YYYY-MM-DD 또는 null
-- supplier: 공급업체명 등 보이면 (없으면 null)
-- 보이는 것만, 추측 금지
+## 품명·hallucination 금지 (매우 중요)
+- 표에 실제로 보이는 글자만 복사하세요. 추측·보정·의역 금지.
+- 광고 문구·슬로건·자연어 문장 생성 금지 (예: "에너지를 주는" 같은 문장 금지)
+- 표에 없는 단어·브랜드명 추론·한글 브랜드 창작 금지
+- 품명이 불명확하면 그 행은 제외 (임의 이름 생성 금지)
+- 다른 문서의 예시 품목(양파, 당근 등) 넣지 말 것
 
 ## 출력
-- JSON만, 설명·마크다운·코드펜스 금지
+- JSON만. 설명·마크다운·코드펜스 금지.
+- invoice_date, supplier는 이미지에 명확히 보이지 않으면 null.
 
-{"invoice_date":"2026-05-18","supplier":{"supplier_name":"대한유통"},"items":[{"name":"고향집참기름","spec":"14KG","unit":"EA","quantity":1,"price":12000}]}`
+{"invoice_date":null,"supplier":null,"items":[{"name":"고향집참기름","spec":"14KG","unit":"EA","quantity":1,"price":12000}]}`
 
 type InvoiceParseFailure =
   | 'no_json_candidate'
@@ -360,7 +363,7 @@ export async function analyzeInvoiceImageWithRaw(
             },
             {
               type: 'text',
-              text: '이 거래명세서 표에서 품명·규격·단위·수량·공급가 5개 컬럼만 읽으세요. 추측 금지, 보이는 값만. 헤더·합계·부가세·총계·placeholder 행 제외. JSON만 반환하세요.',
+              text: '품목표 표의 모든 데이터 행을 빠짐없이 추출하세요. 품명·규격·단위·수량·공급가만. 보이는 글자만 복사하고 추론·문장 생성·광고 문구 생성 금지. 헤더·합계·주소·도장·전표번호·작성일자 제외. JSON만 반환.',
             },
           ],
         },
