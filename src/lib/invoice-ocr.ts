@@ -2,6 +2,8 @@
 
 // 거래명세서 화면 → Vision OCR → 날짜·공급업체·다량 식자재 추출
 
+import { isValidInvoiceItemName } from '@/lib/invoice-item-validation'
+
 export type InvoiceIngredient = {
   name: string
   quantity: number | null
@@ -26,17 +28,36 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024
 const MAX_OCR_ITEMS = 80
 const OPENAI_MAX_TOKENS = 2200
 
-const SYSTEM_PROMPT = `한국 식자재 거래명세서 이미지에서 날짜·공급업체·품목을 추출하세요.
+const SYSTEM_PROMPT = `당신은 한국 식자재 거래명세서 표 OCR 전문가입니다.
 
-규칙:
-- 보이는 것만, 추측 금지, 없으면 null
+이미지의 표(테이블)에서만 데이터를 읽으세요. 표가 아닌 영역·추측·예시 데이터는 금지합니다.
+
+## 읽을 컬럼 (표 기준)
+1. 품목명 컬럼만 → items[].name (품명·품목·제품명·상품명 열)
+2. 수량 컬럼 → items[].quantity
+3. 단위 컬럼 → items[].unit
+4. 공급가(공급가액·금액) 컬럼 → items[].price
+
+## 읽지 말 것
+- 합계·소계·총계·부가세·공급가액 합계·청구금액·전표번호·비고·세액 열
+- 표 헤더 행(품목, 수량, 단가, 공급가 등 제목 줄) — items에 넣지 말 것
+- "품목1", "품목2", "item1" 같은 placeholder·행번호·임의 이름 금지
+- 실제 상품명이 보이지 않으면 그 행은 제외
+
+## 품목명 규칙
+- 한글 상품명 그대로 (예: 에너지시골된장, 시골청국장, 고향집참기름)
+- 보이는 글자만, 없으면 행 제외
+- 양파·당근 등 다른 문서의 예시 품목을 넣지 말 것
+
+## 기타 필드
 - invoice_date: YYYY-MM-DD 또는 null
-- supplier 없으면 null (있으면 supplier_name만 넣어도 됨)
-- items: name 필수, quantity/unit/price는 없으면 null
-- JSON만 출력, 설명·마크다운·코드펜스 금지
+- supplier: 공급업체명 등 보이면 (없으면 null)
+- 보이는 것만, 추측 금지
 
-형식:
-{"invoice_date":"2026-05-18","supplier":{"supplier_name":"대한유통"},"items":[{"name":"양파","quantity":1,"unit":"망","price":12000}]}`
+## 출력
+- JSON만, 설명·마크다운·코드펜스 금지
+
+{"invoice_date":"2026-05-18","supplier":{"supplier_name":"대한유통"},"items":[{"name":"에너지시골된장","quantity":1,"unit":"EA","price":12000}]}`
 
 type InvoiceParseFailure =
   | 'no_json_candidate'
@@ -120,7 +141,7 @@ function parseSupplier(raw: unknown): InvoiceSupplier | null {
 }
 
 function sanitizeOcrItems(items: InvoiceIngredient[]): InvoiceIngredient[] {
-  return items.filter((item) => item.name.trim().length > 0)
+  return items.filter((item) => isValidInvoiceItemName(item.name))
 }
 
 function sortOcrItems(items: InvoiceIngredient[]): InvoiceIngredient[] {
@@ -146,7 +167,7 @@ function parseItemsArray(raw: unknown): InvoiceIngredient[] | null {
     if (!entry || typeof entry !== 'object') continue
     const row = entry as Record<string, unknown>
     const name = row.name != null ? String(row.name).trim() : ''
-    if (!name) continue
+    if (!name || !isValidInvoiceItemName(name)) continue
     items.push({
       name,
       quantity: parsePositiveNumber(row.quantity),
@@ -320,7 +341,7 @@ export async function analyzeInvoiceImage(
             },
             {
               type: 'text',
-              text: '거래명세서에서 날짜·공급업체·품목을 추출하세요. JSON만 반환하세요. 설명 금지.',
+              text: '이 거래명세서 표에서 품목명·수량·단위·공급가 컬럼만 읽어 주세요. 헤더·합계·부가세·총계 행은 제외하고, 실제 상품명 행만 items에 넣으세요. JSON만 반환하세요.',
             },
           ],
         },
