@@ -26,6 +26,39 @@ const MAX_FILE_BYTES = 5 * 1024 * 1024
 const MAX_OCR_ITEMS = 80
 const OPENAI_MAX_TOKENS = 2200
 
+/** TEMP: production OCR trace — remove after root-cause confirmed */
+const INVOICE_OCR_DEBUG = true
+const CONTENT_PREVIEW_CHARS = 300
+
+function logInvoiceOcrTrace(
+  event: string,
+  payload: Record<string, string | number | boolean | null | undefined>,
+): void {
+  if (!INVOICE_OCR_DEBUG) return
+  console.log(`[invoice-ocr] ${event} ${JSON.stringify(payload)}`)
+}
+
+function previewContentEnds(content: string): {
+  head: string
+  tail: string
+  length: number
+} {
+  return {
+    length: content.length,
+    head: content.slice(0, CONTENT_PREVIEW_CHARS),
+    tail: content.slice(-CONTENT_PREVIEW_CHARS),
+  }
+}
+
+function describeContentTail(content: string): string {
+  const trimmed = content.trim()
+  if (!trimmed) return 'empty'
+  const last = trimmed.slice(-1)
+  if (last === '}' || last === ']') return 'closed_bracket'
+  if (trimmed.endsWith(',')) return 'trailing_comma_cut'
+  return 'mid_stream_cut'
+}
+
 const SYSTEM_PROMPT = `한국 식자재 거래명세서 이미지에서 날짜·공급업체·품목을 추출하세요.
 
 규칙:
@@ -286,14 +319,35 @@ function parseInvoiceContent(text: string): InvoiceParseAttempt {
 export async function analyzeInvoiceImage(
   file: File,
 ): Promise<InvoiceOcrResult | null> {
-  if (!isImageFile(file)) return null
-  if (file.size > MAX_FILE_BYTES) return null
+  if (!isImageFile(file)) {
+    logInvoiceOcrTrace('preflight', { branch: 'invalid_file_type' })
+    return null
+  }
+  if (file.size > MAX_FILE_BYTES) {
+    logInvoiceOcrTrace('preflight', {
+      branch: 'file_too_large',
+      fileSizeBytes: file.size,
+    })
+    return null
+  }
 
   const apiKey = process.env.OPENAI_API_KEY?.trim()
-  if (!apiKey) return null
+  if (!apiKey) {
+    logInvoiceOcrTrace('preflight', { branch: 'missing_api_key' })
+    return null
+  }
 
   const dataUrl = await fileToDataUrl(file)
-  if (!dataUrl) return null
+  if (!dataUrl) {
+    logInvoiceOcrTrace('preflight', { branch: 'data_url_failed' })
+    return null
+  }
+
+  logInvoiceOcrTrace('request', {
+    fileSizeBytes: file.size,
+    fileType: file.type,
+    dataUrlLength: dataUrl.length,
+  })
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 45000)
@@ -326,21 +380,70 @@ export async function analyzeInvoiceImage(
         },
       ],
     }),
-  }).catch(() => null)
+  }).catch((err: unknown) => {
+    logInvoiceOcrTrace('openai_fetch', {
+      branch: 'fetch_failed',
+      error:
+        err instanceof Error ? err.name : typeof err === 'string' ? err : 'unknown',
+    })
+    return null
+  })
 
   clearTimeout(timeout)
-  if (!res?.ok) return null
+  if (!res?.ok) {
+    logInvoiceOcrTrace('openai_http', {
+      branch: 'http_not_ok',
+      status: res?.status ?? 0,
+    })
+    return null
+  }
 
   const body = (await res.json().catch(() => null)) as {
-    choices?: Array<{ message?: { content?: string } }>
+    choices?: Array<{
+      finish_reason?: string
+      message?: { content?: string }
+    }>
   } | null
 
-  const content = body?.choices?.[0]?.message?.content
-  if (!content || typeof content !== 'string') return null
+  const choice = body?.choices?.[0]
+  const finishReason = choice?.finish_reason ?? 'unknown'
+  const content = choice?.message?.content
+
+  if (!content || typeof content !== 'string') {
+    logInvoiceOcrTrace('openai_content', {
+      branch: 'empty_content',
+      finishReason,
+    })
+    return null
+  }
+
+  const preview = previewContentEnds(content)
+  logInvoiceOcrTrace('openai_response', {
+    finishReason,
+    contentLength: preview.length,
+    contentHead: preview.head,
+    contentTail: preview.tail,
+    tailState: describeContentTail(content),
+  })
 
   const parsed = parseInvoiceContent(content)
   if (parsed.kind === 'success') {
+    logInvoiceOcrTrace('parse_result', {
+      branch: 'success',
+      itemsCount: parsed.result.items.length,
+    })
     return parsed.result
   }
+
+  const objectAttempt = parseInvoiceObjectContent(content)
+  const arrayAttempt = parseLegacyArrayContent(content)
+  logInvoiceOcrTrace('parse_result', {
+    branch: parsed.reason,
+    objectBranch:
+      objectAttempt.kind === 'failure' ? objectAttempt.reason : 'success',
+    arrayBranch:
+      arrayAttempt.kind === 'failure' ? arrayAttempt.reason : 'success',
+    itemsCount: 0,
+  })
   return null
 }
