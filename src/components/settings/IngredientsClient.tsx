@@ -670,40 +670,46 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
       setOcrLoadingStep((prev) => (prev < 3 ? prev + 1 : prev))
     }, 550)
 
-    const result = await analyzeInvoiceImage(file)
-    clearOcrStepTimer()
+    try {
+      const result = await analyzeInvoiceImage(file)
 
-    if (!result || result.items.length === 0) {
+      if (!result || result.items.length === 0) {
+        setInvoiceAnalyzeStatus('failed')
+        setOcrLoadingStep(0)
+        return
+      }
+
+      const effDefault = defaultEffectiveFrom(result.invoice_date)
+      const fingerprint = buildInvoiceFingerprint(
+        result.invoice_date,
+        result.supplier,
+        result.items,
+      )
+
+      setOcrLoadingStep(4)
+      await new Promise((resolve) => setTimeout(resolve, 280))
+
+      setInvoiceDate(result.invoice_date)
+      setInvoiceSupplier(result.supplier)
+      setDuplicateInvoiceWarning(isDuplicateInvoiceFingerprint(fingerprint))
+      if (result.supplier) {
+        void upsertInvoiceSupplierFromOcr(result.supplier)
+      }
+      setOcrIngredients(
+        result.items.map((item, idx) => ({
+          ...item,
+          rowKey: `ocr_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 7)}`,
+          effectiveFrom: effDefault,
+          priceAction: undefined,
+        })),
+      )
+      setInvoiceAnalyzeStatus('success')
+    } catch {
       setInvoiceAnalyzeStatus('failed')
       setOcrLoadingStep(0)
-      return
+    } finally {
+      clearOcrStepTimer()
     }
-
-    const effDefault = defaultEffectiveFrom(result.invoice_date)
-    const fingerprint = buildInvoiceFingerprint(
-      result.invoice_date,
-      result.supplier,
-      result.items,
-    )
-
-    setOcrLoadingStep(4)
-    await new Promise((resolve) => setTimeout(resolve, 280))
-
-    setInvoiceDate(result.invoice_date)
-    setInvoiceSupplier(result.supplier)
-    setDuplicateInvoiceWarning(isDuplicateInvoiceFingerprint(fingerprint))
-    if (result.supplier) {
-      void upsertInvoiceSupplierFromOcr(result.supplier)
-    }
-    setOcrIngredients(
-      result.items.map((item, idx) => ({
-        ...item,
-        rowKey: `ocr_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 7)}`,
-        effectiveFrom: effDefault,
-        priceAction: undefined,
-      })),
-    )
-    setInvoiceAnalyzeStatus('success')
   }
 
   function handleBulkRegister() {
