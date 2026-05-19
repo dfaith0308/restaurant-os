@@ -21,10 +21,12 @@ import {
   type InvoiceDocumentRuntime,
 } from '@/lib/invoice-document'
 import { uploadInvoiceDocumentImage } from '@/lib/invoice-document-upload'
+import { normalizeInvoiceItemSpec } from '@/lib/invoice-item-validation'
 import {
-  formatInvoiceItemDisplayTitle,
-  normalizeInvoiceItemSpec,
-} from '@/lib/invoice-item-validation'
+  assignIngredientNameGroupId,
+  getIngredientNameGroupKey,
+} from '@/lib/ingredient-canonical'
+import InvoiceOcrReviewGroups from '@/components/settings/InvoiceOcrReviewGroups'
 import Link from 'next/link'
 import IngredientBarcodeSection from '@/components/product/IngredientBarcodeSection'
 import type { IngredientBarcodeApplyHints } from '@/components/product/IngredientBarcodeSection'
@@ -39,6 +41,7 @@ type InvoiceAnalyzeStatus = 'idle' | 'loading' | 'success' | 'failed'
 
 type OcrIngredientRow = InvoiceIngredient & {
   rowKey: string
+  nameGroupId: string
   effectiveFrom: string
   priceAction?: 'apply' | 'keep'
 }
@@ -563,6 +566,23 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
     })
   }, [ocrIngredients, list])
 
+  const ocrIngredientGroups = useMemo(() => {
+    const map = new Map<string, OcrIngredientRow[]>()
+    for (const row of ocrIngredients) {
+      const bucket = map.get(row.nameGroupId) ?? []
+      bucket.push(row)
+      map.set(row.nameGroupId, bucket)
+    }
+    return [...map.entries()].sort((a, b) => {
+      const nameA = a[1][0]?.name ?? ''
+      const nameB = b[1][0]?.name ?? ''
+      return getIngredientNameGroupKey(nameA).localeCompare(
+        getIngredientNameGroupKey(nameB),
+        'ko',
+      )
+    })
+  }, [ocrIngredients])
+
   useEffect(() => {
     return () => {
       if (ocrStepTimerRef.current) {
@@ -613,6 +633,18 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
 
   function removeOcrRow(rowKey: string) {
     setOcrIngredients((prev) => prev.filter((row) => row.rowKey !== rowKey))
+  }
+
+  function updateOcrGroupName(nameGroupId: string, value: string) {
+    setOcrIngredients((prev) =>
+      prev.map((row) =>
+        row.nameGroupId === nameGroupId
+          ? { ...row, name: value, priceAction: undefined }
+          : row,
+      ),
+    )
+    setBulkRegisterSummary(null)
+    setBulkRegisterError(null)
   }
 
   function updateOcrRow(
@@ -726,11 +758,14 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
       if (result.supplier) {
         void upsertInvoiceSupplierFromOcr(result.supplier)
       }
+      const groupRegistry = new Map<string, string>()
       setOcrIngredients(
         result.items.map((item, idx) => ({
           ...item,
           spec: item.spec ?? null,
+          ocr_name_raw: item.ocr_name_raw ?? null,
           rowKey: `ocr_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 7)}`,
+          nameGroupId: assignIngredientNameGroupId(item.name, groupRegistry),
           effectiveFrom: effDefault,
           priceAction: undefined,
         })),
@@ -1445,222 +1480,18 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                   <p style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', margin: '0 0 10px' }}>
                     추출된 식자재 {ocrIngredients.length}개
                   </p>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {ocrIngredients.map((row) => {
-                      const existing = findCanonicalIngredient(list, row.name)
-                      const isNew = !existing
-                      const priceChanged =
-                        !!existing &&
-                        row.price != null &&
-                        pricesDiffer(existing.current_price, row.price)
-                      return (
-                        <div
-                          key={row.rowKey}
-                          style={{
-                            position: 'relative',
-                            background: priceChanged ? '#fff7ed' : '#ffffff',
-                            border: priceChanged
-                              ? `1px solid ${BRAND_ORANGE}`
-                              : '0.5px solid #e8e5de',
-                            borderRadius: 12,
-                            padding: 12,
-                          }}
-                        >
-                          <button
-                            type="button"
-                            aria-label="이 행 삭제"
-                            onClick={() => removeOcrRow(row.rowKey)}
-                            className="ocr-row-delete"
-                            style={{
-                              position: 'absolute',
-                              top: 8,
-                              right: 8,
-                              width: 28,
-                              height: 28,
-                              borderRadius: '50%',
-                              border: 'none',
-                              background: '#e5e7eb',
-                              color: '#6b7280',
-                              fontSize: 16,
-                              lineHeight: 1,
-                              cursor: 'pointer',
-                              fontFamily: 'inherit',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              padding: 0,
-                            }}
-                          >
-                            ×
-                          </button>
-                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8, flexWrap: 'wrap', paddingRight: 32 }}>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <p style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', margin: '0 0 4px' }}>
-                                {formatInvoiceItemDisplayTitle(row.name, row.spec)}
-                              </p>
-                              <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>
-                                {row.quantity != null ? `${row.quantity}` : '-'}
-                                {row.unit ? ` ${row.unit}` : ''}
-                                {' · '}
-                                {row.price != null ? formatKRW(row.price) : '공급가 미입력'}
-                              </p>
-                            </div>
-                            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                              <span
-                                style={{
-                                  background: isNew ? '#edf7f1' : '#f3f4f6',
-                                  color: isNew ? BRAND_GREEN : '#6b7280',
-                                  borderRadius: 999,
-                                  padding: '3px 8px',
-                                  fontSize: 10,
-                                  fontWeight: 500,
-                                }}
-                              >
-                                {isNew ? '신규' : '기존'}
-                              </span>
-                              {priceChanged && (
-                                <span
-                                  style={{
-                                    background: '#fff8f3',
-                                    color: BRAND_ORANGE,
-                                    borderRadius: 999,
-                                    padding: '3px 8px',
-                                    fontSize: 10,
-                                    fontWeight: 500,
-                                  }}
-                                >
-                                  가격 변경
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {!isNew && (
-                            <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 8px' }}>
-                              기존 식자재와 연결됨
-                            </p>
-                          )}
-                          <input
-                            value={row.name}
-                            onChange={(e) => updateOcrRow(row.rowKey, 'name', e.target.value)}
-                            placeholder="식자재명"
-                            style={{ ...INPUT_STYLE, marginBottom: 8 }}
-                          />
-                          <input
-                            value={row.spec ?? ''}
-                            onChange={(e) => updateOcrRow(row.rowKey, 'spec', e.target.value)}
-                            placeholder="규격 (예: 14KG, 1.8L/10)"
-                            style={{ ...INPUT_STYLE, marginBottom: 8 }}
-                          />
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                            <input
-                              value={row.quantity != null ? String(row.quantity) : ''}
-                              onChange={(e) => updateOcrRow(row.rowKey, 'quantity', e.target.value)}
-                              placeholder="수량"
-                              inputMode="decimal"
-                              style={INPUT_STYLE}
-                            />
-                            <input
-                              value={row.unit ?? ''}
-                              onChange={(e) => updateOcrRow(row.rowKey, 'unit', e.target.value)}
-                              placeholder="단위"
-                              style={INPUT_STYLE}
-                            />
-                          </div>
-                          <input
-                            value={row.price != null ? String(row.price) : ''}
-                            onChange={(e) => updateOcrRow(row.rowKey, 'price', e.target.value)}
-                            placeholder="공급가 (원)"
-                            inputMode="numeric"
-                            style={{ ...INPUT_STYLE, marginBottom: priceChanged ? 10 : 0 }}
-                          />
-                          {priceChanged && existing && row.price != null && (
-                            <div
-                              style={{
-                                background: '#fff8f3',
-                                border: `0.5px solid ${BRAND_ORANGE}`,
-                                borderRadius: 10,
-                                padding: 12,
-                              }}
-                            >
-                              <p style={{ fontSize: 12, color: '#374151', margin: '0 0 4px', lineHeight: 1.5 }}>
-                                기존 공급가:
-                                <br />
-                                {existing.current_price != null
-                                  ? formatKRW(existing.current_price)
-                                  : '미등록'}
-                              </p>
-                              <p style={{ fontSize: 12, color: '#374151', margin: '0 0 8px', lineHeight: 1.5 }}>
-                                새 거래명세서:
-                                <br />
-                                {formatKRW(row.price)}
-                              </p>
-                              <p style={{ fontSize: 12, fontWeight: 600, color: BRAND_ORANGE, margin: '0 0 10px' }}>
-                                공급가 변경으로 보입니다.
-                              </p>
-                              <p style={{ fontSize: 11, color: '#6b7280', margin: '0 0 6px' }}>
-                                적용 시작일
-                              </p>
-                              <input
-                                type="date"
-                                value={row.effectiveFrom}
-                                onChange={(e) =>
-                                  updateOcrEffectiveFrom(row.rowKey, e.target.value)
-                                }
-                                style={{ ...INPUT_STYLE, marginBottom: 10 }}
-                              />
-                              <div style={{ display: 'flex', gap: 8 }}>
-                                <button
-                                  type="button"
-                                  onClick={() => setOcrPriceAction(row.rowKey, 'apply')}
-                                  style={{
-                                    flex: 1,
-                                    padding: 10,
-                                    background:
-                                      row.priceAction === 'apply'
-                                        ? BRAND_ORANGE
-                                        : '#ffffff',
-                                    color:
-                                      row.priceAction === 'apply'
-                                        ? '#ffffff'
-                                        : BRAND_ORANGE,
-                                    border: `1px solid ${BRAND_ORANGE}`,
-                                    borderRadius: 8,
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    fontFamily: 'inherit',
-                                  }}
-                                >
-                                  새 가격 적용
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setOcrPriceAction(row.rowKey, 'keep')}
-                                  style={{
-                                    flex: 1,
-                                    padding: 10,
-                                    background:
-                                      row.priceAction === 'keep'
-                                        ? '#f3f4f6'
-                                        : '#ffffff',
-                                    color: '#6b7280',
-                                    border: '0.5px solid #e8e5de',
-                                    borderRadius: 8,
-                                    fontSize: 12,
-                                    fontWeight: 600,
-                                    cursor: 'pointer',
-                                    fontFamily: 'inherit',
-                                  }}
-                                >
-                                  기존 가격 유지
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
+                  <InvoiceOcrReviewGroups
+                    groups={ocrIngredientGroups}
+                    allRows={ocrIngredients}
+                    ingredientList={list}
+                    normalizeName={normalizeIngredientName}
+                    onGroupNameChange={updateOcrGroupName}
+                    onRowFieldChange={updateOcrRow}
+                    onEffectiveFromChange={updateOcrEffectiveFrom}
+                    onPriceAction={setOcrPriceAction}
+                    onRemoveRow={removeOcrRow}
+                    pricesDiffer={pricesDiffer}
+                  />
                   <button
                     type="button"
                     onClick={handleBulkRegister}

@@ -6,9 +6,12 @@ import {
   isValidInvoiceItemName,
   normalizeInvoiceItemSpec,
 } from '@/lib/invoice-item-validation'
+import { applyInvoiceNameCorrection } from '@/lib/invoice-ocr-correction'
 
 export type InvoiceIngredient = {
   name: string
+  /** OCR 원문 상품명 (auto-correction 적용 전, 있을 때만) */
+  ocr_name_raw?: string | null
   spec: string | null
   quantity: number | null
   unit: string | null
@@ -176,10 +179,13 @@ function parseItemsArray(raw: unknown): InvoiceIngredient[] | null {
     if (items.length >= MAX_OCR_ITEMS) break
     if (!entry || typeof entry !== 'object') continue
     const row = entry as Record<string, unknown>
-    const name = row.name != null ? String(row.name).trim() : ''
-    if (!name || !isValidInvoiceItemName(name)) continue
+    const rawName = row.name != null ? String(row.name).trim() : ''
+    if (!rawName || !isValidInvoiceItemName(rawName)) continue
+    const name = applyInvoiceNameCorrection(rawName)
+    if (!isValidInvoiceItemName(name)) continue
     items.push({
       name,
+      ocr_name_raw: rawName !== name ? rawName : null,
       spec: normalizeInvoiceItemSpec(
         row.spec != null ? String(row.spec) : null,
       ),

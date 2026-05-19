@@ -159,3 +159,20 @@ export function formatInvoiceItemDisplayTitle(
   if (s) return `${n} ${s}`
   return n
 }
+
+export type InvoiceItemDisplayParts = {
+  name: string
+  spec: string | null
+}
+
+export function getInvoiceItemDisplayParts(
+  name: string,
+  spec: string | null | undefined,
+): InvoiceItemDisplayParts {
+  const n = normalizeText(name)
+  const s = spec ? normalizeInvoiceItemSpec(spec) : null
+  return {
+    name: n || '식자재명 입력',
+    spec: s,
+  }
+}
