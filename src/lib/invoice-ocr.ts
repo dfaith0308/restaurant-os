@@ -23,54 +23,34 @@ export type InvoiceOcrResult = {
 }
 
 const MAX_FILE_BYTES = 5 * 1024 * 1024
+const MAX_OCR_ITEMS = 80
+const OPENAI_MAX_TOKENS = 2200
 
-const SYSTEM_PROMPT = `당신은 한국 식자재 거래명세서 분석 AI입니다.
+const SYSTEM_PROMPT = `한국 식자재 거래명세서 이미지에서 날짜·공급업체·품목을 추출하세요.
 
-사용자가 업로드한 거래명세서 이미지를 보고
-거래명세서 날짜, 공급업체 정보, 식자재 목록을 추출하세요.
+규칙:
+- 보이는 것만, 추측 금지, 없으면 null
+- invoice_date: YYYY-MM-DD 또는 null
+- supplier 없으면 null (있으면 supplier_name만 넣어도 됨)
+- items: name 필수, quantity/unit/price는 없으면 null
+- JSON만 출력, 설명·마크다운·코드펜스 금지
 
-추출 대상:
-- 거래명세서 날짜
-- 공급업체명
-- 전화번호
-- 사업자번호
-- 주소
-- 식자재명
-- 수량
-- 단위
-- 공급가
+형식:
+{"invoice_date":"2026-05-18","supplier":{"supplier_name":"대한유통"},"items":[{"name":"양파","quantity":1,"unit":"망","price":12000}]}`
 
-날짜 형식:
-YYYY-MM-DD
+type InvoiceParseFailure =
+  | 'no_json_candidate'
+  | 'json_parse_failed'
+  | 'items_empty'
 
-주의:
-- 보이는 것만 추출
-- 추측 금지
-- 없으면 null
-- 날짜가 없으면 invoice_date는 null
-- 공급업체 정보가 없으면 supplier는 null
-- 여러 품목 가능
-- JSON 외 다른 텍스트 금지
+type InvoiceParseSuccess = {
+  kind: 'success'
+  result: InvoiceOcrResult
+}
 
-반드시 아래 형식:
-
-{
-  "invoice_date": "2026-05-18",
-  "supplier": {
-    "supplier_name": "대한유통",
-    "phone": "02-1234-5678",
-    "business_number": "123-45-67890",
-    "address": "서울시 강남구 ..."
-  },
-  "items": [
-    {
-      "name": "양파",
-      "quantity": 1,
-      "unit": "망",
-      "price": 12000
-    }
-  ]
-}`
+type InvoiceParseAttempt =
+  | InvoiceParseSuccess
+  | { kind: 'failure'; reason: InvoiceParseFailure }
 
 function isImageFile(file: File): boolean {
   return file.type.startsWith('image/')
@@ -162,6 +142,7 @@ function parseItemsArray(raw: unknown): InvoiceIngredient[] | null {
   if (!Array.isArray(raw)) return null
   const items: InvoiceIngredient[] = []
   for (const entry of raw) {
+    if (items.length >= MAX_OCR_ITEMS) break
     if (!entry || typeof entry !== 'object') continue
     const row = entry as Record<string, unknown>
     const name = row.name != null ? String(row.name).trim() : ''
@@ -177,38 +158,129 @@ function parseItemsArray(raw: unknown): InvoiceIngredient[] | null {
   return sanitized.length > 0 ? sanitized : null
 }
 
-function parseInvoiceObject(text: string): InvoiceOcrResult | null {
-  const match = text.match(/\{[\s\S]*\}/)
-  if (!match) return null
-  try {
-    const raw = JSON.parse(match[0]) as Record<string, unknown>
-    const items = parseItemsArray(raw.items)
-    if (!items) return null
-    return finalizeInvoiceOcrResult({
-      invoice_date: parseInvoiceDate(raw.invoice_date),
-      supplier: parseSupplier(raw.supplier),
-      items,
-    })
-  } catch {
-    return null
-  }
+function stripMarkdownFence(text: string): string {
+  const t = text.trim()
+  if (!t.startsWith('```')) return t
+  return t.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```\s*$/, '').trim()
 }
 
-function parseLegacyArray(text: string): InvoiceOcrResult | null {
-  const match = text.match(/\[[\s\S]*\]/)
-  if (!match) return null
-  try {
-    const raw = JSON.parse(match[0]) as unknown
-    const items = parseItemsArray(raw)
-    if (!items) return null
-    return finalizeInvoiceOcrResult({
-      invoice_date: null,
-      supplier: null,
-      items,
-    })
-  } catch {
-    return null
+function removeTrailingCommas(json: string): string {
+  return json.replace(/,(\s*[}\]])/g, '$1')
+}
+
+function closeUnbalancedBrackets(json: string): string {
+  let s = json
+  const openBrackets = (s.match(/\[/g) ?? []).length
+  const closeBrackets = (s.match(/\]/g) ?? []).length
+  const openBraces = (s.match(/\{/g) ?? []).length
+  const closeBraces = (s.match(/\}/g) ?? []).length
+  if (openBrackets > closeBrackets) {
+    s += ']'.repeat(openBrackets - closeBrackets)
   }
+  if (openBraces > closeBraces) {
+    s += '}'.repeat(openBraces - closeBraces)
+  }
+  return s
+}
+
+function repairJsonCandidate(json: string): string {
+  const trimmed = json.trim()
+  const noTrailingComma = removeTrailingCommas(trimmed)
+  return closeUnbalancedBrackets(noTrailingComma)
+}
+
+function tryParseJsonValue(candidate: string): unknown | null {
+  const attempts = [candidate, repairJsonCandidate(candidate)]
+  for (const attempt of attempts) {
+    try {
+      return JSON.parse(attempt) as unknown
+    } catch {
+      // next repair attempt
+    }
+  }
+  return null
+}
+
+function buildResultFromObject(raw: Record<string, unknown>): InvoiceParseAttempt {
+  const items = parseItemsArray(raw.items)
+  if (!items) {
+    return { kind: 'failure', reason: 'items_empty' }
+  }
+  const finalized = finalizeInvoiceOcrResult({
+    invoice_date: parseInvoiceDate(raw.invoice_date),
+    supplier: parseSupplier(raw.supplier),
+    items,
+  })
+  if (!finalized) {
+    return { kind: 'failure', reason: 'items_empty' }
+  }
+  return { kind: 'success', result: finalized }
+}
+
+function buildResultFromItemsArray(raw: unknown): InvoiceParseAttempt {
+  const items = parseItemsArray(raw)
+  if (!items) {
+    return { kind: 'failure', reason: 'items_empty' }
+  }
+  const finalized = finalizeInvoiceOcrResult({
+    invoice_date: null,
+    supplier: null,
+    items,
+  })
+  if (!finalized) {
+    return { kind: 'failure', reason: 'items_empty' }
+  }
+  return { kind: 'success', result: finalized }
+}
+
+function parseInvoiceObjectContent(text: string): InvoiceParseAttempt {
+  const normalized = stripMarkdownFence(text.trim())
+  const objectCandidate = normalized.match(/\{[\s\S]*/)?.[0]
+  if (!objectCandidate) {
+    return { kind: 'failure', reason: 'no_json_candidate' }
+  }
+
+  const parsed = tryParseJsonValue(objectCandidate)
+  if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return { kind: 'failure', reason: 'json_parse_failed' }
+  }
+
+  return buildResultFromObject(parsed as Record<string, unknown>)
+}
+
+function parseLegacyArrayContent(text: string): InvoiceParseAttempt {
+  const normalized = stripMarkdownFence(text.trim())
+  const arrayCandidate = normalized.match(/\[[\s\S]*/)?.[0]
+  if (!arrayCandidate) {
+    return { kind: 'failure', reason: 'no_json_candidate' }
+  }
+
+  const parsed = tryParseJsonValue(arrayCandidate)
+  if (parsed == null) {
+    return { kind: 'failure', reason: 'json_parse_failed' }
+  }
+
+  return buildResultFromItemsArray(parsed)
+}
+
+function parseInvoiceContent(text: string): InvoiceParseAttempt {
+  const objectAttempt = parseInvoiceObjectContent(text)
+  if (objectAttempt.kind === 'success') {
+    return objectAttempt
+  }
+  if (objectAttempt.reason === 'items_empty') {
+    return objectAttempt
+  }
+
+  const arrayAttempt = parseLegacyArrayContent(text)
+  if (arrayAttempt.kind === 'success') {
+    return arrayAttempt
+  }
+
+  if (objectAttempt.reason === 'json_parse_failed') {
+    return objectAttempt
+  }
+  return arrayAttempt
 }
 
 export async function analyzeInvoiceImage(
@@ -236,7 +308,7 @@ export async function analyzeInvoiceImage(
     body: JSON.stringify({
       model: 'gpt-4o-mini',
       temperature: 0.1,
-      max_tokens: 750,
+      max_tokens: OPENAI_MAX_TOKENS,
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         {
@@ -248,7 +320,7 @@ export async function analyzeInvoiceImage(
             },
             {
               type: 'text',
-              text: '첨부한 거래명세서 이미지에서 거래 날짜, 공급업체 정보, 식자재 목록을 추출해 주세요.',
+              text: '거래명세서에서 날짜·공급업체·품목을 추출하세요. JSON만 반환하세요. 설명 금지.',
             },
           ],
         },
@@ -266,5 +338,9 @@ export async function analyzeInvoiceImage(
   const content = body?.choices?.[0]?.message?.content
   if (!content || typeof content !== 'string') return null
 
-  return parseInvoiceObject(content) ?? parseLegacyArray(content)
+  const parsed = parseInvoiceContent(content)
+  if (parsed.kind === 'success') {
+    return parsed.result
+  }
+  return null
 }
