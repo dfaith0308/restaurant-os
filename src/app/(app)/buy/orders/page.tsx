@@ -1,3 +1,10 @@
+import { redirect } from 'next/navigation'
+
+export default function BuyOrdersPage() {
+  redirect('/buy')
+}
+
+/*
 import Link from 'next/link'
 import { getMyCommerceOrders } from '@/actions/buy'
 import { formatKRW } from '@/lib/utils'
@@ -60,3 +67,4 @@ export default async function BuyOrdersPage() {
     </main>
   )
 }
+*/

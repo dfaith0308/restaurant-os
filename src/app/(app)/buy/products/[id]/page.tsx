@@ -1,3 +1,10 @@
+import { redirect } from 'next/navigation'
+
+export default function BuyProductPage() {
+  redirect('/buy')
+}
+
+/*
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { getListing } from '@/actions/buy'
@@ -61,3 +68,4 @@ export default async function BuyProductPage({ params }: { params: Promise<{ id:
     </main>
   )
 }
+*/
