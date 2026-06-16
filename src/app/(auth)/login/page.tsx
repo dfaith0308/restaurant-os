@@ -15,17 +15,18 @@ type BizNumberStatus = 'idle' | 'checking' | 'available' | 'duplicate' | 'invali
 type EmailCheckStatus = 'idle' | 'checking' | 'invalid' | 'duplicate' | 'available'
 
 const INPUT_STYLE: React.CSSProperties = {
-  width: '100%', padding: '12px 14px',
-  border: '1.5px solid #e5e7eb', borderRadius: 10,
+  width: '100%', padding: '13px 14px',
+  border: '1.5px solid #e5e7eb', borderRadius: 12,
   fontSize: 15, outline: 'none', boxSizing: 'border-box',
-  fontFamily: 'inherit', background: '#fff',
+  fontFamily: 'inherit', background: '#f9fafb',
+  color: '#6b7280',
 }
 
 const BTN: React.CSSProperties = {
-  width: '100%', padding: '14px',
-  border: 'none', borderRadius: 12,
-  fontSize: 15, fontWeight: 700, fontFamily: 'inherit',
-  cursor: 'pointer',
+  width: '100%', padding: '15px',
+  border: 'none', borderRadius: 14,
+  fontSize: 15, fontWeight: 600, fontFamily: 'inherit',
+  cursor: 'pointer', letterSpacing: '-0.01em',
 }
 
 const CHECK_BTN: React.CSSProperties = {
@@ -496,8 +497,8 @@ export default function LoginPage() {
             </>
           ) : (
             <>
-              <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--color-text)', margin: '12px 0 0' }}>
-                식당OS
+              <h1 style={{ fontSize: 21, fontWeight: 600, color: '#111827', margin: '12px 0 0', letterSpacing: '-0.02em' }}>
+                식식이 식당OS
               </h1>
               <p style={{ fontSize: 13, color: '#9ca3af', margin: '6px 0 0' }}>
                 사장님과 함께 장사하는 파트너
@@ -929,16 +930,30 @@ export default function LoginPage() {
         </button>
 
         {mode === 'login' && (
-          <p style={{ textAlign: 'center', fontSize: 12, color: '#9ca3af', marginTop: 16 }}>
-            계정이 없으신가요?{' '}
-            <button
-              type="button"
-              onClick={() => { setMode('signup'); setError(null) }}
-              style={{ ...LINK_BTN, fontSize: 12 }}
-            >
-              회원가입
-            </button>
-          </p>
+          <>
+            <p style={{ textAlign: 'center', fontSize: 13, color: '#9ca3af', marginTop: 18 }}>
+              계정이 없으신가요?{' '}
+              <button
+                type="button"
+                onClick={() => { setMode('signup'); setError(null) }}
+                style={{ ...LINK_BTN, fontSize: 13, color: '#1f5d3a', fontWeight: 600 }}
+              >
+                회원가입
+              </button>
+            </p>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: 16, marginTop: 28, paddingTop: 20,
+              borderTop: '1px solid #f3f4f6',
+            }}>
+              {['발주 자동화', '원가 관리', '거래처 연결'].map(t => (
+                <div key={t} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#d1d5db' }}>
+                  <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#bbf7d0' }} />
+                  {t}
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </Wrapper>
 
@@ -1064,14 +1079,14 @@ function Wrapper({ children, wide }: { children: React.ReactNode; wide: boolean 
       style={{
         minHeight: '100vh', display: 'flex',
         alignItems: 'center', justifyContent: 'center',
-        background: '#F9FAFB', padding: '24px 16px',
+        background: '#f0f7f3', padding: '24px 16px',
       }}
     >
       <div
         style={{
-          width: '100%', maxWidth: wide ? 440 : 380,
-          background: '#fff', borderRadius: 20, padding: '36px 28px',
-          boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+          width: '100%', maxWidth: wide ? 440 : 375,
+          background: '#ffffff', borderRadius: 28, padding: '44px 28px 36px',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 8px 40px rgba(31,93,58,0.08)',
         }}
       >
         {children}
