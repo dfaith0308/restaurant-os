@@ -6,6 +6,33 @@ import BuyProductDetailClient from '@/components/buy/BuyProductDetailClient'
 
 const shell = { maxWidth: 480, margin: '0 auto', padding: '20px 16px 80px' } as const
 
+const thumbImageStyle = {
+  width: '100%',
+  aspectRatio: '1 / 1',
+  objectFit: 'contain' as const,
+  display: 'block',
+  background: '#f3f4f6',
+  borderRadius: 14,
+  marginBottom: 16,
+}
+
+const thumbPlaceholderStyle = {
+  width: '100%',
+  aspectRatio: '1 / 1',
+  borderRadius: 14,
+  background: '#e5e7eb',
+  marginBottom: 16,
+}
+
+const detailImageStyle = {
+  width: '100%',
+  objectFit: 'contain' as const,
+  marginBottom: 8,
+  display: 'block',
+  background: '#f5f5f5',
+  borderRadius: 8,
+}
+
 export default async function BuyProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const res = await getListing(id)
@@ -13,6 +40,7 @@ export default async function BuyProductPage({ params }: { params: Promise<{ id:
 
   const p = res.data.listing
   const thumb = p.thumbnail_url?.trim()
+  const detailImages = (p.image_urls ?? []).map((url) => url?.trim()).filter((url): url is string => Boolean(url))
 
   return (
     <main style={shell}>
@@ -20,33 +48,19 @@ export default async function BuyProductPage({ params }: { params: Promise<{ id:
         ← 목록
       </Link>
       {thumb ? (
-        <img
-          src={thumb}
-          alt=""
-          width={480}
-          height={240}
-          style={{
-            width: '100%',
-            maxHeight: 240,
-            objectFit: 'cover',
-            borderRadius: 14,
-            background: '#f3f4f6',
-            marginBottom: 16,
-            display: 'block',
-          }}
-        />
+        <img src={thumb} alt="" style={thumbImageStyle} />
       ) : (
-        <div
-          style={{
-            width: '100%',
-            height: 180,
-            borderRadius: 14,
-            background: '#e5e7eb',
-            marginBottom: 16,
-          }}
-          aria-hidden
-        />
+        <div style={thumbPlaceholderStyle} aria-hidden />
       )}
+
+      {detailImages.length > 0 ? (
+        <div style={{ marginBottom: 16 }}>
+          {detailImages.map((url, index) => (
+            <img key={`${url}-${index}`} src={url} alt="" style={detailImageStyle} />
+          ))}
+        </div>
+      ) : null}
+
       <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 8px' }}>
         {p.product_name?.trim() ?? ''}
       </h1>
