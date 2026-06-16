@@ -1,44 +1,3 @@
-export default function BuyHomePage() {
-  return (
-    <main
-      style={{
-        width: '100%',
-        boxSizing: 'border-box',
-        minHeight: '100vh',
-        padding: '20px 16px 80px',
-        background: '#f7f6f2',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <div
-        style={{
-          background: '#fff',
-          borderRadius: 16,
-          padding: 24,
-          textAlign: 'center',
-          maxWidth: 360,
-          width: '100%',
-        }}
-      >
-        <div style={{ fontSize: 40, marginBottom: 12 }} aria-hidden>
-          🔒
-        </div>
-        <h1 style={{ fontSize: 18, fontWeight: 500, color: '#2b2b2b', margin: '0 0 8px' }}>
-          준비 중입니다
-        </h1>
-        <p style={{ fontSize: 13, color: '#9ca3af', margin: 0, lineHeight: 1.5 }}>
-          현재 이 기능은 준비 중이에요.
-          <br />
-          곧 사용하실 수 있습니다.
-        </p>
-      </div>
-    </main>
-  )
-}
-
-/*
 import Link from 'next/link'
 import { getCart, getListings, getRecentOrderItems } from '@/actions/buy'
 import { BUY_CATEGORY_CHIPS, categoryIdForCatParam, isValidCatSlug } from '@/lib/buy-category-chips'
@@ -662,4 +621,3 @@ export default async function BuyHomePage({
     </main>
   )
 }
-*/
