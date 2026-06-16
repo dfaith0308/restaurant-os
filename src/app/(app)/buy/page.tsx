@@ -21,7 +21,25 @@ const gridCardShell = {
   overflow: 'hidden' as const,
 }
 
-const THUMB_H = 160
+const thumbImageStyle = {
+  width: '100%',
+  aspectRatio: '1 / 1',
+  objectFit: 'contain' as const,
+  display: 'block',
+  background: '#f5f5f5',
+}
+
+const thumbPlaceholderStyle = {
+  width: '100%',
+  aspectRatio: '1 / 1',
+  background: '#eef4f0',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 28,
+  color: 'var(--color-primary)',
+  lineHeight: 1,
+}
 const GRID_GAP = 10
 const INFO_PAD = 12
 const INFO_GAP = 6
@@ -297,29 +315,11 @@ export default async function BuyHomePage({
                       <img
                         src={thumb}
                         alt=""
-                        width={168}
-                        height={THUMB_H}
-                        style={{
-                          width: '100%',
-                          height: THUMB_H,
-                          objectFit: 'cover',
-                          display: 'block',
-                          background: '#f5f5f5',
-                        }}
+                        style={thumbImageStyle}
                       />
                     ) : (
                       <div
-                        style={{
-                          width: '100%',
-                          height: THUMB_H,
-                          background: '#eef4f0',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 28,
-                          color: 'var(--color-primary)',
-                          lineHeight: 1,
-                        }}
+                        style={thumbPlaceholderStyle}
                         aria-hidden
                       >
                         {productNameInitial(it.listing_title)}
@@ -514,29 +514,11 @@ export default async function BuyHomePage({
                       <img
                         src={thumb}
                         alt=""
-                        width={280}
-                        height={THUMB_H}
-                        style={{
-                          width: '100%',
-                          height: THUMB_H,
-                          objectFit: 'cover',
-                          display: 'block',
-                          background: '#f5f5f5',
-                        }}
+                        style={thumbImageStyle}
                       />
                     ) : (
                       <div
-                        style={{
-                          width: '100%',
-                          height: THUMB_H,
-                          background: '#eef4f0',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: 28,
-                          color: 'var(--color-primary)',
-                          lineHeight: 1,
-                        }}
+                        style={thumbPlaceholderStyle}
                         aria-hidden
                       >
                         {productNameInitial(p.product_name)}
