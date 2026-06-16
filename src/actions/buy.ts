@@ -293,6 +293,11 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
       thumbnail_url,
       image_urls,
       description,
+      brand_name,
+      base_shipping_fee,
+      free_shipping_qty,
+      bulk_qty,
+      bulk_discount_rate,
       products ( name, category_id )
     `,
     )
@@ -319,6 +324,11 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
     original_price,
     product_name,
     category_id,
+    base_shipping_fee: (r.base_shipping_fee as number | null) ?? null,
+    free_shipping_qty: (r.free_shipping_qty as number | null) ?? null,
+    bulk_qty: (r.bulk_qty as number | null) ?? null,
+    bulk_discount_rate: (r.bulk_discount_rate as number | null) ?? null,
+    brand_name: (r.brand_name as string | null) ?? null,
   }
 
   await enrichProductNamesFromProductsTable(supabase, [listing])

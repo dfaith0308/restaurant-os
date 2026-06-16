@@ -17,6 +17,11 @@ export type BuyListingRow = {
   category_id: string | null
   /** false면 무료배송 뱃지 숨김. 미정이면 기본 무료(추후 listing별 정책) */
   shipping_free?: boolean | null
+  base_shipping_fee?: number | null
+  free_shipping_qty?: number | null
+  bulk_qty?: number | null
+  bulk_discount_rate?: number | null
+  brand_name?: string | null
 }
 
 export type RecentOrderItemRow = {
