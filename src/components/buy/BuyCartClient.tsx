@@ -166,17 +166,18 @@ export default function BuyCartClient({
                     }}
                     style={{
                       marginTop: 10,
-                      border: 'none',
-                      background: 'none',
-                      padding: 0,
-                      fontSize: 12,
-                      fontWeight: 600,
-                      color: '#9ca3af',
-                      textDecoration: 'underline',
+                      fontSize: 13,
+                      color: '#dc2626',
+                      padding: '6px 14px',
+                      border: '1px solid #fecaca',
+                      borderRadius: 6,
+                      background: '#fef2f2',
                       cursor: pending ? 'wait' : 'pointer',
+                      fontFamily: 'inherit',
+                      fontWeight: 500,
                     }}
                   >
-                    삭제
+                    🗑 삭제
                   </button>
                 </div>
               </div>
