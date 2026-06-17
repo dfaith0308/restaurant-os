@@ -13,6 +13,7 @@ export default function CartAddButton({
   fullWidth = false,
   listingCard = false,
   disabled = false,
+  onSuccess,
 }: {
   listingId: string
   quantity?: number
@@ -23,6 +24,7 @@ export default function CartAddButton({
   /** /buy 그리드: 풀 너비·높이 36px, radius 6 */
   listingCard?: boolean
   disabled?: boolean
+  onSuccess?: () => void
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
@@ -46,6 +48,7 @@ export default function CartAddButton({
               return
             }
             router.refresh()
+            onSuccess?.()
           })
         }}
         style={{

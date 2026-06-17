@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import CartAddButton from '@/components/buy/CartAddButton'
 import { formatKRW } from '@/lib/utils'
@@ -27,6 +27,14 @@ export default function BuyProductDetailClient({
   baseShippingFee, freeShippingQty, bulkQty, bulkDiscountRate,
 }: Props) {
   const [qty, setQty] = useState(1)
+  const [showCartPopup, setShowCartPopup] = useState(false)
+  const popupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  function handleCartSuccess() {
+    if (popupTimerRef.current) clearTimeout(popupTimerRef.current)
+    setShowCartPopup(true)
+    popupTimerRef.current = setTimeout(() => setShowCartPopup(false), 3000)
+  }
 
   const discountRate = originalPrice && originalPrice > price
     ? Math.round((originalPrice - price) / originalPrice * 100)
@@ -187,8 +195,65 @@ export default function BuyProductDetailClient({
         </Link>
       </div>
 
+      {showCartPopup && (
+        <div style={{
+          position: 'fixed',
+          bottom: 76,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: 'calc(100% - 32px)',
+          maxWidth: 448,
+          background: '#1f5d3a',
+          borderRadius: 14,
+          padding: '16px 20px',
+          zIndex: 20,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+        }}>
+          <p style={{ fontSize: 14, fontWeight: 700, color: '#fff', margin: '0 0 12px' }}>
+            ✓ 장바구니에 담겼습니다
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <Link
+              href="/buy/cart"
+              style={{
+                flex: 1,
+                padding: '10px 0',
+                borderRadius: 8,
+                background: '#fff',
+                color: '#1f5d3a',
+                fontSize: 13,
+                fontWeight: 700,
+                textAlign: 'center',
+                textDecoration: 'none',
+                display: 'block',
+              }}
+            >
+              장바구니 보기
+            </Link>
+            <button
+              type="button"
+              onClick={() => setShowCartPopup(false)}
+              style={{
+                flex: 1,
+                padding: '10px 0',
+                borderRadius: 8,
+                background: 'transparent',
+                border: '1px solid rgba(255,255,255,0.4)',
+                color: '#fff',
+                fontSize: 13,
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+            >
+              계속 쇼핑
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={{ position: 'fixed', bottom: 60, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '12px 16px', background: '#fff', borderTop: '1px solid #ece9e3', boxSizing: 'border-box' as const, zIndex: 10 }}>
-        <CartAddButton listingId={listingId} quantity={qty} label="장바구니 담기" primary fullWidth />
+        <CartAddButton listingId={listingId} quantity={qty} label="장바구니 담기" primary fullWidth onSuccess={handleCartSuccess} />
       </div>
     </div>
   )
