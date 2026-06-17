@@ -1076,3 +1076,96 @@ export async function calcCartDiscount(
 
   return { success: true, data: { discount_amount, eligible: true } }
 }
+
+export type CommerceOrderDetailRow = {
+  id: string
+  order_number: string | null
+  status: string
+  payment_method: string
+  payment_status: string
+  total_amount: number
+  shipping_name: string | null
+  shipping_phone: string | null
+  shipping_address: string | null
+  delivery_memo: string | null
+  created_at: string
+  items: {
+    id: string
+    listing_id: string
+    listing_title: string
+    quantity: number
+    unit_price: number
+    total_price: number
+  }[]
+}
+
+export async function getCommerceOrderDetail(
+  orderId: string,
+): Promise<ActionResult<{ order: CommerceOrderDetailRow }>> {
+  const supabase = await createServerClient()
+  const ctx = await getAuthCtx(supabase)
+  if (!ctx) return { success: false, error: '로그인이 필요합니다' }
+
+  const { data, error } = await supabase
+    .from('commerce_orders')
+    .select(
+      `
+      id,
+      order_number,
+      status,
+      payment_method,
+      payment_status,
+      total_amount,
+      shipping_name,
+      shipping_phone,
+      shipping_address,
+      delivery_memo,
+      created_at,
+      commerce_order_items (
+        id,
+        listing_id,
+        listing_title,
+        quantity,
+        unit_price,
+        total_price
+      )
+    `,
+    )
+    .eq('id', orderId)
+    .eq('tenant_id', ctx.tenant_id)
+    .single()
+
+  if (error) return { success: false, error: error.message }
+  if (!data) return { success: false, error: '주문을 찾을 수 없습니다' }
+
+  const row = data as Record<string, unknown>
+  const rawItems = row.commerce_order_items
+  const itemRows = Array.isArray(rawItems) ? rawItems : []
+
+  const order: CommerceOrderDetailRow = {
+    id: row.id as string,
+    order_number: (row.order_number as string | null) ?? null,
+    status: row.status as string,
+    payment_method: row.payment_method as string,
+    payment_status: row.payment_status as string,
+    total_amount: row.total_amount as number,
+    shipping_name: (row.shipping_name as string | null) ?? null,
+    shipping_phone: (row.shipping_phone as string | null) ?? null,
+    shipping_address: (row.shipping_address as string | null) ?? null,
+    delivery_memo: (row.delivery_memo as string | null) ?? null,
+    created_at: row.created_at as string,
+    items: itemRows.map((i) => {
+      const item = i as Record<string, unknown>
+      return {
+        id: item.id as string,
+        listing_id: item.listing_id as string,
+        listing_title: item.listing_title as string,
+        quantity: item.quantity as number,
+        unit_price: item.unit_price as number,
+        total_price: item.total_price as number,
+      }
+    }),
+  }
+
+  return { success: true, data: { order } }
+}
