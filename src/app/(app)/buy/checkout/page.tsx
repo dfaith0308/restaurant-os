@@ -1,10 +1,3 @@
-import { redirect } from 'next/navigation'
-
-export default function BuyCheckoutPage() {
-  redirect('/buy')
-}
-
-/*
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { getCart } from '@/actions/buy'
@@ -46,4 +39,3 @@ export default async function BuyCheckoutPage() {
     </main>
   )
 }
-*/
