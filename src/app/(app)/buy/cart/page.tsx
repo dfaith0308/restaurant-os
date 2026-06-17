@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getCart } from '@/actions/buy'
+import { getCart, calcCartDiscount } from '@/actions/buy'
 import BuyCartClient from '@/components/buy/BuyCartClient'
 
 const shell = { maxWidth: 480, margin: '0 auto', padding: '20px 16px 96px' } as const
@@ -7,6 +7,19 @@ const shell = { maxWidth: 480, margin: '0 auto', padding: '20px 16px 96px' } as 
 export default async function BuyCartPage() {
   const res = await getCart()
   const items = res.success ? res.data?.items ?? [] : []
+
+  let discountAmount = 0
+  if (items.length >= 2) {
+    const discountRes = await calcCartDiscount(
+      items.map((i) => ({
+        listing_id: i.listing_id,
+        quantity: i.quantity,
+        commerce_price: i.commerce_price,
+      })),
+    )
+    if (discountRes.success) discountAmount = discountRes.data?.discount_amount ?? 0
+  }
+
   const n = items.length
 
   return (
@@ -21,7 +34,7 @@ export default async function BuyCartPage() {
       {!res.success ? (
         <p style={{ color: '#b91c1c', fontSize: 14 }}>{res.error}</p>
       ) : (
-        <BuyCartClient items={items} />
+        <BuyCartClient items={items} discountAmount={discountAmount} />
       )}
     </main>
   )

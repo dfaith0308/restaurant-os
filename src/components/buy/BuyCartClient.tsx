@@ -15,12 +15,19 @@ const card = {
   padding: 12,
 } as const
 
-export default function BuyCartClient({ items }: { items: CartRow[] }) {
+export default function BuyCartClient({
+  items,
+  discountAmount = 0,
+}: {
+  items: CartRow[]
+  discountAmount?: number
+}) {
   const router = useRouter()
   const [pending, start] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
-  const total = items.reduce((s, it) => s + it.commerce_price * it.quantity, 0)
+  const subtotal = items.reduce((s, it) => s + it.commerce_price * it.quantity, 0)
+  const total = subtotal - discountAmount
 
   if (items.length === 0) {
     return (
@@ -188,9 +195,26 @@ export default function BuyCartClient({ items }: { items: CartRow[] }) {
         })}
       >
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
-            <span style={{ fontSize: 14, color: '#6b7280' }}>총 금액</span>
-            <span style={{ fontSize: 22, fontWeight: 800, color: 'var(--color-text)' }}>{formatKRW(total)}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#6b7280' }}>
+              <span>상품 합계</span>
+              <span>{formatKRW(subtotal)}</span>
+            </div>
+            {discountAmount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#1f5d3a', fontWeight: 600 }}>
+                <span>장바구니 할인</span>
+                <span>- {formatKRW(discountAmount)}</span>
+              </div>
+            )}
+            {discountAmount === 0 && items.length >= 2 && (
+              <p style={{ fontSize: 11, color: '#9ca3af', margin: 0, textAlign: 'right' }}>
+                다른 상품을 함께 담으면 할인 혜택이 생길 수 있어요
+              </p>
+            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800, color: '#1a1a1a', paddingTop: 8, borderTop: '1px solid #f3f4f6' }}>
+              <span>최종 결제금액</span>
+              <span>{formatKRW(total)}</span>
+            </div>
           </div>
           <Link
             href="/buy/checkout"

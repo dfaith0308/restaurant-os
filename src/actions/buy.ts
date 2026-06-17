@@ -2,7 +2,7 @@
 
 import { createHash } from 'crypto'
 import { revalidatePath } from 'next/cache'
-import { createServerClient, getAuthCtx } from '@/lib/supabase-server'
+import { createServerClient, createSupabaseAdmin, getAuthCtx } from '@/lib/supabase-server'
 import { buildKakaoOrderSummary } from '@/lib/kakao-format'
 import type {
   BuyListingRow,
@@ -1001,4 +1001,78 @@ export async function getMyCommerceOrders(): Promise<ActionResult<{ orders: Comm
     success: true,
     data: { orders: (data ?? []) as CommerceOrderListRow[] },
   }
+}
+
+export async function calcCartDiscount(
+  items: { listing_id: string; quantity: number; commerce_price: number }[],
+): Promise<ActionResult<{ discount_amount: number; eligible: boolean }>> {
+  const uniqueListings = new Set(items.map((i) => i.listing_id))
+  if (uniqueListings.size < 2) {
+    return { success: true, data: { discount_amount: 0, eligible: false } }
+  }
+
+  const admin = await createSupabaseAdmin()
+
+  const { data, error } = await admin
+    .from('commerce_product_listings')
+    .select('id, product_id')
+    .in('id', Array.from(uniqueListings))
+
+  if (error) return { success: false, error: error.message }
+
+  const productIds = [
+    ...new Set(
+      (data ?? [])
+        .map((r: { product_id: string | null }) => r.product_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ]
+
+  const costByProduct = new Map<string, number>()
+  if (productIds.length > 0) {
+    const { data: costs, error: costErr } = await admin
+      .from('product_costs')
+      .select('product_id, cost_price')
+      .in('product_id', productIds)
+      .is('end_date', null)
+
+    if (costErr) return { success: false, error: costErr.message }
+
+    for (const row of costs ?? []) {
+      const r = row as { product_id: string; cost_price: number | null }
+      costByProduct.set(r.product_id, r.cost_price ?? 0)
+    }
+  }
+
+  const supplyMap = new Map<string, number>(
+    (data ?? []).map((r: { id: string; product_id: string | null }) => [
+      r.id,
+      r.product_id ? (costByProduct.get(r.product_id) ?? 0) : 0,
+    ]),
+  )
+
+  let totalRevenue = 0
+  let totalCost = 0
+  for (const item of items) {
+    const supply = supplyMap.get(item.listing_id) ?? 0
+    totalRevenue += item.commerce_price * item.quantity
+    totalCost += supply * item.quantity
+  }
+
+  if (totalRevenue === 0) return { success: true, data: { discount_amount: 0, eligible: false } }
+
+  const PG_RATE = 0.033
+  const netRevenue = totalRevenue * (1 - PG_RATE)
+  const currentMargin = (netRevenue - totalCost) / netRevenue
+
+  const MIN_MARGIN = 0.16
+
+  if (currentMargin <= MIN_MARGIN) {
+    return { success: true, data: { discount_amount: 0, eligible: true } }
+  }
+
+  const maxDiscountable = netRevenue - totalCost / MIN_MARGIN / (1 - PG_RATE)
+  const discount_amount = Math.max(0, Math.floor(maxDiscountable / 100) * 100)
+
+  return { success: true, data: { discount_amount, eligible: true } }
 }
