@@ -1,10 +1,3 @@
-import { redirect } from 'next/navigation'
-
-export default function BuyCartPage() {
-  redirect('/buy')
-}
-
-/*
 import Link from 'next/link'
 import { getCart } from '@/actions/buy'
 import BuyCartClient from '@/components/buy/BuyCartClient'
@@ -33,4 +26,3 @@ export default async function BuyCartPage() {
     </main>
   )
 }
-*/
