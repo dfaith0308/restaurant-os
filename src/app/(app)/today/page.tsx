@@ -52,12 +52,78 @@ export default async function TodayPage() {
   const d = result.data
   const ingOp = ingOpRes.success && ingOpRes.data ? ingOpRes.data : null
   const menus = menusRes.success && menusRes.data ? menusRes.data : []
+  const orderSlice =
+    orderSliceRes.success && orderSliceRes.data ? orderSliceRes.data : []
+
+  const ingOpEmpty =
+    !ingOpRes.success ||
+    !ingOpRes.data ||
+    Object.keys(ingOpRes.data.metaByIngredient).length === 0
+  const isNewUser = orderSlice.length === 0 && ingOpEmpty
+
+  if (isNewUser) {
+    return (
+      <main style={{ maxWidth: 480, margin: '0 auto', padding: '32px 20px 96px', textAlign: 'center' }}>
+        <div style={{ marginBottom: 32 }}>
+          <p style={{ fontSize: 28, margin: '0 0 12px' }}>👋</p>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px' }}>
+            환영합니다, 사장님
+          </h1>
+          <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.6, margin: 0 }}>
+            식식이OS에서 식자재를 구매하면<br />
+            원가와 수익이 자동으로 계산됩니다
+          </p>
+        </div>
+
+        <Link
+          href="/buy"
+          style={{
+            display: 'block',
+            padding: '18px 20px',
+            background: '#1f5d3a',
+            borderRadius: 14,
+            textDecoration: 'none',
+            marginBottom: 12,
+          }}
+        >
+          <p style={{ fontSize: 16, fontWeight: 800, color: '#fff', margin: '0 0 4px' }}>🛒 식자재 구매하기</p>
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', margin: 0 }}>첫 구매 후 원가 분석이 시작됩니다</p>
+        </Link>
+
+        <Link
+          href="/rfq"
+          style={{
+            display: 'block',
+            padding: '16px 20px',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            borderRadius: 14,
+            textDecoration: 'none',
+            marginBottom: 12,
+          }}
+        >
+          <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>📋 발주 요청하기</p>
+          <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>기존 거래처 발주를 앱으로 통합하세요</p>
+        </Link>
+
+        <div style={{ marginTop: 32, padding: '16px 20px', background: '#f0f7f3', borderRadius: 12 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: '#1f5d3a', margin: '0 0 10px' }}>식식이OS 혜택</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {['2종류 이상 구매 시 장바구니 자동 할인', '무료배송 기준 수량 안내', '원가 자동 계산 · 메뉴 수익성 분석'].map((t) => (
+              <p key={t} style={{ fontSize: 12, color: '#374151', margin: 0, textAlign: 'left' }}>
+                ✓ {t}
+              </p>
+            ))}
+          </div>
+        </div>
+      </main>
+    )
+  }
+
   const hub =
     menus.length > 0 || ingOp
       ? buildTodayOperationHubFromMenusAndIngredients(menus, ingOp)
       : null
-  const orderSlice =
-    orderSliceRes.success && orderSliceRes.data ? orderSliceRes.data : []
   const parseInsights = buildTodayOrderParseInsights(orderSlice)
   const supplierInsights = buildTodaySupplierOperationInsights(
     orderSlice,

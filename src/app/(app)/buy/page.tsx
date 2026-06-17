@@ -101,58 +101,6 @@ function PriceAidStack({
   )
 }
 
-function CartHeaderIcon({ count }: { count: number }) {
-  return (
-    <Link
-      href="/buy/cart"
-      aria-label={count > 0 ? `장바구니, 상품 ${count}건` : '장바구니'}
-      style={{
-        position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: 40,
-        height: 40,
-        color: 'var(--color-primary)',
-        textDecoration: 'none',
-      }}
-    >
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
-        <path
-          d="M7 7h14l-1.5 9h-12L7 7zm0 0L5.5 3H2"
-          stroke="currentColor"
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <circle cx="9.5" cy="19" r="1.35" fill="currentColor" />
-        <circle cx="17.5" cy="19" r="1.35" fill="currentColor" />
-      </svg>
-      {count > 0 ? (
-        <span
-          style={{
-            position: 'absolute',
-            top: 2,
-            right: 2,
-            minWidth: 18,
-            height: 18,
-            padding: '0 5px',
-            borderRadius: 9,
-            background: 'var(--color-primary)',
-            color: '#fff',
-            fontSize: 11,
-            fontWeight: 800,
-            lineHeight: '18px',
-            textAlign: 'center',
-          }}
-        >
-          {count > 99 ? '99+' : count}
-        </span>
-      ) : null}
-    </Link>
-  )
-}
-
 export default async function BuyHomePage({
   searchParams,
 }: {
@@ -182,6 +130,7 @@ export default async function BuyHomePage({
 
   const cartItems = cartRes.success ? cartRes.data?.items ?? [] : []
   const cartLineCount = cartItems.length
+  const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0)
   const cartTotal = cartItems.reduce((s, it) => s + it.commerce_price * it.quantity, 0)
 
   return (
@@ -196,7 +145,32 @@ export default async function BuyHomePage({
         }}
       >
         <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-primary)', margin: 0 }}>구매하기</h1>
-        <CartHeaderIcon count={cartLineCount} />
+        <div style={{ position: 'relative', display: 'inline-block' }}>
+          <Link href="/buy/cart" style={{ fontSize: 24, textDecoration: 'none' }} aria-label={cartCount > 0 ? `장바구니, 상품 ${cartCount}개` : '장바구니'}>
+            🛒
+          </Link>
+          {cartCount > 0 && (
+            <span
+              style={{
+                position: 'absolute',
+                top: -6,
+                right: -8,
+                background: '#dc2626',
+                color: '#fff',
+                fontSize: 10,
+                fontWeight: 800,
+                width: 18,
+                height: 18,
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {cartCount > 99 ? '99+' : cartCount}
+            </span>
+          )}
+        </div>
       </header>
 
       {cartLineCount > 0 ? (

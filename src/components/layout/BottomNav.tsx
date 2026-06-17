@@ -5,11 +5,11 @@ import { usePathname } from 'next/navigation'
 import { bottomNavFixedBox } from '@/lib/app-shell'
 
 const NAV = [
-  { href: '/today',     icon: '🏠', label: '오늘운영' },
-  { href: '/rfq',       icon: '📋', label: '주문관리' },
-  { href: '/money',     icon: '💰', label: '돈관리'   },
-  { href: '/suppliers', icon: '🤝', label: '거래처'   },
-  { href: '/settings',  icon: '⚙️', label: '설정'    },
+  { href: '/today',  icon: '🏠', label: '홈'    },
+  { href: '/buy',    icon: '🛒', label: '구매'  },
+  { href: '/rfq',    icon: '📋', label: '발주'  },
+  { href: '/orders', icon: '📦', label: '내역'  },
+  { href: '/more',   icon: '☰',  label: '더보기' },
 ]
 
 export default function BottomNav() {
