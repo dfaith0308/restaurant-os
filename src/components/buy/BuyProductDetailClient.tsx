@@ -198,7 +198,7 @@ export default function BuyProductDetailClient({
       {showCartPopup && (
         <div style={{
           position: 'fixed',
-          bottom: 76,
+          bottom: 'calc(76px + env(safe-area-inset-bottom))' as unknown as number,
           left: '50%',
           transform: 'translateX(-50%)',
           width: 'calc(100% - 32px)',
@@ -252,7 +252,7 @@ export default function BuyProductDetailClient({
         </div>
       )}
 
-      <div style={{ position: 'fixed', bottom: 60, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '12px 16px', background: '#fff', borderTop: '1px solid #ece9e3', boxSizing: 'border-box' as const, zIndex: 10 }}>
+      <div style={{ position: 'fixed', bottom: 60, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '12px 16px', background: '#fff', borderTop: '1px solid #ece9e3', boxSizing: 'border-box' as const, zIndex: 10, paddingBottom: 'calc(12px + env(safe-area-inset-bottom))' }}>
         <CartAddButton listingId={listingId} quantity={qty} label="장바구니 담기" primary fullWidth onSuccess={handleCartSuccess} />
       </div>
     </div>
