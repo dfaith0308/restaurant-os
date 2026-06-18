@@ -23,6 +23,13 @@ export default async function BuyProductPage({ params }: { params: Promise<{ id:
       freeShippingQty={p.free_shipping_qty ?? null}
       bulkQty={p.bulk_qty ?? null}
       bulkDiscountRate={p.bulk_discount_rate ?? null}
+      origin={p.origin ?? null}
+      storageMethod={p.storage_method ?? null}
+      minOrderQty={p.min_order_qty ?? 1}
+      packageUnit={p.package_unit ?? null}
+      usageDesc={p.usage_desc ?? null}
+      allergen={p.allergen ?? null}
+      ingredients={p.ingredients ?? null}
     />
   )
 }

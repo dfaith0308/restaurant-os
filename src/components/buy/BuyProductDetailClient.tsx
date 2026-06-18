@@ -19,12 +19,20 @@ interface Props {
   freeShippingQty: number | null
   bulkQty: number | null
   bulkDiscountRate: number | null
+  origin?: string | null
+  storageMethod?: string | null
+  minOrderQty?: number
+  packageUnit?: string | null
+  usageDesc?: string | null
+  allergen?: string | null
+  ingredients?: string | null
 }
 
 export default function BuyProductDetailClient({
   listingId, productName, brandName, price, originalPrice,
   thumbnailUrl, imageUrls, description,
   baseShippingFee, freeShippingQty, bulkQty, bulkDiscountRate,
+  origin, storageMethod, allergen, ingredients, usageDesc,
 }: Props) {
   const [qty, setQty] = useState(1)
   const [showCartPopup, setShowCartPopup] = useState(false)
@@ -124,6 +132,44 @@ export default function BuyProductDetailClient({
             </div>
           )}
         </div>
+
+        {(origin || storageMethod || allergen || ingredients || usageDesc) && (
+          <div style={{ borderTop: '1px solid #f3f4f6', marginTop: 14, paddingTop: 14 }}>
+            <p style={{ fontSize: 12, fontWeight: 700, color: '#1f5d3a', margin: '0 0 10px', letterSpacing: '.04em' }}>상품 정보</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {origin && (
+                <div style={{ display: 'flex', gap: 10, fontSize: 13 }}>
+                  <span style={{ color: '#6b7280', minWidth: 60, flexShrink: 0 }}>원산지</span>
+                  <span style={{ color: '#1a1a1a' }}>{origin}</span>
+                </div>
+              )}
+              {storageMethod && (
+                <div style={{ display: 'flex', gap: 10, fontSize: 13 }}>
+                  <span style={{ color: '#6b7280', minWidth: 60, flexShrink: 0 }}>보관방법</span>
+                  <span style={{ color: '#1a1a1a' }}>{storageMethod}</span>
+                </div>
+              )}
+              {allergen && (
+                <div style={{ display: 'flex', gap: 10, fontSize: 13 }}>
+                  <span style={{ color: '#6b7280', minWidth: 60, flexShrink: 0 }}>알레르기</span>
+                  <span style={{ color: '#1a1a1a' }}>{allergen}</span>
+                </div>
+              )}
+              {usageDesc && (
+                <div style={{ display: 'flex', gap: 10, fontSize: 13 }}>
+                  <span style={{ color: '#6b7280', minWidth: 60, flexShrink: 0 }}>용도</span>
+                  <span style={{ color: '#1a1a1a' }}>{usageDesc}</span>
+                </div>
+              )}
+              {ingredients && (
+                <div style={{ display: 'flex', gap: 10, fontSize: 13 }}>
+                  <span style={{ color: '#6b7280', minWidth: 60, flexShrink: 0 }}>원재료</span>
+                  <span style={{ color: '#1a1a1a', lineHeight: 1.6 }}>{ingredients}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ background: '#fff', padding: '16px', marginBottom: 8 }}>

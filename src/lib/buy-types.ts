@@ -22,6 +22,13 @@ export type BuyListingRow = {
   bulk_qty?: number | null
   bulk_discount_rate?: number | null
   brand_name?: string | null
+  origin?: string | null
+  storage_method?: string | null
+  min_order_qty?: number | null
+  package_unit?: string | null
+  usage_desc?: string | null
+  allergen?: string | null
+  ingredients?: string | null
 }
 
 export type RecentOrderItemRow = {

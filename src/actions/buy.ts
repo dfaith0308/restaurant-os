@@ -298,6 +298,13 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
       free_shipping_qty,
       bulk_qty,
       bulk_discount_rate,
+      origin,
+      storage_method,
+      min_order_qty,
+      package_unit,
+      usage_desc,
+      allergen,
+      ingredients,
       products ( name, category_id )
     `,
     )
@@ -329,6 +336,16 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
     bulk_qty: (r.bulk_qty as number | null) ?? null,
     bulk_discount_rate: (r.bulk_discount_rate as number | null) ?? null,
     brand_name: (r.brand_name as string | null) ?? null,
+    origin: (r.origin as string | null) ?? null,
+    storage_method: (r.storage_method as string | null) ?? null,
+    min_order_qty:
+      typeof r.min_order_qty === 'number' && Number.isFinite(r.min_order_qty)
+        ? Math.round(r.min_order_qty)
+        : null,
+    package_unit: (r.package_unit as string | null) ?? null,
+    usage_desc: (r.usage_desc as string | null) ?? null,
+    allergen: (r.allergen as string | null) ?? null,
+    ingredients: (r.ingredients as string | null) ?? null,
   }
 
   await enrichProductNamesFromProductsTable(supabase, [listing])
