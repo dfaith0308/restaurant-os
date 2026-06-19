@@ -33,6 +33,20 @@ function normalizeProductName(row: Record<string, unknown>): {
 
 type RowWithProductName = { product_id: string | null; product_name: string | null }
 
+function resolveCartDisplayName(input: {
+  product_name: string | null
+  brand_name: string | null
+  spec: string | null
+}): string | null {
+  if (input.product_name?.trim()) return input.product_name.trim()
+  const brand = input.brand_name?.trim() ?? ''
+  const spec = input.spec?.trim() ?? ''
+  if (brand && spec) return `${brand} ${spec}`.trim()
+  if (brand) return brand
+  if (spec) return spec
+  return null
+}
+
 async function enrichProductNamesFromProductsTable(
   supabase: Awaited<ReturnType<typeof createServerClient>>,
   rows: RowWithProductName[],
@@ -648,6 +662,8 @@ export async function getCart(): Promise<ActionResult<{ items: CartRow[] }>> {
         product_id,
         commerce_price,
         thumbnail_url,
+        brand_name,
+        spec,
         products ( name )
       )
     `,
@@ -657,20 +673,21 @@ export async function getCart(): Promise<ActionResult<{ items: CartRow[] }>> {
 
   if (error) return { success: false, error: error.message }
 
-  const items: CartRow[] = (data ?? []).map((row: Record<string, unknown>) => {
-    const lid = row.commerce_product_listings as
+  const builds = (data ?? []).map((row: Record<string, unknown>) => {
+    const lp = row.commerce_product_listings as
       | {
           product_id: string | null
           commerce_price: number
+          brand_name?: string | null
+          spec?: string | null
           products: { name: string | null } | { name: string | null }[]
         }
       | null
-    const lp = lid
     const rawP = lp?.products
     const p = Array.isArray(rawP) ? rawP[0] : rawP
     const thumb = lp && 'thumbnail_url' in lp ? (lp as { thumbnail_url?: string | null }).thumbnail_url : null
     const nameRaw = p?.name
-    const product_name =
+    const fromProduct =
       nameRaw != null && String(nameRaw).trim() ? String(nameRaw).trim() : null
     return {
       id: row.id as string,
@@ -678,12 +695,23 @@ export async function getCart(): Promise<ActionResult<{ items: CartRow[] }>> {
       quantity: row.quantity as number,
       commerce_price: lp?.commerce_price ?? 0,
       product_id: lp?.product_id ?? null,
-      product_name,
+      product_name: fromProduct,
       thumbnail_url: thumb?.trim() ? thumb.trim() : null,
+      brand_name: (lp?.brand_name as string | null) ?? null,
+      spec: (lp?.spec as string | null) ?? null,
     }
   })
 
-  await enrichProductNamesFromProductsTable(supabase, items)
+  await enrichProductNamesFromProductsTable(supabase, builds)
+
+  const items: CartRow[] = builds.map(({ brand_name, spec, ...rest }) => ({
+    ...rest,
+    product_name: resolveCartDisplayName({
+      product_name: rest.product_name,
+      brand_name,
+      spec,
+    }),
+  }))
 
   return { success: true, data: { items } }
 }
