@@ -287,6 +287,31 @@ export async function getListings(filters?: {
   return { success: true, data: { listings } }
 }
 
+export async function getStoreCategories(): Promise<
+  ActionResult<{ categories: { id: string; name: string; slug: string; parent_id: string | null }[] }>
+> {
+  const supabase = await createServerClient()
+
+  const { data, error } = await supabase
+    .from('product_categories')
+    .select('id, name, slug, parent_id, sort_order')
+    .eq('is_active', true)
+    .is('parent_id', null)
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true })
+
+  if (error) return { success: false, error: error.message }
+
+  const categories = (data ?? []).map((c) => ({
+    id: c.id as string,
+    name: c.name as string,
+    slug: (c.slug as string | null) ?? (c.id as string),
+    parent_id: (c.parent_id as string | null) ?? null,
+  }))
+
+  return { success: true, data: { categories } }
+}
+
 export async function getListing(id: string): Promise<ActionResult<{ listing: BuyListingRow }>> {
   const supabase = await createServerClient()
   const lid = String(id ?? '').trim()

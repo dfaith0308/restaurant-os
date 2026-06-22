@@ -1,6 +1,5 @@
 import Link from 'next/link'
-import { getCart, getListings, getRecentOrderItems } from '@/actions/buy'
-import { BUY_CATEGORY_CHIPS, categoryIdForCatParam, isValidCatSlug } from '@/lib/buy-category-chips'
+import { getCart, getListings, getRecentOrderItems, getStoreCategories } from '@/actions/buy'
 import { fixedStripeAboveBottomNav } from '@/lib/app-shell'
 import { formatKRW } from '@/lib/utils'
 import CartAddButton from '@/components/buy/CartAddButton'
@@ -112,9 +111,19 @@ export default async function BuyHomePage({
 
   const rawCat = Array.isArray(sp.cat) ? sp.cat[0] : sp.cat
   let catSlug = rawCat?.trim() || undefined
-  if (catSlug && !isValidCatSlug(catSlug)) catSlug = undefined
 
-  const category_id = categoryIdForCatParam(catSlug)
+  const categoriesRes = await getStoreCategories()
+  const storeCategories = categoriesRes.success ? categoriesRes.data?.categories ?? [] : []
+
+  if (catSlug && catSlug !== 'all') {
+    const valid = storeCategories.some((c) => c.slug === catSlug || c.id === catSlug)
+    if (!valid) catSlug = undefined
+  }
+
+  const category_id =
+    catSlug && catSlug !== 'all'
+      ? storeCategories.find((c) => c.slug === catSlug || c.id === catSlug)?.id
+      : undefined
 
   const [listRes, recentRes, cartRes] = await Promise.all([
     getListings({ search, category_id }),
@@ -391,30 +400,50 @@ export default async function BuyHomePage({
           WebkitOverflowScrolling: 'touch',
         }}
       >
-        {BUY_CATEGORY_CHIPS.map((c) => {
-          const selected =
-            c.slug === 'all'
-              ? !catSlug || catSlug === 'all'
-              : catSlug === c.slug
-          const href = buyHref(search, c.slug === 'all' ? undefined : c.slug)
+        <Link
+          href={buyHref(search, 'all')}
+          scroll={false}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '8px 16px',
+            borderRadius: 20,
+            fontSize: 14,
+            fontWeight: !catSlug || catSlug === 'all' ? 600 : 400,
+            background: !catSlug || catSlug === 'all' ? '#1f5d3a' : 'var(--color-background-primary)',
+            color: !catSlug || catSlug === 'all' ? '#fff' : 'var(--color-text-primary)',
+            border: `1px solid ${!catSlug || catSlug === 'all' ? '#1f5d3a' : 'var(--color-border-default)'}`,
+            textDecoration: 'none',
+            whiteSpace: 'nowrap',
+            flex: '0 0 auto',
+          }}
+        >
+          전체
+        </Link>
+
+        {storeCategories.map((c) => {
+          const isActive = catSlug === c.slug || catSlug === c.id
           return (
             <Link
-              key={c.slug}
-              href={href}
+              key={c.id}
+              href={buyHref(search, c.slug ?? c.id)}
               scroll={false}
               style={{
-                flex: '0 0 auto',
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '8px 16px',
                 borderRadius: 20,
-                padding: '6px 14px',
                 fontSize: 14,
+                fontWeight: isActive ? 600 : 400,
+                background: isActive ? '#1f5d3a' : 'var(--color-background-primary)',
+                color: isActive ? '#fff' : 'var(--color-text-primary)',
+                border: `1px solid ${isActive ? '#1f5d3a' : 'var(--color-border-default)'}`,
                 textDecoration: 'none',
-                fontWeight: 600,
-                background: selected ? '#111' : '#f5f5f5',
-                color: selected ? '#fff' : '#333',
-                border: selected ? 'none' : '1px solid transparent',
+                whiteSpace: 'nowrap',
+                flex: '0 0 auto',
               }}
             >
-              {c.label}
+              {c.name}
             </Link>
           )
         })}
