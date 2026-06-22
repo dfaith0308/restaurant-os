@@ -312,6 +312,7 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
       free_shipping_qty,
       bulk_qty,
       bulk_discount_rate,
+      box_qty,
       origin,
       storage_method,
       min_order_qty,

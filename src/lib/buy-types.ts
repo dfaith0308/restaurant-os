@@ -21,6 +21,7 @@ export type BuyListingRow = {
   free_shipping_qty?: number | null
   bulk_qty?: number | null
   bulk_discount_rate?: number | null
+  box_qty?: number | null
   brand_name?: string | null
   origin?: string | null
   storage_method?: string | null
