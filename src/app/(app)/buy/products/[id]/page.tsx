@@ -30,6 +30,7 @@ export default async function BuyProductPage({ params }: { params: Promise<{ id:
       usageDesc={p.usage_desc ?? null}
       allergen={p.allergen ?? null}
       ingredients={p.ingredients ?? null}
+      manufacturer={p.manufacturer ?? null}
     />
   )
 }

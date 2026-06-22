@@ -319,6 +319,7 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
       usage_desc,
       allergen,
       ingredients,
+      manufacturer,
       products ( name, category_id )
     `,
     )

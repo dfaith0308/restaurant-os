@@ -26,13 +26,14 @@ interface Props {
   usageDesc?: string | null
   allergen?: string | null
   ingredients?: string | null
+  manufacturer?: string | null
 }
 
 export default function BuyProductDetailClient({
   listingId, productName, brandName, price, originalPrice,
   thumbnailUrl, imageUrls, description,
   baseShippingFee, freeShippingQty, bulkQty, bulkDiscountRate,
-  origin, storageMethod, allergen, ingredients, usageDesc,
+  origin, storageMethod, allergen, ingredients, usageDesc, manufacturer,
 }: Props) {
   const [qty, setQty] = useState(1)
   const [showCartPopup, setShowCartPopup] = useState(false)
@@ -133,10 +134,16 @@ export default function BuyProductDetailClient({
           )}
         </div>
 
-        {(origin || storageMethod || allergen || ingredients || usageDesc) && (
+        {(origin || storageMethod || allergen || ingredients || usageDesc || manufacturer) && (
           <div style={{ borderTop: '1px solid #f3f4f6', marginTop: 14, paddingTop: 14 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#1f5d3a', margin: '0 0 10px', letterSpacing: '.04em' }}>상품 정보</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {manufacturer && (
+                <div style={{ display: 'flex', gap: 10, fontSize: 13 }}>
+                  <span style={{ color: '#6b7280', minWidth: 60, flexShrink: 0 }}>제조원</span>
+                  <span style={{ color: '#1a1a1a' }}>{manufacturer}</span>
+                </div>
+              )}
               {origin && (
                 <div style={{ display: 'flex', gap: 10, fontSize: 13 }}>
                   <span style={{ color: '#6b7280', minWidth: 60, flexShrink: 0 }}>원산지</span>

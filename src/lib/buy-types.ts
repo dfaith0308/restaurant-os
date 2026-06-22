@@ -29,6 +29,7 @@ export type BuyListingRow = {
   usage_desc?: string | null
   allergen?: string | null
   ingredients?: string | null
+  manufacturer?: string | null
 }
 
 export type RecentOrderItemRow = {
