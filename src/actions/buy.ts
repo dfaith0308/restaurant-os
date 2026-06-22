@@ -224,7 +224,20 @@ export async function getListings(filters?: {
   }
 
   if (cat) {
-    const { data: prods, error: ce } = await supabase.from('products').select('id').eq('category_id', cat).limit(500)
+    const { data: subCats, error: subErr } = await supabase
+      .from('product_categories')
+      .select('id')
+      .eq('parent_id', cat)
+
+    if (subErr) return { success: false, error: subErr.message }
+
+    const categoryIds = [cat, ...(subCats ?? []).map((c: { id: string }) => c.id)]
+
+    const { data: prods, error: ce } = await supabase
+      .from('products')
+      .select('id')
+      .in('category_id', categoryIds)
+      .limit(500)
     if (ce) return { success: false, error: ce.message }
     const catIds = (prods ?? []).map((p: { id: string }) => p.id)
     if (catIds.length === 0) return { success: true, data: { listings: [] } }
