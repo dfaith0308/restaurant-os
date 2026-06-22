@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import { getListing } from '@/actions/buy'
 import BuyProductDetailClient from '@/components/buy/BuyProductDetailClient'
+import ProductDetailTemplate from '@/components/buy/ProductDetailTemplate'
 
 export default async function BuyProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -8,12 +9,16 @@ export default async function BuyProductPage({ params }: { params: Promise<{ id:
   if (!res.success || !res.data?.listing) notFound()
   const p = res.data.listing
 
+  const productName = p.product_name ?? ''
+  const brandName = p.brand_name ?? ''
+  const price = p.commerce_price
+
   return (
     <BuyProductDetailClient
       listingId={p.id}
-      productName={p.product_name ?? ''}
-      brandName={p.brand_name ?? ''}
-      price={p.commerce_price}
+      productName={productName}
+      brandName={brandName}
+      price={price}
       originalPrice={p.original_price ?? null}
       thumbnailUrl={p.thumbnail_url ?? null}
       imageUrls={p.image_urls ?? []}
@@ -32,6 +37,19 @@ export default async function BuyProductPage({ params }: { params: Promise<{ id:
       allergen={p.allergen ?? null}
       ingredients={p.ingredients ?? null}
       manufacturer={p.manufacturer ?? null}
+      detailTemplate={
+        <div style={{ padding: '0 16px 8px' }}>
+          <ProductDetailTemplate
+            productName={productName}
+            brandName={brandName}
+            spec={p.spec ?? null}
+            usageDesc={p.usage_desc ?? null}
+            aiStrengths={p.description ?? null}
+            ingredients={p.ingredients ?? null}
+            price={price}
+          />
+        </div>
+      }
     />
   )
 }

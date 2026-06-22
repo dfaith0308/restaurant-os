@@ -28,6 +28,7 @@ interface Props {
   allergen?: string | null
   ingredients?: string | null
   manufacturer?: string | null
+  detailTemplate?: React.ReactNode
 }
 
 export default function BuyProductDetailClient({
@@ -47,6 +48,7 @@ export default function BuyProductDetailClient({
   allergen,
   ingredients,
   usageDesc,
+  detailTemplate,
 }: Props) {
   const [qty, setQty] = useState(1)
   const [showCartPopup, setShowCartPopup] = useState(false)
@@ -245,6 +247,8 @@ export default function BuyProductDetailClient({
           </div>
         </div>
       </div>
+
+      {detailTemplate}
 
       {/* 상세 이미지 */}
       {imageUrls.length > 0 && (

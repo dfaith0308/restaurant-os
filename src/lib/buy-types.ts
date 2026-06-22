@@ -23,6 +23,7 @@ export type BuyListingRow = {
   bulk_discount_rate?: number | null
   box_qty?: number | null
   brand_name?: string | null
+  spec?: string | null
   origin?: string | null
   storage_method?: string | null
   min_order_qty?: number | null

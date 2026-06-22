@@ -308,6 +308,7 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
       image_urls,
       description,
       brand_name,
+      spec,
       base_shipping_fee,
       free_shipping_qty,
       bulk_qty,
@@ -352,6 +353,7 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
     bulk_qty: (r.bulk_qty as number | null) ?? null,
     bulk_discount_rate: (r.bulk_discount_rate as number | null) ?? null,
     brand_name: (r.brand_name as string | null) ?? null,
+    spec: (r.spec as string | null) ?? null,
     origin: (r.origin as string | null) ?? null,
     storage_method: (r.storage_method as string | null) ?? null,
     min_order_qty:
