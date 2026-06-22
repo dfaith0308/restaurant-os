@@ -215,6 +215,7 @@ export async function getListings(filters?: {
   const cat = filters?.category_id?.trim()
 
   let productIds: string[] | null = null
+  let categoryIds: string[] | null = null
 
   if (term) {
     const { data: prods, error: pe } = await supabase.from('products').select('id').ilike('name', `%${term}%`).limit(200)
@@ -227,27 +228,12 @@ export async function getListings(filters?: {
     const { data: subCats, error: subErr } = await supabase
       .from('product_categories')
       .select('id')
+      .eq('tenant_id', '00000000-0000-0000-0000-000000000000')
       .eq('parent_id', cat)
 
     if (subErr) return { success: false, error: subErr.message }
 
-    const categoryIds = [cat, ...(subCats ?? []).map((c: { id: string }) => c.id)]
-
-    const { data: prods, error: ce } = await supabase
-      .from('products')
-      .select('id')
-      .in('category_id', categoryIds)
-      .limit(500)
-    if (ce) return { success: false, error: ce.message }
-    const catIds = (prods ?? []).map((p: { id: string }) => p.id)
-    if (catIds.length === 0) return { success: true, data: { listings: [] } }
-    if (productIds) {
-      const set = new Set(catIds)
-      productIds = productIds.filter((id) => set.has(id))
-      if (productIds.length === 0) return { success: true, data: { listings: [] } }
-    } else {
-      productIds = catIds
-    }
+    categoryIds = [cat, ...(subCats ?? []).map((c: { id: string }) => c.id)]
   }
 
   let q = supabase
@@ -265,6 +251,7 @@ export async function getListings(filters?: {
       thumbnail_url,
       image_urls,
       description,
+      category_id,
       products ( name, category_id )
     `,
     )
@@ -274,12 +261,14 @@ export async function getListings(filters?: {
     .order('created_at', { ascending: false })
 
   if (productIds) q = q.in('product_id', productIds)
+  if (categoryIds) q = q.in('category_id', categoryIds)
 
   const { data, error } = await q
   if (error) return { success: false, error: error.message }
 
   const listings = (data ?? []).map((row: Record<string, unknown>) => {
-    const { product_name, category_id } = normalizeProductName(row)
+    const { product_name, category_id: productCategoryId } = normalizeProductName(row)
+    const listingCategoryId = (row.category_id as string | null) ?? null
     const { products: _p, ...rest } = row as BuyListingRow & { products?: unknown }
     const op = row.original_price
     const original_price =
@@ -291,7 +280,7 @@ export async function getListings(filters?: {
       description: (row.description as string | null) ?? null,
       original_price,
       product_name,
-      category_id,
+      category_id: listingCategoryId ?? productCategoryId,
     }
   })
 
