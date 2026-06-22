@@ -72,12 +72,25 @@ function productNameInitial(name: string | null | undefined): string {
   return t[0] ?? '?'
 }
 
-function buyHref(search?: string, catSlug?: string) {
+function buyHref(search?: string, catSlug?: string, subCatSlug?: string) {
   const p = new URLSearchParams()
   if (search?.trim()) p.set('search', search.trim())
   if (catSlug && catSlug !== 'all') p.set('cat', catSlug)
+  if (subCatSlug) p.set('subcat', subCatSlug)
   const q = p.toString()
   return q ? `/buy?${q}` : '/buy'
+}
+
+const chipRowStyle = {
+  display: 'flex',
+  gap: 8,
+  overflowX: 'auto' as const,
+  paddingBottom: 4,
+  marginLeft: -16,
+  marginRight: -16,
+  paddingLeft: 16,
+  paddingRight: 16,
+  WebkitOverflowScrolling: 'touch' as const,
 }
 
 function PriceAidStack({
@@ -103,7 +116,7 @@ function PriceAidStack({
 export default async function BuyHomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string | string[]; cat?: string | string[] }>
+  searchParams: Promise<{ search?: string | string[]; cat?: string | string[]; subcat?: string | string[] }>
 }) {
   const sp = await searchParams
   const rawSearch = Array.isArray(sp.search) ? sp.search[0] : sp.search
@@ -111,6 +124,9 @@ export default async function BuyHomePage({
 
   const rawCat = Array.isArray(sp.cat) ? sp.cat[0] : sp.cat
   let catSlug = rawCat?.trim() || undefined
+
+  const rawSubCat = Array.isArray(sp.subcat) ? sp.subcat[0] : sp.subcat
+  let subCatSlug = rawSubCat?.trim() || undefined
 
   const categoriesRes = await getStoreCategories()
   const storeCategories = categoriesRes.success ? categoriesRes.data?.categories ?? [] : []
@@ -120,10 +136,24 @@ export default async function BuyHomePage({
     if (!valid) catSlug = undefined
   }
 
-  const category_id =
+  const selectedParent =
     catSlug && catSlug !== 'all'
-      ? storeCategories.find((c) => c.slug === catSlug || c.id === catSlug)?.id
-      : undefined
+      ? storeCategories.find((c) => c.slug === catSlug || c.id === catSlug)
+      : null
+
+  if (subCatSlug && selectedParent) {
+    const validSub = selectedParent.children.some((c) => c.slug === subCatSlug || c.id === subCatSlug)
+    if (!validSub) subCatSlug = undefined
+  } else if (subCatSlug) {
+    subCatSlug = undefined
+  }
+
+  const selectedSub =
+    subCatSlug && selectedParent
+      ? selectedParent.children.find((c) => c.slug === subCatSlug || c.id === subCatSlug)
+      : null
+
+  const category_id = selectedSub?.id ?? selectedParent?.id ?? undefined
 
   const [listRes, recentRes, cartRes] = await Promise.all([
     getListings({ search, category_id }),
@@ -371,6 +401,7 @@ export default async function BuyHomePage({
 
       <form action="/buy" method="get" style={{ marginBottom: 12 }}>
         {catSlug && catSlug !== 'all' ? <input type="hidden" name="cat" value={catSlug} /> : null}
+        {subCatSlug ? <input type="hidden" name="subcat" value={subCatSlug} /> : null}
         <input
           name="search"
           defaultValue={search ?? ''}
@@ -388,16 +419,8 @@ export default async function BuyHomePage({
 
       <div
         style={{
-          display: 'flex',
-          gap: 8,
-          overflowX: 'auto',
-          marginBottom: 20,
-          paddingBottom: 4,
-          marginLeft: -16,
-          marginRight: -16,
-          paddingLeft: 16,
-          paddingRight: 16,
-          WebkitOverflowScrolling: 'touch',
+          ...chipRowStyle,
+          marginBottom: selectedParent && selectedParent.children.length > 0 ? 0 : 20,
         }}
       >
         <Link
@@ -448,6 +471,69 @@ export default async function BuyHomePage({
           )
         })}
       </div>
+
+      {selectedParent && selectedParent.children.length > 0 ? (
+        <div
+          style={{
+            background: '#f3f7f5',
+            borderRadius: 10,
+            padding: '10px 0',
+            marginBottom: 20,
+            marginLeft: -16,
+            marginRight: -16,
+          }}
+        >
+          <div style={chipRowStyle}>
+            <Link
+              href={buyHref(search, catSlug)}
+              scroll={false}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '6px 14px',
+                borderRadius: 16,
+                fontSize: 13,
+                fontWeight: !subCatSlug ? 600 : 400,
+                background: !subCatSlug ? '#f0f7f3' : '#fff',
+                color: !subCatSlug ? '#1f5d3a' : '#374151',
+                border: `1px solid ${!subCatSlug ? '#1f5d3a' : '#e5e7eb'}`,
+                textDecoration: 'none',
+                whiteSpace: 'nowrap',
+                flex: '0 0 auto',
+              }}
+            >
+              {selectedParent.name} 전체
+            </Link>
+
+            {selectedParent.children.map((sub) => {
+              const isActive = subCatSlug === sub.slug || subCatSlug === sub.id
+              return (
+                <Link
+                  key={sub.id}
+                  href={buyHref(search, catSlug, sub.slug ?? sub.id)}
+                  scroll={false}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    padding: '6px 14px',
+                    borderRadius: 16,
+                    fontSize: 13,
+                    fontWeight: isActive ? 600 : 400,
+                    background: isActive ? '#f0f7f3' : '#fff',
+                    color: isActive ? '#1f5d3a' : '#374151',
+                    border: `1px solid ${isActive ? '#1f5d3a' : '#e5e7eb'}`,
+                    textDecoration: 'none',
+                    whiteSpace: 'nowrap',
+                    flex: '0 0 auto',
+                  }}
+                >
+                  {sub.name}
+                </Link>
+              )
+            })}
+          </div>
+        </div>
+      ) : null}
 
       <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 12px' }}>전체 상품</h2>
 

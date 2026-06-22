@@ -290,7 +290,15 @@ export async function getListings(filters?: {
 }
 
 export async function getStoreCategories(): Promise<
-  ActionResult<{ categories: { id: string; name: string; slug: string; parent_id: string | null }[] }>
+  ActionResult<{
+    categories: {
+      id: string
+      name: string
+      slug: string
+      parent_id: string | null
+      children: { id: string; name: string; slug: string }[]
+    }[]
+  }>
 > {
   const supabase = await createServerClient()
 
@@ -299,7 +307,6 @@ export async function getStoreCategories(): Promise<
     .select('id, name, slug, parent_id, sort_order')
     .eq('tenant_id', '00000000-0000-0000-0000-000000000000')
     .eq('is_active', true)
-    .is('parent_id', null)
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true })
 
@@ -308,12 +315,22 @@ export async function getStoreCategories(): Promise<
     return { success: false, error: error.message }
   }
 
-  const categories = (data ?? []).map((c) => ({
-    id: c.id as string,
-    name: c.name as string,
-    slug: (c.slug as string | null) ?? (c.id as string),
-    parent_id: (c.parent_id as string | null) ?? null,
-  }))
+  const allCats = data ?? []
+  const categories = allCats
+    .filter((c) => !c.parent_id)
+    .map((c) => ({
+      id: c.id as string,
+      name: c.name as string,
+      slug: (c.slug as string | null) ?? (c.id as string),
+      parent_id: null as string | null,
+      children: allCats
+        .filter((sub) => sub.parent_id === c.id)
+        .map((sub) => ({
+          id: sub.id as string,
+          name: sub.name as string,
+          slug: (sub.slug as string | null) ?? (sub.id as string),
+        })),
+    }))
 
   return { success: true, data: { categories } }
 }
