@@ -295,12 +295,16 @@ export async function getStoreCategories(): Promise<
   const { data, error } = await supabase
     .from('product_categories')
     .select('id, name, slug, parent_id, sort_order')
+    .eq('tenant_id', '00000000-0000-0000-0000-000000000000')
     .eq('is_active', true)
     .is('parent_id', null)
     .order('sort_order', { ascending: true })
     .order('name', { ascending: true })
 
-  if (error) return { success: false, error: error.message }
+  if (error) {
+    console.error('[getStoreCategories] error:', error.message)
+    return { success: false, error: error.message }
+  }
 
   const categories = (data ?? []).map((c) => ({
     id: c.id as string,
