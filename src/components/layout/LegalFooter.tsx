@@ -4,19 +4,28 @@ import Link from 'next/link'
 
 export default function LegalFooter() {
   return (
-    <footer style={{ padding: '18px 16px', borderTop: '1px solid rgba(0,0,0,0.06)', background: '#fff', color: '#6b7280', fontSize: 12 }}>
-      <div style={{ maxWidth: 860, margin: '0 auto', display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
-        <Link href="/terms" style={{ color: '#374151', textDecoration: 'none', fontWeight: 700 }}>
-          이용약관
-        </Link>
-        <span style={{ opacity: 0.6 }}>|</span>
-        <Link href="/privacy" style={{ color: '#374151', textDecoration: 'none', fontWeight: 700 }}>
-          개인정보처리방침
-        </Link>
-        <span style={{ opacity: 0.6 }}>|</span>
-        <span>운영자: 디닷페이스 · 대표: 김정무 · 연락처: 032-215-3207 · 이메일: dfaith0308@gmail.com</span>
+    <footer
+      style={{
+        padding: '20px 16px',
+        borderTop: '1px solid #e5e7eb',
+        background: '#f7f6f2',
+        textAlign: 'center',
+      }}
+    >
+      <div style={{ fontSize: 11, color: '#6b7280', lineHeight: 2 }}>
+        <p style={{ margin: 0 }}>
+          <Link href="/terms" style={{ color: '#6b7280', textDecoration: 'none', marginRight: 12 }}>
+            이용약관
+          </Link>
+          <Link href="/privacy" style={{ color: '#6b7280', textDecoration: 'none' }}>
+            개인정보처리방침
+          </Link>
+        </p>
+        <p style={{ margin: 0 }}>상호명: 디닷페이스 · 대표자: 김정무 · 사업자등록번호: 728-02-02513</p>
+        <p style={{ margin: 0 }}>통신판매업 신고번호: 제2026-인천부평-0405호</p>
+        <p style={{ margin: 0 }}>주소: 인천광역시 부평구 장제로155번길 24, 1층</p>
+        <p style={{ margin: 0 }}>이메일: dfaith0308@gmail.com · 전화번호: 032-215-3207</p>
       </div>
     </footer>
   )
 }
-
