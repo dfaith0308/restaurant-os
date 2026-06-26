@@ -52,30 +52,41 @@ export default function PushSubscriber() {
 
     async function subscribe() {
       try {
-        let swReg = await navigator.serviceWorker.getRegistration()
-        addLog(`[Push] SW 등록 상태: ${swReg ? swReg.active?.state ?? '대기중' : '없음'}`)
+        let reg = await navigator.serviceWorker.getRegistration('/')
+        addLog(`[Push] SW 등록 상태: ${reg ? reg.active?.state ?? '대기중' : '없음'}`)
 
-        if (!swReg) {
-          try {
-            addLog('[Push] SW 수동 등록 시도...')
-            await navigator.serviceWorker.register('/sw.js')
-            addLog('[Push] SW 수동 등록 완료')
-            await new Promise((resolve) => setTimeout(resolve, 2000))
-            swReg = await navigator.serviceWorker.getRegistration()
-            addLog(`[Push] SW 재확인: ${swReg ? swReg.active?.state ?? '대기중' : '없음'}`)
-          } catch (err) {
-            const message = err instanceof Error ? err.message : String(err)
-            addLog(`[Push] ❌ SW 등록 실패: ${message}`, true)
-            return
-          }
+        if (!reg) {
+          addLog('[Push] SW 수동 등록 시도...')
+          reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          addLog('[Push] SW 수동 등록 완료')
         }
 
-        const reg = await Promise.race([
-          navigator.serviceWorker.ready,
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error('SW ready 타임아웃 (5초)')), 5000),
-          ),
-        ])
+        if (!reg.active) {
+          addLog('[Push] SW active 대기 중...')
+          await new Promise<void>((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('SW activate 타임아웃')), 10000)
+
+            if (reg!.installing) {
+              reg!.installing.addEventListener('statechange', function (this: ServiceWorker) {
+                if (this.state === 'activated') {
+                  clearTimeout(timeout)
+                  resolve()
+                }
+              })
+            } else if (reg!.waiting) {
+              reg!.waiting.addEventListener('statechange', function (this: ServiceWorker) {
+                if (this.state === 'activated') {
+                  clearTimeout(timeout)
+                  resolve()
+                }
+              })
+            } else {
+              clearTimeout(timeout)
+              resolve()
+            }
+          })
+        }
+
         addLog('[Push] SW 준비됨')
 
         const existing = await reg.pushManager.getSubscription()
@@ -104,7 +115,8 @@ export default function PushSubscriber() {
         addLog('[Push] ✅ 신규 구독 완료')
         await syncSubscriptionToServer(subscription)
       } catch (err) {
-        addLog(`[Push] ❌ 구독 오류: ${err}`, true)
+        const message = err instanceof Error ? err.message : String(err)
+        addLog(`[Push] ❌ 오류: ${message}`, true)
       }
     }
 
