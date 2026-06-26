@@ -52,8 +52,23 @@ export default function PushSubscriber() {
 
     async function subscribe() {
       try {
-        const swReg = await navigator.serviceWorker.getRegistration()
+        let swReg = await navigator.serviceWorker.getRegistration()
         addLog(`[Push] SW 등록 상태: ${swReg ? swReg.active?.state ?? '대기중' : '없음'}`)
+
+        if (!swReg) {
+          try {
+            addLog('[Push] SW 수동 등록 시도...')
+            await navigator.serviceWorker.register('/sw.js')
+            addLog('[Push] SW 수동 등록 완료')
+            await new Promise((resolve) => setTimeout(resolve, 2000))
+            swReg = await navigator.serviceWorker.getRegistration()
+            addLog(`[Push] SW 재확인: ${swReg ? swReg.active?.state ?? '대기중' : '없음'}`)
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err)
+            addLog(`[Push] ❌ SW 등록 실패: ${message}`, true)
+            return
+          }
+        }
 
         const reg = await Promise.race([
           navigator.serviceWorker.ready,
