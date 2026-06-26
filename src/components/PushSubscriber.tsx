@@ -2,6 +2,45 @@
 
 import { useEffect, useState } from 'react'
 
+function urlBase64ToUint8Array(base64String: string) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = window.atob(base64)
+  return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)))
+}
+
+async function waitForServiceWorkerActive(reg: ServiceWorkerRegistration): Promise<ServiceWorkerRegistration> {
+  if (reg.active) return reg
+
+  const worker = reg.installing ?? reg.waiting
+  if (worker) {
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('SW activate 타임아웃 (15초)')), 15000)
+
+      const done = () => {
+        clearTimeout(timeout)
+        resolve()
+      }
+
+      const check = () => {
+        if (reg.active || worker.state === 'activated') done()
+      }
+
+      worker.addEventListener('statechange', check)
+      check()
+    })
+    return reg
+  }
+
+  await Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('SW ready 타임아웃 (15초)')), 15000),
+    ),
+  ])
+  return reg
+}
+
 export default function PushSubscriber() {
   const [logs, setLogs] = useState<string[]>([])
 
@@ -52,42 +91,26 @@ export default function PushSubscriber() {
 
     async function subscribe() {
       try {
+        const staleRegs = await navigator.serviceWorker.getRegistrations()
+        for (const stale of staleRegs) {
+          const script = stale.active?.scriptURL ?? stale.installing?.scriptURL ?? stale.waiting?.scriptURL ?? ''
+          if (script && !script.endsWith('/sw.js')) {
+            addLog(`[Push] 이전 SW 제거: ${script.split('/').pop()}`)
+            await stale.unregister()
+          }
+        }
+
         let reg = await navigator.serviceWorker.getRegistration('/')
         addLog(`[Push] SW 등록 상태: ${reg ? reg.active?.state ?? '대기중' : '없음'}`)
 
         if (!reg) {
-          addLog('[Push] SW 수동 등록 시도...')
-          reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' })
-          addLog('[Push] SW 수동 등록 완료')
+          addLog('[Push] SW 등록 시도: /sw.js')
+          reg = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })
+          addLog('[Push] SW register 완료')
         }
 
-        if (!reg.active) {
-          addLog('[Push] SW active 대기 중...')
-          await new Promise<void>((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('SW activate 타임아웃')), 10000)
-
-            if (reg!.installing) {
-              reg!.installing.addEventListener('statechange', function (this: ServiceWorker) {
-                if (this.state === 'activated') {
-                  clearTimeout(timeout)
-                  resolve()
-                }
-              })
-            } else if (reg!.waiting) {
-              reg!.waiting.addEventListener('statechange', function (this: ServiceWorker) {
-                if (this.state === 'activated') {
-                  clearTimeout(timeout)
-                  resolve()
-                }
-              })
-            } else {
-              clearTimeout(timeout)
-              resolve()
-            }
-          })
-        }
-
-        addLog('[Push] SW 준비됨')
+        reg = await waitForServiceWorkerActive(reg)
+        addLog(`[Push] SW 준비됨 (${reg.active?.state ?? 'unknown'})`)
 
         const existing = await reg.pushManager.getSubscription()
         addLog(`[Push] 기존 구독: ${existing ? '있음' : '없음'}`)
@@ -100,13 +123,6 @@ export default function PushSubscriber() {
         const permission = await Notification.requestPermission()
         addLog(`[Push] 알림 권한: ${permission}`)
         if (permission !== 'granted') return
-
-        function urlBase64ToUint8Array(base64String: string) {
-          const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-          const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-          const rawData = window.atob(base64)
-          return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)))
-        }
 
         const subscription = await reg.pushManager.subscribe({
           userVisibleOnly: true,
