@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useTransition, useRef } from 'react'
+import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { loadPaymentWidget, type PaymentWidgetInstance } from '@tosspayments/payment-widget-sdk'
 import { createCommerceOrder } from '@/actions/buy'
 import { formatKRW } from '@/lib/utils'
 import { shareTextViaKakao } from '@/lib/kakao-share'
@@ -21,16 +22,19 @@ export default function BuyCheckoutClient({
   items,
   bankTransfer,
   discountAmount = 0,
+  tossEnabled = false,
 }: {
   items: CartRow[]
   bankTransfer: StorefrontBankTransferSettings | null
   discountAmount?: number
+  tossEnabled?: boolean
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<DoneState | null>(null)
   const checkoutSubmissionIdRef = useRef<string | null>(null)
+  const paymentWidgetRef = useRef<PaymentWidgetInstance | null>(null)
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -41,11 +45,111 @@ export default function BuyCheckoutClient({
   const subtotal = items.reduce((s, it) => s + it.commerce_price * it.quantity, 0)
   const total = subtotal - discountAmount
 
+  useEffect(() => {
+    if (pm !== 'card' || !tossEnabled) {
+      paymentWidgetRef.current = null
+      return
+    }
+
+    const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY
+    if (!clientKey) return
+
+    if (!checkoutSubmissionIdRef.current) {
+      checkoutSubmissionIdRef.current = crypto.randomUUID()
+    }
+
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        const widget = await loadPaymentWidget(clientKey, checkoutSubmissionIdRef.current!)
+        if (cancelled) return
+        paymentWidgetRef.current = widget
+        await widget.renderPaymentMethods('#payment-widget', { value: total })
+        await widget.renderAgreement('#agreement')
+      } catch (e) {
+        if (!cancelled) {
+          console.error('[BuyCheckoutClient] payment widget init failed', e)
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [pm, tossEnabled, total])
+
+  async function handleCardPayment() {
+    const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY
+    if (!clientKey) {
+      setError('카드 결제가 준비 중입니다.')
+      return
+    }
+
+    if (!name.trim() || !phone.trim() || !address.trim()) {
+      setError('배송 정보를 모두 입력해 주세요')
+      return
+    }
+
+    if (!checkoutSubmissionIdRef.current) {
+      checkoutSubmissionIdRef.current = crypto.randomUUID()
+    }
+    const checkout_submission_id = checkoutSubmissionIdRef.current
+
+    const orderRes = await createCommerceOrder({
+      checkout_submission_id,
+      shipping_name: name,
+      shipping_phone: phone,
+      shipping_address: address,
+      delivery_memo: memo || null,
+      payment_method: 'card',
+    })
+
+    if (!orderRes.success || !orderRes.data) {
+      setError(orderRes.error ?? '주문 생성 실패')
+      return
+    }
+
+    const orderId = orderRes.data.order_id
+    const orderAmount = orderRes.data.total_amount
+
+    let paymentWidget = paymentWidgetRef.current
+    if (!paymentWidget) {
+      paymentWidget = await loadPaymentWidget(clientKey, checkout_submission_id)
+      paymentWidgetRef.current = paymentWidget
+      await paymentWidget.renderPaymentMethods('#payment-widget', { value: orderAmount })
+      await paymentWidget.renderAgreement('#agreement')
+    } else {
+      await paymentWidget.renderPaymentMethods('#payment-widget', { value: orderAmount })
+    }
+
+    const phoneDigits = phone.replace(/\D/g, '')
+    const orderName =
+      items.length === 1
+        ? (items[0].product_name?.trim() ?? '식자재')
+        : `${items[0].product_name?.trim() ?? '식자재'} 외 ${items.length - 1}건`
+
+    await paymentWidget.requestPayment({
+      orderId,
+      orderName,
+      successUrl: `${window.location.origin}/buy/checkout/success`,
+      failUrl: `${window.location.origin}/buy/checkout/fail`,
+      customerName: name.trim(),
+      customerMobilePhone: phoneDigits,
+    })
+  }
+
   function handleSubmit() {
     setError(null)
 
     if (pm === 'card') {
-      setError('카드 결제는 준비 중입니다. 무통장 또는 카카오 주문전달을 이용해 주세요.')
+      start(async () => {
+        try {
+          await handleCardPayment()
+        } catch (e) {
+          setError(e instanceof Error ? e.message : '카드 결제에 실패했습니다')
+        }
+      })
       return
     }
 
@@ -156,6 +260,17 @@ export default function BuyCheckoutClient({
     )
   }
 
+  const paymentOptions = [
+    { value: 'bank_transfer' as const, label: '무통장 입금', desc: '입금 확인 후 출고됩니다', available: true },
+    { value: 'kakao_manual' as const, label: '카카오 주문전달', desc: '카카오톡으로 주문 내용을 전달합니다', available: true },
+    {
+      value: 'card' as const,
+      label: '카드결제',
+      desc: tossEnabled ? '신용카드·체크카드 결제' : '준비 중입니다',
+      available: tossEnabled,
+    },
+  ]
+
   return (
     <div style={{ maxWidth: 480, margin: '0 auto', background: '#f7f6f2', minHeight: '100vh', paddingBottom: 'calc(80px + env(safe-area-inset-bottom))' }}>
 
@@ -257,11 +372,7 @@ export default function BuyCheckoutClient({
         <div style={{ background: '#fff', borderRadius: 14, padding: '16px 18px' }}>
           <p style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', margin: '0 0 14px', letterSpacing: '.06em', textTransform: 'uppercase' }}>결제 방식</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {[
-              { value: 'bank_transfer', label: '무통장 입금', desc: '입금 확인 후 출고됩니다', available: true },
-              { value: 'kakao_manual', label: '카카오 주문전달', desc: '카카오톡으로 주문 내용을 전달합니다', available: true },
-              { value: 'card', label: '카드결제', desc: '준비 중입니다', available: false },
-            ].map((opt) => (
+            {paymentOptions.map((opt) => (
               <label
                 key={opt.value}
                 style={{
@@ -282,7 +393,7 @@ export default function BuyCheckoutClient({
                   value={opt.value}
                   checked={pm === opt.value}
                   disabled={!opt.available}
-                  onChange={() => opt.available && setPm(opt.value as typeof pm)}
+                  onChange={() => opt.available && setPm(opt.value)}
                   style={{ accentColor: '#1f5d3a', width: 16, height: 16, flexShrink: 0 }}
                 />
                 <div>
@@ -292,6 +403,12 @@ export default function BuyCheckoutClient({
               </label>
             ))}
           </div>
+          {pm === 'card' && tossEnabled && (
+            <>
+              <div id="payment-widget" style={{ marginTop: 12 }} />
+              <div id="agreement" style={{ marginTop: 12 }} />
+            </>
+          )}
         </div>
 
         {/* 최종 금액 요약 */}
@@ -335,7 +452,7 @@ export default function BuyCheckoutClient({
             letterSpacing: '.02em',
           }}
         >
-          {pending ? '처리 중...' : `${formatKRW(total)} 주문하기`}
+          {pending ? '처리 중...' : pm === 'card' ? `${formatKRW(total)} 결제하기` : `${formatKRW(total)} 주문하기`}
         </button>
       </div>
     </div>

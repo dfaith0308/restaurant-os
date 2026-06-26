@@ -128,6 +128,7 @@ type CreateCommerceOrderSuccess = {
   order_id: string
   order_number: string | null
   kakao_summary: string | null
+  total_amount: number
 }
 
 async function tryReturnExistingCommerceOrderBySubmission(
@@ -201,6 +202,7 @@ async function tryReturnExistingCommerceOrderBySubmission(
       order_id: oid,
       order_number: (ord.order_number as string | null) ?? null,
       kakao_summary,
+      total_amount: ord.total_amount as number,
     },
   }
 }
@@ -820,6 +822,7 @@ export async function createCommerceOrder(
     order_id: string
     order_number: string | null
     kakao_summary: string | null
+    total_amount: number
   }>
 > {
   const supabase = await createServerClient()
@@ -1076,6 +1079,7 @@ export async function createCommerceOrder(
       order_id,
       order_number: savedNo,
       kakao_summary,
+      total_amount,
     },
   }
 }

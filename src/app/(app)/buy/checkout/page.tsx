@@ -41,13 +41,20 @@ export default async function BuyCheckoutPage() {
     bankTransfer = bankRes.data
   }
 
+  const tossEnabled = Boolean(process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY)
+
   return (
     <main style={shell}>
       <Link href="/buy/cart" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'none', display: 'inline-block', marginBottom: 14 }}>
         ← 장바구니
       </Link>
       <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 16px' }}>결제</h1>
-      <BuyCheckoutClient items={items} bankTransfer={bankTransfer} discountAmount={discountAmount} />
+      <BuyCheckoutClient
+        items={items}
+        bankTransfer={bankTransfer}
+        discountAmount={discountAmount}
+        tossEnabled={tossEnabled}
+      />
     </main>
   )
 }
