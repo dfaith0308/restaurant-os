@@ -7,9 +7,10 @@ export default function KakaoInputRequest() {
   return (
     <div
       style={{
-        background: 'var(--surface-2)',
+        background: '#ffffff',
         borderRadius: 14,
-        border: '0.5px solid var(--border)',
+        border: '1px solid #e5e7eb',
+        boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
         padding: 20,
         marginBottom: 16,
       }}
@@ -32,9 +33,9 @@ export default function KakaoInputRequest() {
 
       <p
         style={{
-          fontSize: 16,
+          fontSize: 17,
           fontWeight: 800,
-          color: 'var(--text-primary)',
+          color: '#1a1a1a',
           margin: '0 0 8px',
           lineHeight: 1.4,
         }}
@@ -48,7 +49,7 @@ export default function KakaoInputRequest() {
         {['지금 가격이 적정한지', '더 합리적인 거래처가 있는지', '원가 구조가 맞는지'].map((item) => (
           <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ color: '#1f5d3a', fontSize: 13, fontWeight: 700 }}>✓</span>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>{item}</p>
+            <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>{item}</p>
           </div>
         ))}
       </div>
@@ -117,10 +118,10 @@ export default function KakaoInputRequest() {
             alignItems: 'center',
             gap: 14,
             padding: '14px 16px',
-            background: 'var(--surface-1)',
+            background: '#f7f6f2',
             borderRadius: 12,
             textDecoration: 'none',
-            border: '0.5px solid var(--border)',
+            border: '1px solid #e5e7eb',
           }}
         >
           <div
@@ -139,14 +140,14 @@ export default function KakaoInputRequest() {
             ✏️
           </div>
           <div style={{ flex: 1 }}>
-            <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 2px' }}>
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a', margin: '0 0 2px' }}>
               직접 입력하기
             </p>
-            <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: 0 }}>
+            <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>
               식자재 이름 · 가격 직접 등록
             </p>
           </div>
-          <span style={{ fontSize: 16, color: 'var(--text-muted)' }}>→</span>
+          <span style={{ fontSize: 16, color: '#9ca3af' }}>→</span>
         </Link>
       </div>
     </div>
