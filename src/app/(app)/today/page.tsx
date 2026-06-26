@@ -66,7 +66,7 @@ export default async function TodayPage() {
     return (
       <main style={{ maxWidth: 480, margin: '0 auto', padding: '32px 20px 96px', textAlign: 'center' }}>
         <div style={{ textAlign: 'left' }}>
-          <KakaoInputRequest variant="banner" />
+          <KakaoInputRequest />
         </div>
         <div style={{ marginBottom: 32 }}>
           <p style={{ fontSize: 28, margin: '0 0 12px' }}>👋</p>

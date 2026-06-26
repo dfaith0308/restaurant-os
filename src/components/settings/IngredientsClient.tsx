@@ -1126,7 +1126,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
         현재 사용하는 식자재를 등록하세요
       </h1>
 
-      <KakaoInputRequest variant="banner" />
+      <KakaoInputRequest />
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <input
