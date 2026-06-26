@@ -1114,6 +1114,21 @@ export async function getMyCommerceOrders(): Promise<ActionResult<{ orders: Comm
 export async function calcCartDiscount(
   items: { listing_id: string; quantity: number; commerce_price: number }[],
 ): Promise<ActionResult<{ discount_amount: number; eligible: boolean }>> {
+  const supabase = await createServerClient()
+  const ctx = await getAuthCtx(supabase)
+  if (!ctx) return { success: true, data: { discount_amount: 0, eligible: false } }
+
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('subscription_plan')
+    .eq('id', ctx.tenant_id)
+    .single()
+
+  const isSubscriber = tenant?.subscription_plan != null && tenant.subscription_plan !== 'free'
+  if (!isSubscriber) {
+    return { success: true, data: { discount_amount: 0, eligible: false } }
+  }
+
   const uniqueListings = new Set(items.map((i) => i.listing_id))
   if (uniqueListings.size < 2) {
     return { success: true, data: { discount_amount: 0, eligible: false } }
