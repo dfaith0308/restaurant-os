@@ -73,5 +73,6 @@ export interface CreateCommerceOrderInput {
   shipping_phone: string
   shipping_address: string
   delivery_memo?: string | null
-  payment_method: 'card' | 'bank_transfer' | 'kakao_manual'
+    payment_method: 'card' | 'bank_transfer' | 'kakao_manual'
+  discount_amount?: number
 }

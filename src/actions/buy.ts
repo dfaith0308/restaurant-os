@@ -98,6 +98,7 @@ function stableCommerceOrderIdempotencyPayload(input: {
   shipping_phone: string
   shipping_address: string
   delivery_memo: string
+  discount_amount: number
   cart: { listing_id: string; quantity: number }[]
 }): string {
   const cart = [...input.cart].sort((a, b) => a.listing_id.localeCompare(b.listing_id))
@@ -110,6 +111,7 @@ function stableCommerceOrderIdempotencyPayload(input: {
     shipping_phone: input.shipping_phone,
     shipping_address: input.shipping_address,
     delivery_memo: input.delivery_memo,
+    discount_amount: input.discount_amount,
     cart,
   })
 }
@@ -969,6 +971,10 @@ export async function createCommerceOrder(
     })
   }
 
+  const subtotal = lines.reduce((s, l) => s + l.line_total, 0)
+  const discount_amount = Math.max(0, Math.min(input.discount_amount ?? 0, subtotal))
+  const total_amount = Math.max(0, subtotal - discount_amount)
+
   const payloadJson = stableCommerceOrderIdempotencyPayload({
     tenant_id: ctx.tenant_id,
     user_id: ctx.user_id,
@@ -977,11 +983,11 @@ export async function createCommerceOrder(
     shipping_phone,
     shipping_address,
     delivery_memo: delivery_memo ?? '',
+    discount_amount,
     cart: lines.map((l) => ({ listing_id: l.listing_id, quantity: l.quantity })),
   })
   const idempotency_key = computeCommerceOrderIdempotencyKey(payloadJson, submissionId)
 
-  const total_amount = lines.reduce((s, l) => s + l.line_total, 0)
   const order_number = genOrderNumber()
 
   const payment_label = pm === 'bank_transfer' ? '무통장입금' : pm === 'kakao_manual' ? '카카오 주문전달' : '카드결제'
@@ -995,6 +1001,7 @@ export async function createCommerceOrder(
       payment_method: pm,
       payment_status: 'unpaid',
       total_amount,
+      discount_amount,
       shipping_name,
       shipping_phone,
       shipping_address,
