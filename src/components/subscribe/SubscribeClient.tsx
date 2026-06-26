@@ -1,20 +1,57 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { fixedStripeAboveBottomNav } from '@/lib/app-shell'
 import type { SubscriptionPlan } from '@/actions/subscribe'
 
 type SelectablePlan = 'earlybird' | 'annual' | 'pro'
 
-const PLANS = [
+const EARLYBIRD_DESC = (
+  <>
+    <span
+      style={{
+        display: 'inline-block',
+        background: '#1f5d3a',
+        color: '#fff',
+        fontSize: 13,
+        fontWeight: 800,
+        padding: '3px 10px',
+        borderRadius: 6,
+        marginBottom: 6,
+        letterSpacing: '.02em',
+      }}
+    >
+      🎁 평생 혜택
+    </span>
+    <br />
+    선착순 100명에게만 드리는 특별 혜택입니다.
+    <br />
+    월 9,900원으로 <strong style={{ color: '#1f5d3a' }}>영구적으로</strong> 모든 기능을 이용하세요.
+  </>
+)
+
+const PLANS: Array<{
+  id: SelectablePlan
+  label: string
+  badge: string | null
+  price: number
+  unit: string
+  period: string
+  desc: string | ReactNode
+  detail: string
+  summaryNote: string
+  firstPayment: number
+  firstPaymentLabel: string
+  buttonText: string
+}> = [
   {
-    id: 'earlybird' as const,
+    id: 'earlybird',
     label: '얼리버드',
     badge: '선착순 100명 한정',
     price: 9900,
     unit: '월',
     period: '평생 혜택',
-    desc: '선착순 100명에게만 드리는 평생 혜택.\n월 9,900원으로 모든 기능을 영구 이용하세요.',
+    desc: EARLYBIRD_DESC,
     detail: '해지 전까지 월 9,900원 유지',
     summaryNote: '평생 월 9,900원 유지',
     firstPayment: 9900,
@@ -22,7 +59,7 @@ const PLANS = [
     buttonText: '얼리버드 9,900원/월 시작하기 (준비 중)',
   },
   {
-    id: 'annual' as const,
+    id: 'annual',
     label: '연간',
     badge: '가장 인기',
     price: 29000,
@@ -36,7 +73,7 @@ const PLANS = [
     buttonText: '연간 348,000원 시작하기 (준비 중)',
   },
   {
-    id: 'pro' as const,
+    id: 'pro',
     label: '월간',
     badge: null,
     price: 39000,
@@ -226,17 +263,17 @@ export default function SubscribeClient({ status }: { status: SubscriptionStatus
                 </div>
               </div>
 
-              <p
+              <div
                 style={{
                   fontSize: 13,
                   color: '#374151',
                   margin: '0 0 10px',
                   lineHeight: 1.6,
-                  whiteSpace: 'pre-line',
+                  ...(typeof plan.desc === 'string' ? { whiteSpace: 'pre-line' as const } : {}),
                 }}
               >
                 {plan.desc}
-              </p>
+              </div>
 
               <div
                 style={{
