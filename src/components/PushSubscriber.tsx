@@ -52,7 +52,15 @@ export default function PushSubscriber() {
 
     async function subscribe() {
       try {
-        const reg = await navigator.serviceWorker.ready
+        const swReg = await navigator.serviceWorker.getRegistration()
+        addLog(`[Push] SW 등록 상태: ${swReg ? swReg.active?.state ?? '대기중' : '없음'}`)
+
+        const reg = await Promise.race([
+          navigator.serviceWorker.ready,
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('SW ready 타임아웃 (5초)')), 5000),
+          ),
+        ])
         addLog('[Push] SW 준비됨')
 
         const existing = await reg.pushManager.getSubscription()
