@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from 'react'
 import { fixedStripeAboveBottomNav } from '@/lib/app-shell'
-import type { SubscriptionPlan } from '@/actions/subscribe'
+import { redeemCoupon, type SubscriptionPlan } from '@/actions/subscribe'
 
 type SelectablePlan = 'earlybird' | 'annual' | 'pro'
 
@@ -114,6 +114,30 @@ export type SubscriptionStatusProps = {
 export default function SubscribeClient({ status }: { status: SubscriptionStatusProps }) {
   const [selectedPlan, setSelectedPlan] = useState<SelectablePlan>('earlybird')
   const selected = PLANS.find((p) => p.id === selectedPlan) ?? PLANS[0]
+
+  const [couponCode, setCouponCode] = useState('')
+  const [couponLoading, setCouponLoading] = useState(false)
+  const [couponResult, setCouponResult] = useState<{ success: boolean; message: string } | null>(null)
+
+  async function handleCoupon() {
+    if (!couponCode.trim()) return
+    setCouponLoading(true)
+    setCouponResult(null)
+    try {
+      const res = await redeemCoupon(couponCode.trim())
+      if (res.success) {
+        setCouponResult({
+          success: true,
+          message: `${res.data?.free_months}개월 무료 구독이 적용됐습니다! 🎉`,
+        })
+        setTimeout(() => window.location.reload(), 3000)
+      } else {
+        setCouponResult({ success: false, message: res.error ?? '쿠폰 적용 실패' })
+      }
+    } finally {
+      setCouponLoading(false)
+    }
+  }
 
   return (
     <main
@@ -293,6 +317,60 @@ export default function SubscribeClient({ status }: { status: SubscriptionStatus
             </button>
           )
         })}
+      </div>
+
+      {/* 쿠폰 코드 입력 */}
+      <div style={{ margin: '16px 20px 0', padding: '16px 20px', background: '#fff', borderRadius: 14, border: '1px solid #e5e7eb' }}>
+        <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', margin: '0 0 10px' }}>🎟 쿠폰 코드 입력</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input
+            value={couponCode}
+            onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+            placeholder="쿠폰 코드 입력 (예: ABCD1234)"
+            style={{
+              flex: 1,
+              padding: '10px 14px',
+              border: '1px solid #e5e7eb',
+              borderRadius: 8,
+              fontSize: 14,
+              fontFamily: 'inherit',
+              outline: 'none',
+              letterSpacing: '.08em',
+            }}
+          />
+          <button
+            type="button"
+            onClick={handleCoupon}
+            disabled={couponLoading || !couponCode.trim()}
+            style={{
+              padding: '10px 16px',
+              background: '#1f5d3a',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 700,
+              cursor: couponLoading || !couponCode.trim() ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
+              flexShrink: 0,
+              opacity: couponLoading || !couponCode.trim() ? 0.7 : 1,
+            }}
+          >
+            {couponLoading ? '확인 중...' : '적용'}
+          </button>
+        </div>
+        {couponResult && (
+          <p
+            style={{
+              fontSize: 13,
+              color: couponResult.success ? '#1f5d3a' : '#dc2626',
+              fontWeight: 600,
+              margin: '8px 0 0',
+            }}
+          >
+            {couponResult.success ? '✓' : '✗'} {couponResult.message}
+          </p>
+        )}
       </div>
 
       {/* 얼리버드 마감 임박 배너 */}
