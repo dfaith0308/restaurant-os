@@ -9,6 +9,22 @@ function urlBase64ToUint8Array(base64String: string) {
   return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)))
 }
 
+async function syncSubscriptionToServer(subscription: PushSubscription) {
+  try {
+    const res = await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(subscription.toJSON()),
+    })
+    if (!res.ok) {
+      const data = await res.json()
+      console.error('[PushSubscriber] 구독 등록 실패:', res.status, data)
+    }
+  } catch (err) {
+    console.error('[PushSubscriber] fetch 오류:', err)
+  }
+}
+
 export default function PushSubscriber() {
   useEffect(() => {
     if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
@@ -20,7 +36,10 @@ export default function PushSubscriber() {
       try {
         const reg = await navigator.serviceWorker.ready
         const existing = await reg.pushManager.getSubscription()
-        if (existing) return
+        if (existing) {
+          await syncSubscriptionToServer(existing)
+          return
+        }
 
         const permission = await Notification.requestPermission()
         if (permission !== 'granted') return
@@ -30,11 +49,7 @@ export default function PushSubscriber() {
           applicationServerKey: urlBase64ToUint8Array(vapidKey),
         })
 
-        await fetch('/api/push/subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(subscription.toJSON()),
-        })
+        await syncSubscriptionToServer(subscription)
       } catch (err) {
         console.error('푸시 구독 실패:', err)
       }
