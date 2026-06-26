@@ -18,9 +18,11 @@ const card = {
 export default function BuyCartClient({
   items,
   discountAmount = 0,
+  isSubscriber = false,
 }: {
   items: CartRow[]
   discountAmount?: number
+  isSubscriber?: boolean
 }) {
   const router = useRouter()
   const [pending, start] = useTransition()
@@ -207,11 +209,36 @@ export default function BuyCartClient({
                 <span>- {formatKRW(discountAmount)}</span>
               </div>
             )}
-            {discountAmount === 0 && items.length >= 2 && (
-              <p style={{ fontSize: 11, color: '#9ca3af', margin: 0, textAlign: 'right' }}>
+            {!isSubscriber ? (
+              <Link
+                href="/subscribe"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '12px 14px',
+                  background: '#f0f7f3',
+                  borderRadius: 10,
+                  border: '1px solid #bbf7d0',
+                  textDecoration: 'none',
+                  marginBottom: 8,
+                }}
+              >
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: '#1f5d3a', margin: '0 0 2px' }}>
+                    🎁 구독하면 장바구니 할인 혜택!
+                  </p>
+                  <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>
+                    2종류 이상 담으면 자동으로 할인이 적용됩니다
+                  </p>
+                </div>
+                <span style={{ fontSize: 13, color: '#1f5d3a', fontWeight: 700, flexShrink: 0 }}>구독하기 →</span>
+              </Link>
+            ) : discountAmount === 0 && items.length >= 2 ? (
+              <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 4px', textAlign: 'right' }}>
                 다른 상품을 함께 담으면 할인 혜택이 생길 수 있어요
               </p>
-            )}
+            ) : null}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800, color: '#1a1a1a', paddingTop: 8, borderTop: '1px solid #f3f4f6' }}>
               <span>최종 결제금액</span>
               <span>{formatKRW(total)}</span>

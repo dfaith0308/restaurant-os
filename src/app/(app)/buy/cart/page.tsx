@@ -1,24 +1,31 @@
 import Link from 'next/link'
 import { getCart, calcCartDiscount } from '@/actions/buy'
+import { getSubscriptionStatus } from '@/actions/subscribe'
 import BuyCartClient from '@/components/buy/BuyCartClient'
 
 const shell = { maxWidth: 480, margin: '0 auto', padding: '20px 16px 96px' } as const
 
 export default async function BuyCartPage() {
-  const res = await getCart()
+  const cartPromise = getCart()
+  const subStatusPromise = getSubscriptionStatus()
+  const res = await cartPromise
   const items = res.success ? res.data?.items ?? [] : []
 
-  let discountAmount = 0
-  if (items.length >= 2) {
-    const discountRes = await calcCartDiscount(
-      items.map((i) => ({
-        listing_id: i.listing_id,
-        quantity: i.quantity,
-        commerce_price: i.commerce_price,
-      })),
-    )
-    if (discountRes.success) discountAmount = discountRes.data?.discount_amount ?? 0
-  }
+  const [discountRes, subStatus] = await Promise.all([
+    items.length >= 2
+      ? calcCartDiscount(
+          items.map((i) => ({
+            listing_id: i.listing_id,
+            quantity: i.quantity,
+            commerce_price: i.commerce_price,
+          })),
+        )
+      : Promise.resolve(null),
+    subStatusPromise,
+  ])
+
+  const discountAmount =
+    discountRes?.success ? (discountRes.data?.discount_amount ?? 0) : 0
 
   const n = items.length
 
@@ -34,7 +41,11 @@ export default async function BuyCartPage() {
       {!res.success ? (
         <p style={{ color: '#b91c1c', fontSize: 14 }}>{res.error}</p>
       ) : (
-        <BuyCartClient items={items} discountAmount={discountAmount} />
+        <BuyCartClient
+          items={items}
+          discountAmount={discountAmount}
+          isSubscriber={subStatus.is_active}
+        />
       )}
     </main>
   )
