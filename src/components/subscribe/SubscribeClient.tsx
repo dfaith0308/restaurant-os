@@ -10,13 +10,13 @@ const PLANS = [
   {
     id: 'earlybird' as const,
     label: '얼리버드',
-    badge: '선착순 100개 식당',
+    badge: '선착순 100명 한정',
     price: 9900,
     unit: '월',
-    period: '3개월 한정',
-    desc: '3개월 동안 특별 가격으로 시작하세요.\n이후 선택하신 플랜으로 자동 전환됩니다.',
-    detail: '3개월 × 9,900원 = 29,700원',
-    summaryNote: '3개월 후 자동 전환',
+    period: '평생 혜택',
+    desc: '선착순 100명에게만 드리는 평생 혜택.\n월 9,900원으로 모든 기능을 영구 이용하세요.',
+    detail: '해지 전까지 월 9,900원 유지',
+    summaryNote: '평생 월 9,900원 유지',
     firstPayment: 9900,
     firstPaymentLabel: '9,900원',
     buttonText: '얼리버드 9,900원/월 시작하기 (준비 중)',
@@ -277,7 +277,7 @@ export default function SubscribeClient({ status }: { status: SubscriptionStatus
             얼리버드 마감 임박.
           </p>
           <p style={{ fontSize: 13, color: '#92400e', margin: 0 }}>
-            선착순 100개 식당만 월 9,900원으로 시작할 수 있습니다.
+            선착순 100명만 월 9,900원으로 평생 이용할 수 있습니다.
           </p>
         </div>
       </div>
