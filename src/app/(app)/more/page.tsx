@@ -1,6 +1,7 @@
 import Link from 'next/link'
 
 const ITEMS = [
+  { href: '/subscribe', icon: '⭐', label: '구독 관리', desc: '플랜 변경 및 구독 현황 확인' },
   { href: '/suppliers', icon: '🤝', label: '거래처 관리', desc: '거래처 정보와 가격을 관리합니다' },
   { href: '/money', icon: '💰', label: '돈관리', desc: '매출·원가·지출을 확인합니다' },
   { href: '/settings', icon: '⚙️', label: '설정', desc: '계정·알림·앱 설정' },
