@@ -22,6 +22,7 @@ import TodaySupplierInsights from '@/components/today/TodaySupplierInsights'
 import SupplierRiskSection from '@/components/today/SupplierRiskSection'
 import TodayMainOperationFeed from '@/components/today/TodayMainOperationFeed'
 import TodayActionPriorityCard from '@/components/today/TodayActionPriorityCard'
+import KakaoInputRequest from '@/components/common/KakaoInputRequest'
 
 export default async function TodayPage() {
   const tenant_id = await getTenantId()
@@ -64,6 +65,9 @@ export default async function TodayPage() {
   if (isNewUser) {
     return (
       <main style={{ maxWidth: 480, margin: '0 auto', padding: '32px 20px 96px', textAlign: 'center' }}>
+        <div style={{ textAlign: 'left' }}>
+          <KakaoInputRequest variant="banner" />
+        </div>
         <div style={{ marginBottom: 32 }}>
           <p style={{ fontSize: 28, margin: '0 0 12px' }}>👋</p>
           <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px' }}>

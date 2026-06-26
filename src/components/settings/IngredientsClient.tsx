@@ -31,6 +31,7 @@ import InvoiceOcrReviewGroups from '@/components/settings/InvoiceOcrReviewGroups
 import Link from 'next/link'
 import IngredientBarcodeSection from '@/components/product/IngredientBarcodeSection'
 import type { IngredientBarcodeApplyHints } from '@/components/product/IngredientBarcodeSection'
+import KakaoInputRequest from '@/components/common/KakaoInputRequest'
 
 const BRAND_ORANGE = '#F97316'
 const BRAND_GREEN = '#1f5d3a'
@@ -1124,6 +1125,8 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
       <h1 style={{ fontSize: 22, fontWeight: 500, color: '#2b2b2b', letterSpacing: '-0.5px', margin: '0 0 20px', lineHeight: 1.3 }}>
         현재 사용하는 식자재를 등록하세요
       </h1>
+
+      <KakaoInputRequest variant="banner" />
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
         <input
