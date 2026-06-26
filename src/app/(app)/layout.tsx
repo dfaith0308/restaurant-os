@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import BottomNav from '@/components/layout/BottomNav'
 import LegalFooter from '@/components/layout/LegalFooter'
+import PushSubscriber from '@/components/PushSubscriber'
 import { APP_SHELL_MAX_WIDTH_PX, BOTTOM_NAV_HEIGHT_PX } from '@/lib/app-shell'
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -17,6 +18,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         boxSizing: 'border-box',
       }}
     >
+      <PushSubscriber />
       <div style={{ paddingBottom: BOTTOM_NAV_HEIGHT_PX + 8 }}>{children}</div>
       <LegalFooter />
       <BottomNav />

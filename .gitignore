@@ -6,3 +6,4 @@ node_modules
 *.tsbuildinfo
 /public/sw.js
 /public/workbox-*.js
+/public/worker-*.js
