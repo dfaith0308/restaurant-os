@@ -374,6 +374,9 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
       allergen,
       ingredients,
       manufacturer,
+      ai_strengths,
+      ai_usage,
+      ai_summary,
       products ( name, category_id )
     `,
     )
@@ -416,6 +419,10 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
     usage_desc: (r.usage_desc as string | null) ?? null,
     allergen: (r.allergen as string | null) ?? null,
     ingredients: (r.ingredients as string | null) ?? null,
+    manufacturer: (r.manufacturer as string | null) ?? null,
+    ai_strengths: (r.ai_strengths as string | null) ?? null,
+    ai_usage: (r.ai_usage as string | null) ?? null,
+    ai_summary: (r.ai_summary as string | null) ?? null,
   }
 
   await enrichProductNamesFromProductsTable(supabase, [listing])

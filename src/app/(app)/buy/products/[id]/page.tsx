@@ -43,8 +43,9 @@ export default async function BuyProductPage({ params }: { params: Promise<{ id:
             productName={productName}
             brandName={brandName}
             spec={p.spec ?? null}
-            usageDesc={p.usage_desc ?? null}
-            aiStrengths={p.description ?? null}
+            aiStrengths={p.ai_strengths ?? p.description ?? null}
+            aiUsage={p.ai_usage ?? null}
+            aiSummary={p.ai_summary ?? null}
             ingredients={p.ingredients ?? null}
             price={price}
           />

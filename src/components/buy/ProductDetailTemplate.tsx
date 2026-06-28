@@ -5,6 +5,8 @@ interface Props {
   manufacturer?: string | null
   usageDesc?: string | null
   aiStrengths?: string | null
+  aiUsage?: string | null
+  aiSummary?: string | null
   ingredients?: string | null
   price: number
   weightGrams?: number | null
@@ -23,16 +25,15 @@ export default function ProductDetailTemplate({
   productName,
   brandName,
   spec,
-  usageDesc,
   aiStrengths,
+  aiUsage,
+  aiSummary,
   price,
 }: Props) {
   const grams = parseWeightGrams(spec)
   const pricePerHundredG = grams && grams > 0 ? Math.round((price / grams) * 100) : null
 
-  const strengths = aiStrengths ? aiStrengths.split('\n').filter(Boolean) : []
-
-  const usageList = usageDesc ? usageDesc.split(/[,·]/).map((s) => s.trim()).filter(Boolean) : []
+  const hasAiContent = Boolean(aiSummary || aiStrengths || aiUsage)
 
   return (
     <div
@@ -80,131 +81,62 @@ export default function ProductDetailTemplate({
         )}
       </div>
 
-      <div
-        style={{
-          padding: '24px 28px',
-          display: 'grid',
-          gridTemplateColumns: pricePerHundredG || usageList.length > 0 ? '1fr 1fr' : '1fr',
-          gap: 28,
-        }}
-      >
-        {(pricePerHundredG || usageList.length > 0) && (
-          <div>
-            {pricePerHundredG && (
-              <div
-                style={{
-                  padding: '18px 20px',
-                  background: '#f0f7f3',
-                  borderRadius: 10,
-                  border: '1px solid #bbf7d0',
-                  marginBottom: 20,
-                }}
-              >
-                <p
-                  style={{
-                    fontSize: 12,
-                    color: '#1f5d3a',
-                    fontWeight: 500,
-                    margin: '0 0 4px',
-                    letterSpacing: '.04em',
-                  }}
-                >
-                  100g당 단가
-                </p>
-                <p style={{ fontSize: 32, fontWeight: 500, color: '#1f5d3a', margin: 0, lineHeight: 1 }}>
-                  {pricePerHundredG.toLocaleString()}원
-                </p>
-              </div>
-            )}
-
-            {usageList.length > 0 && (
-              <>
-                <p
-                  style={{
-                    fontSize: 11,
-                    color: '#6b7280',
-                    fontWeight: 500,
-                    margin: '0 0 10px',
-                    letterSpacing: '.06em',
-                    textTransform: 'uppercase',
-                  }}
-                >
-                  이런 메뉴에 쓰세요
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {usageList.slice(0, 3).map((u, i) => (
-                    <div
-                      key={i}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 10,
-                        padding: '10px 14px',
-                        background: '#f7f6f2',
-                        borderRadius: 8,
-                        border: '1px solid #e5e7eb',
-                      }}
-                    >
-                      <span style={{ color: '#1f5d3a', fontSize: 15, fontWeight: 500 }}>✓</span>
-                      <p style={{ fontSize: 14, color: '#1a1a1a', margin: 0, fontWeight: 500 }}>{u}</p>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {strengths.length > 0 && (
-          <div>
-            <p
-              style={{
-                fontSize: 11,
-                color: '#6b7280',
-                fontWeight: 500,
-                margin: '0 0 12px',
-                letterSpacing: '.06em',
-                textTransform: 'uppercase',
-              }}
-            >
-              이 제품의 강점
+      <div style={{ padding: '20px 28px' }}>
+        {pricePerHundredG && (
+          <div
+            style={{
+              padding: '16px 20px',
+              background: '#f0f7f3',
+              borderRadius: 10,
+              border: '1px solid #bbf7d0',
+              marginBottom: 12,
+            }}
+          >
+            <p style={{ fontSize: 12, color: '#1f5d3a', fontWeight: 500, margin: '0 0 4px', letterSpacing: '.04em' }}>
+              100g당 단가
             </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {strengths.slice(0, 3).map((s, i) => (
-                <div
-                  key={i}
-                  style={{
-                    padding: '16px 18px',
-                    borderRadius: 10,
-                    border: '1px solid #e5e7eb',
-                    background: '#fff',
-                    display: 'flex',
-                    gap: 12,
-                    alignItems: 'flex-start',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 28,
-                      height: 28,
-                      background: '#f0f7f3',
-                      borderRadius: 6,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}
-                  >
-                    <span style={{ color: '#1f5d3a', fontSize: 14, fontWeight: 500 }}>✓</span>
-                  </div>
-                  <p style={{ fontSize: 14, fontWeight: 500, color: '#1a1a1a', margin: 0, lineHeight: 1.5 }}>{s}</p>
-                </div>
-              ))}
-            </div>
+            <p style={{ fontSize: 28, fontWeight: 500, color: '#1f5d3a', margin: 0, lineHeight: 1 }}>
+              {pricePerHundredG.toLocaleString()}원
+            </p>
           </div>
         )}
 
-        {strengths.length === 0 && usageList.length === 0 && !pricePerHundredG && (
+        {aiSummary && (
+          <div style={{ padding: '16px 20px', background: '#1f5d3a', borderRadius: 10, marginBottom: 12 }}>
+            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', margin: '0 0 4px', letterSpacing: '.04em' }}>
+              식식이 한줄평
+            </p>
+            <p style={{ fontSize: 15, fontWeight: 700, color: '#fff', margin: 0, lineHeight: 1.5 }}>{aiSummary}</p>
+          </div>
+        )}
+
+        {aiStrengths && (
+          <div
+            style={{
+              padding: '16px 20px',
+              background: '#f0f7f3',
+              borderRadius: 10,
+              border: '1px solid #bbf7d0',
+              marginBottom: 12,
+            }}
+          >
+            <p style={{ fontSize: 11, color: '#1f5d3a', fontWeight: 700, margin: '0 0 8px', letterSpacing: '.04em' }}>
+              특징 및 강점
+            </p>
+            <p style={{ fontSize: 14, color: '#374151', margin: 0, lineHeight: 1.7 }}>{aiStrengths}</p>
+          </div>
+        )}
+
+        {aiUsage && (
+          <div style={{ padding: '14px 20px', background: '#f7f6f2', borderRadius: 10, border: '1px solid #e5e7eb' }}>
+            <p style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, margin: '0 0 6px', letterSpacing: '.04em' }}>
+              이런 메뉴에 쓰세요
+            </p>
+            <p style={{ fontSize: 14, color: '#374151', margin: 0, lineHeight: 1.6 }}>{aiUsage}</p>
+          </div>
+        )}
+
+        {!hasAiContent && !pricePerHundredG && (
           <p style={{ fontSize: 13, color: '#9ca3af', margin: 0 }}>상품 정보를 입력하면 여기에 표시됩니다</p>
         )}
       </div>
