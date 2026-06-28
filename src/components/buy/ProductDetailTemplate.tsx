@@ -106,7 +106,7 @@ export default function ProductDetailTemplate({
             <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', margin: '0 0 4px', letterSpacing: '.04em' }}>
               식식이 한줄평
             </p>
-            <p style={{ fontSize: 15, fontWeight: 700, color: '#fff', margin: 0, lineHeight: 1.5 }}>{aiSummary}</p>
+            <p style={{ fontSize: 18, fontWeight: 700, color: '#fff', margin: 0, lineHeight: 1.6 }}>{aiSummary}</p>
           </div>
         )}
 
@@ -121,9 +121,12 @@ export default function ProductDetailTemplate({
             }}
           >
             <p style={{ fontSize: 11, color: '#1f5d3a', fontWeight: 700, margin: '0 0 8px', letterSpacing: '.04em' }}>
-              특징 및 강점
+              🔬 원재료 분석 리포트
             </p>
-            <p style={{ fontSize: 14, color: '#374151', margin: 0, lineHeight: 1.7 }}>{aiStrengths}</p>
+            <p style={{ fontSize: 16, color: '#374151', margin: 0, lineHeight: 1.8 }}>{aiStrengths}</p>
+            <p style={{ fontSize: 12, color: '#9ca3af', margin: '8px 0 0', textAlign: 'right' }}>
+              ※ 원재료명 및 함량 기반 분석
+            </p>
           </div>
         )}
 
@@ -132,7 +135,7 @@ export default function ProductDetailTemplate({
             <p style={{ fontSize: 11, color: '#6b7280', fontWeight: 700, margin: '0 0 6px', letterSpacing: '.04em' }}>
               이런 메뉴에 쓰세요
             </p>
-            <p style={{ fontSize: 14, color: '#374151', margin: 0, lineHeight: 1.6 }}>{aiUsage}</p>
+            <p style={{ fontSize: 16, color: '#374151', margin: 0, lineHeight: 1.7 }}>{aiUsage}</p>
           </div>
         )}
 
