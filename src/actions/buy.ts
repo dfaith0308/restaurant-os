@@ -31,6 +31,49 @@ function normalizeProductName(row: Record<string, unknown>): {
   return { product_name: name, category_id: o.category_id ?? null }
 }
 
+function extractPureProductName(
+  fullName: string,
+  brandName: string | null,
+  spec: string | null,
+): string {
+  let name = fullName.trim()
+
+  if (brandName) {
+    const b = brandName.trim()
+    const lower = name.toLowerCase()
+    const bLower = b.toLowerCase()
+    if (lower.startsWith(bLower)) {
+      name = name.slice(b.length).trim()
+    }
+  }
+
+  if (spec) {
+    const s = spec.trim()
+    const lower = name.toLowerCase()
+    const sLower = s.toLowerCase()
+    if (lower.endsWith(sLower)) {
+      name = name.slice(0, name.length - s.length).trim()
+    }
+  }
+
+  return name || fullName.trim()
+}
+
+function formatListingDisplayName(
+  fullName: string,
+  brandName: string | null,
+  spec: string | null,
+): string {
+  const pure = extractPureProductName(fullName, brandName, spec)
+  const parts: string[] = []
+  const b = brandName?.trim()
+  const s = spec?.trim()
+  if (b) parts.push(b)
+  parts.push(pure)
+  if (s) parts.push(s)
+  return parts.join(' ')
+}
+
 type RowWithProductName = { product_id: string | null; product_name: string | null }
 
 function resolveCartDisplayName(input: {
@@ -38,13 +81,16 @@ function resolveCartDisplayName(input: {
   brand_name: string | null
   spec: string | null
 }): string | null {
-  if (input.product_name?.trim()) return input.product_name.trim()
-  const brand = input.brand_name?.trim() ?? ''
-  const spec = input.spec?.trim() ?? ''
-  if (brand && spec) return `${brand} ${spec}`.trim()
-  if (brand) return brand
-  if (spec) return spec
-  return null
+  const raw = input.product_name?.trim()
+  if (!raw) {
+    const brand = input.brand_name?.trim() ?? ''
+    const spec = input.spec?.trim() ?? ''
+    if (brand && spec) return `${brand} ${spec}`.trim()
+    if (brand) return brand
+    if (spec) return spec
+    return null
+  }
+  return formatListingDisplayName(raw, input.brand_name, input.spec)
 }
 
 async function enrichProductNamesFromProductsTable(
@@ -256,6 +302,8 @@ export async function getListings(filters?: {
       image_urls,
       description,
       category_id,
+      brand_name,
+      spec,
       products ( name, category_id )
     `,
     )
@@ -271,24 +319,39 @@ export async function getListings(filters?: {
   if (error) return { success: false, error: error.message }
 
   const listings = (data ?? []).map((row: Record<string, unknown>) => {
-    const { product_name, category_id: productCategoryId } = normalizeProductName(row)
+    const { product_name: normalizedName, category_id: productCategoryId } = normalizeProductName(row)
     const listingCategoryId = (row.category_id as string | null) ?? null
+    const brand_name = (row.brand_name as string | null) ?? null
+    const spec = (row.spec as string | null) ?? null
+    const product_name = normalizedName
+      ? extractPureProductName(normalizedName, brand_name, spec)
+      : null
     const { products: _p, ...rest } = row as BuyListingRow & { products?: unknown }
     const op = row.original_price
     const original_price =
       typeof op === 'number' && Number.isFinite(op) && op >= 0 ? Math.round(op) : null
     return {
-      ...(rest as Omit<BuyListingRow, 'product_name' | 'category_id' | 'original_price'>),
+      ...(rest as Omit<BuyListingRow, 'product_name' | 'category_id' | 'original_price' | 'brand_name' | 'spec'>),
       thumbnail_url: (row.thumbnail_url as string | null) ?? null,
       image_urls: (row.image_urls as string[] | null) ?? null,
       description: (row.description as string | null) ?? null,
       original_price,
       product_name,
+      brand_name,
+      spec,
       category_id: listingCategoryId ?? productCategoryId,
     }
   })
 
   await enrichProductNamesFromProductsTable(supabase, listings)
+  for (const listing of listings) {
+    if (!listing.product_name?.trim()) continue
+    listing.product_name = extractPureProductName(
+      listing.product_name,
+      listing.brand_name ?? null,
+      listing.spec ?? null,
+    )
+  }
 
   return { success: true, data: { listings } }
 }
@@ -389,14 +452,19 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
   if (error) return { success: false, error: error.message }
   if (!data) return { success: false, error: '상품을 찾을 수 없습니다' }
 
-  const { product_name, category_id } = normalizeProductName(data as Record<string, unknown>)
+  const { product_name: normalizedName, category_id } = normalizeProductName(data as Record<string, unknown>)
   const { products: _p, ...rest } = data as BuyListingRow & { products?: unknown }
   const r = data as Record<string, unknown>
+  const brand_name = (r.brand_name as string | null) ?? null
+  const spec = (r.spec as string | null) ?? null
+  const product_name = normalizedName
+    ? extractPureProductName(normalizedName, brand_name, spec)
+    : null
   const op = r.original_price
   const original_price =
     typeof op === 'number' && Number.isFinite(op) && op >= 0 ? Math.round(op) : null
   const listing: BuyListingRow = {
-    ...(rest as Omit<BuyListingRow, 'product_name' | 'category_id' | 'original_price'>),
+    ...(rest as Omit<BuyListingRow, 'product_name' | 'category_id' | 'original_price' | 'brand_name' | 'spec'>),
     thumbnail_url: (r.thumbnail_url as string | null) ?? null,
     image_urls: (r.image_urls as string[] | null) ?? null,
     description: (r.description as string | null) ?? null,
@@ -407,7 +475,7 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
     free_shipping_qty: (r.free_shipping_qty as number | null) ?? null,
     bulk_qty: (r.bulk_qty as number | null) ?? null,
     bulk_discount_rate: (r.bulk_discount_rate as number | null) ?? null,
-    brand_name: (r.brand_name as string | null) ?? null,
+    brand_name,
     spec: (r.spec as string | null) ?? null,
     origin: (r.origin as string | null) ?? null,
     storage_method: (r.storage_method as string | null) ?? null,
@@ -426,6 +494,13 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
   }
 
   await enrichProductNamesFromProductsTable(supabase, [listing])
+  if (listing.product_name?.trim()) {
+    listing.product_name = extractPureProductName(
+      listing.product_name,
+      listing.brand_name ?? null,
+      listing.spec ?? null,
+    )
+  }
 
   return { success: true, data: { listing } }
 }
@@ -533,6 +608,8 @@ async function assertListingBuyable(
       status,
       is_visible,
       deleted_at,
+      brand_name,
+      spec,
       products ( name )
     `,
     )
@@ -548,6 +625,8 @@ async function assertListingBuyable(
     status: string
     is_visible: boolean
     deleted_at: string | null
+    brand_name: string | null
+    spec: string | null
     products: { name: string | null } | { name: string | null }[] | null
   }
 
@@ -570,11 +649,20 @@ async function assertListingBuyable(
   }
 
   if (!product_name) product_name = '상품'
+  else {
+    product_name = formatListingDisplayName(product_name, row.brand_name, row.spec)
+  }
 
   return { ok: true, commerce_price: row.commerce_price, product_name }
 }
 
-type ListingCheckoutEnrich = { listing_id: string; product_id: string | null; product_name: string | null }
+type ListingCheckoutEnrich = {
+  listing_id: string
+  product_id: string | null
+  product_name: string | null
+  brand_name: string | null
+  spec: string | null
+}
 
 async function batchLoadListingsForCheckout(
   supabase: Awaited<ReturnType<typeof createServerClient>>,
@@ -598,6 +686,8 @@ async function batchLoadListingsForCheckout(
       status,
       is_visible,
       deleted_at,
+      brand_name,
+      spec,
       products ( name )
     `,
     )
@@ -625,6 +715,8 @@ async function batchLoadListingsForCheckout(
       listing_id: id,
       product_id: (row.product_id as string | null) ?? null,
       product_name: product_name || null,
+      brand_name: (row.brand_name as string | null) ?? null,
+      spec: (row.spec as string | null) ?? null,
     })
   }
 
@@ -639,6 +731,9 @@ async function batchLoadListingsForCheckout(
     const row = byId.get(r.listing_id)!
     let product_name = (r.product_name && r.product_name.trim()) || ''
     if (!product_name) product_name = '상품'
+    else {
+      product_name = formatListingDisplayName(product_name, r.brand_name, r.spec)
+    }
     map.set(r.listing_id, {
       commerce_price: row.commerce_price as number,
       product_name,
