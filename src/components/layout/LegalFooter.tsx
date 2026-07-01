@@ -1,8 +1,11 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
 
 export default function LegalFooter() {
+  const [expanded, setExpanded] = useState(false)
+
   return (
     <footer
       style={{
@@ -21,10 +24,32 @@ export default function LegalFooter() {
             개인정보처리방침
           </Link>
         </p>
-        <p style={{ margin: 0 }}>상호명: 디닷페이스 · 대표자: 김정무 · 사업자등록번호: 728-02-02513</p>
-        <p style={{ margin: 0 }}>통신판매업 신고번호: 제2026-인천부평-0405호</p>
-        <p style={{ margin: 0 }}>주소: 인천광역시 부평구 장제로155번길 24, 1층</p>
-        <p style={{ margin: 0 }}>이메일: dfaith0308@gmail.com · 전화번호: 032-215-3207</p>
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          style={{
+            margin: '8px 0 0',
+            padding: 0,
+            border: 'none',
+            background: 'none',
+            color: '#6b7280',
+            fontSize: 11,
+            fontFamily: 'inherit',
+            cursor: 'pointer',
+            lineHeight: 1.5,
+          }}
+        >
+          사업자 정보 {expanded ? '▲' : '▼'}
+        </button>
+        {expanded ? (
+          <>
+            <p style={{ margin: 0 }}>상호명: 디닷페이스 · 대표자: 김정무 · 사업자등록번호: 728-02-02513</p>
+            <p style={{ margin: 0 }}>통신판매업 신고번호: 제2026-인천부평-0405호</p>
+            <p style={{ margin: 0 }}>주소: 인천광역시 부평구 장제로155번길 24, 1층</p>
+            <p style={{ margin: 0 }}>이메일: dfaith0308@gmail.com · 전화번호: 032-215-3207</p>
+          </>
+        ) : null}
       </div>
     </footer>
   )
