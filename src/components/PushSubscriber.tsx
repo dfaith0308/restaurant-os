@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
 function urlBase64ToUint8Array(base64String: string) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -42,50 +42,28 @@ async function waitForServiceWorkerActive(reg: ServiceWorkerRegistration): Promi
 }
 
 export default function PushSubscriber() {
-  const [logs, setLogs] = useState<string[]>([])
-
-  function addLog(msg: string, isError = false) {
-    if (isError) console.error(msg)
-    else console.log(msg)
-    setLogs((prev) => [...prev, msg])
-  }
-
   useEffect(() => {
-    addLog('[Push] PushSubscriber 마운트됨')
-
-    if (!('serviceWorker' in navigator)) {
-      addLog('[Push] ❌ serviceWorker 미지원', true)
-      return
-    }
-    if (!('PushManager' in window)) {
-      addLog('[Push] ❌ PushManager 미지원', true)
-      return
-    }
+    if (!('serviceWorker' in navigator)) return
+    if (!('PushManager' in window)) return
 
     const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-    addLog(`[Push] VAPID 키: ${vapidKey ? '있음' : '없음'}`)
-    if (!vapidKey) {
-      addLog('[Push] ❌ NEXT_PUBLIC_VAPID_PUBLIC_KEY 없음', true)
-      return
-    }
+    if (!vapidKey) return
+
+    const vapidPublicKey = vapidKey
 
     async function syncSubscriptionToServer(subscription: PushSubscription) {
       try {
-        addLog(`[Push] 서버 동기화 시도: ${subscription.endpoint.slice(0, 50)}`)
         const res = await fetch('/api/push/subscribe', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(subscription.toJSON()),
         })
-        addLog(`[Push] 서버 응답: ${res.status}`)
         if (!res.ok) {
           const data = await res.json()
-          addLog(`[Push] ❌ 구독 등록 실패: ${res.status} ${JSON.stringify(data)}`, true)
-        } else {
-          addLog('[Push] ✅ 구독 등록 성공')
+          console.error('[Push] 구독 등록 실패:', res.status, data)
         }
       } catch (err) {
-        addLog(`[Push] ❌ fetch 오류: ${err}`, true)
+        console.error('[Push] fetch 오류:', err)
       }
     }
 
@@ -95,86 +73,39 @@ export default function PushSubscriber() {
         for (const stale of staleRegs) {
           const script = stale.active?.scriptURL ?? stale.installing?.scriptURL ?? stale.waiting?.scriptURL ?? ''
           if (script && !script.endsWith('/sw.js')) {
-            addLog(`[Push] 이전 SW 제거: ${script.split('/').pop()}`)
             await stale.unregister()
           }
         }
 
         let reg = await navigator.serviceWorker.getRegistration('/')
-        addLog(`[Push] SW 등록 상태: ${reg ? reg.active?.state ?? '대기중' : '없음'}`)
 
         if (!reg) {
-          addLog('[Push] SW 등록 시도: /sw.js')
           reg = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' })
-          addLog('[Push] SW register 완료')
         }
 
         reg = await waitForServiceWorkerActive(reg)
-        addLog(`[Push] SW 준비됨 (${reg.active?.state ?? 'unknown'})`)
 
         const existing = await reg.pushManager.getSubscription()
-        addLog(`[Push] 기존 구독: ${existing ? '있음' : '없음'}`)
-
         if (existing) {
           await syncSubscriptionToServer(existing)
           return
         }
 
         const permission = await Notification.requestPermission()
-        addLog(`[Push] 알림 권한: ${permission}`)
         if (permission !== 'granted') return
 
         const subscription = await reg.pushManager.subscribe({
           userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array(vapidKey!),
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
         })
-        addLog('[Push] ✅ 신규 구독 완료')
         await syncSubscriptionToServer(subscription)
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err)
-        addLog(`[Push] ❌ 오류: ${message}`, true)
+        console.error('[Push] 오류:', err)
       }
     }
 
     subscribe()
   }, [])
 
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: 80,
-        left: 16,
-        right: 16,
-        zIndex: 9999,
-        background: '#1a1a1a',
-        borderRadius: 10,
-        padding: 12,
-        fontSize: 11,
-        fontFamily: 'monospace',
-        color: '#fff',
-        maxHeight: 200,
-        overflowY: 'auto',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span style={{ fontWeight: 700, color: '#1f5d3a' }}>Push Debug</span>
-      </div>
-      {logs.length === 0 ? (
-        <div style={{ color: '#9ca3af' }}>초기화 중...</div>
-      ) : (
-        logs.map((l, i) => (
-          <div
-            key={i}
-            style={{
-              color: l.includes('❌') ? '#f87171' : l.includes('✅') ? '#4ade80' : '#e5e7eb',
-              marginBottom: 2,
-            }}
-          >
-            {l}
-          </div>
-        ))
-      )}
-    </div>
-  )
+  return null
 }

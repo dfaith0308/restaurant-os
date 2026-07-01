@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, type ReactNode } from 'react'
+import { loadTossPayments } from '@tosspayments/tosspayments-sdk'
 import { fixedStripeAboveBottomNav } from '@/lib/app-shell'
 import { redeemCoupon, type SubscriptionPlan } from '@/actions/subscribe'
 
@@ -111,13 +112,23 @@ export type SubscriptionStatusProps = {
   is_active: boolean
 }
 
+const tossEnabled = Boolean(process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY)
+
+function subscribeAmount(plan: SelectablePlan): number {
+  if (plan === 'annual') return 348000
+  if (plan === 'earlybird') return 9900
+  return 39000
+}
+
 export default function SubscribeClient({ status }: { status: SubscriptionStatusProps }) {
   const [selectedPlan, setSelectedPlan] = useState<SelectablePlan>('earlybird')
   const selected = PLANS.find((p) => p.id === selectedPlan) ?? PLANS[0]
+  const amount = subscribeAmount(selectedPlan)
 
   const [couponCode, setCouponCode] = useState('')
   const [couponLoading, setCouponLoading] = useState(false)
   const [couponResult, setCouponResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [pending, setPending] = useState(false)
 
   async function handleCoupon() {
     if (!couponCode.trim()) return
@@ -138,6 +149,42 @@ export default function SubscribeClient({ status }: { status: SubscriptionStatus
       setCouponLoading(false)
     }
   }
+
+  async function handleSubscribe() {
+    const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY
+    if (!clientKey) {
+      alert('결제 준비 중입니다. 잠시 후 다시 시도해주세요.')
+      return
+    }
+
+    const planInfo = PLANS.find((p) => p.id === selectedPlan)
+    if (!planInfo) return
+
+    const paymentAmount = subscribeAmount(selectedPlan)
+    const customerKey = crypto.randomUUID()
+
+    setPending(true)
+    try {
+      const tossPayments = await loadTossPayments(clientKey)
+      const payment = tossPayments.payment({ customerKey })
+      await payment.requestBillingAuth({
+        method: 'CARD',
+        successUrl: `${window.location.origin}/subscribe/billing/success?plan=${selectedPlan}&amount=${paymentAmount}&customerKey=${customerKey}`,
+        failUrl: `${window.location.origin}/subscribe/billing/fail`,
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err)
+      if (!message.includes('USER_CANCEL') && !message.includes('취소')) {
+        alert(message || '결제 요청에 실패했습니다.')
+      }
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const subscribeButtonLabel = tossEnabled
+    ? `${selected.label} ${amount.toLocaleString()}원 구독 시작`
+    : `${selected.label} 시작하기 (준비 중)`
 
   return (
     <main
@@ -468,6 +515,8 @@ export default function SubscribeClient({ status }: { status: SubscriptionStatus
       >
         <button
           type="button"
+          onClick={handleSubscribe}
+          disabled={pending || !tossEnabled}
           style={{
             width: '100%',
             padding: 16,
@@ -477,13 +526,12 @@ export default function SubscribeClient({ status }: { status: SubscriptionStatus
             color: '#fff',
             fontSize: 16,
             fontWeight: 800,
-            cursor: 'not-allowed',
+            cursor: pending || !tossEnabled ? 'not-allowed' : 'pointer',
             fontFamily: 'inherit',
-            opacity: 0.85,
+            opacity: pending || !tossEnabled ? 0.85 : 1,
           }}
-          disabled
         >
-          {selected.buttonText}
+          {pending ? '결제창 여는 중...' : subscribeButtonLabel}
         </button>
       </div>
     </main>

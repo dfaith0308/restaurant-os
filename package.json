@@ -13,6 +13,7 @@
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.49.4",
     "@tosspayments/payment-widget-sdk": "^0.12.2",
+    "@tosspayments/tosspayments-sdk": "^2.7.1",
     "next": "15.3.8",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
