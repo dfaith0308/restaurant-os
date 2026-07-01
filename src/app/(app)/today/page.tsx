@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getTodayDashboard } from '@/actions/today'
 import { getMoneyDashboard } from '@/actions/money'
 import { getMenus } from '@/actions/menus'
+import { getSubscriptionStatus } from '@/actions/subscribe'
 import {
   buildTodayActionPriority,
   buildTodayMainOperationFeed,
@@ -27,7 +28,7 @@ import KakaoInputRequest from '@/components/common/KakaoInputRequest'
 export default async function TodayPage() {
   const tenant_id = await getTenantId()
 
-  const [result, money, menusRes, orderSliceRes, ingOpRes] = await Promise.all([
+  const [result, money, menusRes, orderSliceRes, ingOpRes, subStatus] = await Promise.all([
     getTodayDashboard(tenant_id).catch(() => ({
       success: false as const,
       data: undefined,
@@ -48,7 +49,10 @@ export default async function TodayPage() {
       success: false as const,
       data: undefined,
     })),
+    getSubscriptionStatus(),
   ])
+
+  const isSubscriber = subStatus.is_active
 
   const d = result.data
   const ingOp = ingOpRes.success && ingOpRes.data ? ingOpRes.data : null
@@ -62,10 +66,39 @@ export default async function TodayPage() {
     Object.keys(ingOpRes.data.metaByIngredient).length === 0
   const isNewUser = orderSlice.length === 0 && ingOpEmpty
 
+  const subscribeBanner = !isSubscriber ? (
+    <Link
+      href="/subscribe"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '14px 16px',
+        background: '#1f5d3a',
+        borderRadius: 12,
+        textDecoration: 'none',
+        marginBottom: 12,
+      }}
+    >
+      <div>
+        <p style={{ fontSize: 13, fontWeight: 800, color: '#fff', margin: '0 0 2px' }}>
+          🎁 얼리버드 선착순 100명 · 월 9,900원
+        </p>
+        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', margin: 0 }}>
+          지금 구독하고 장바구니 할인 혜택 받으세요
+        </p>
+      </div>
+      <span style={{ fontSize: 14, color: '#fff', fontWeight: 700, flexShrink: 0 }}>
+        구독하기 →
+      </span>
+    </Link>
+  ) : null
+
   if (isNewUser) {
     return (
       <main style={{ maxWidth: 480, margin: '0 auto', padding: '32px 20px 96px', textAlign: 'center' }}>
         <div style={{ textAlign: 'left' }}>
+          {subscribeBanner}
           <KakaoInputRequest />
         </div>
         <div style={{ marginBottom: 32 }}>
@@ -180,6 +213,8 @@ export default async function TodayPage() {
           '\uc624\ub298 \uc2dd\ub2f9\uc5d0\uc11c \ubb34\uc2a8 \uc77c\uc774 \uc77c\uc5b4\ub098\uace0 \uc788\ub294\uc9c0, \ubb34\uc5c7\uc744 \uba3c\uc800 \ud655\uc778\ud560\uc9c0 \ubd10\uc694.'
         }
       </p>
+
+      {subscribeBanner}
 
       <TodayActionPriorityCard priority={actionPriority} />
 
