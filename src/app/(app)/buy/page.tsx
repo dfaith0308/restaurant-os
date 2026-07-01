@@ -13,8 +13,6 @@ const card = {
   padding: 12,
 } as const
 
-const GRID_GAP = 10
-
 function buyHref(search?: string, catSlug?: string, subCatSlug?: string) {
   const p = new URLSearchParams()
   if (search?.trim()) p.set('search', search.trim())
@@ -198,31 +196,19 @@ export default async function BuyHomePage({
         ) : null}
         <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 12px' }}>다시 사기</h2>
         {recent.length > 0 ? (
-          <div
-            style={{
-              display: 'flex',
-              gap: GRID_GAP,
-              overflowX: 'auto',
-              paddingBottom: 4,
-              margin: '0 -16px',
-              paddingLeft: 16,
-              paddingRight: 16,
-              WebkitOverflowScrolling: 'touch',
-            }}
-          >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {recent.map((it) => (
-              <div key={it.listing_id} style={{ flex: '0 0 auto', width: 168 }}>
-                <BuyListingCard
-                  listingId={it.listing_id}
-                  thumbnailUrl={it.thumbnail_url}
-                  commercePrice={it.current_price ?? it.unit_price}
-                  originalPrice={it.listing_buyable ? it.original_price : null}
-                  spec={it.spec}
-                  addLabel="다시 담기"
-                  buyable={it.listing_buyable && it.current_price != null}
-                  width={168}
-                />
-              </div>
+              <BuyListingCard
+                key={it.listing_id}
+                listingId={it.listing_id}
+                thumbnailUrl={it.thumbnail_url}
+                commercePrice={it.current_price ?? it.unit_price}
+                originalPrice={it.listing_buyable ? it.original_price : null}
+                productName={it.listing_title}
+                spec={it.spec}
+                addLabel="다시 담기"
+                buyable={it.listing_buyable && it.current_price != null}
+              />
             ))}
           </div>
         ) : (
@@ -406,9 +392,9 @@ export default async function BuyHomePage({
             listStyle: 'none',
             margin: 0,
             padding: 0,
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            gap: GRID_GAP,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 8,
           }}
         >
           {listings.map((p) => (
@@ -418,6 +404,7 @@ export default async function BuyHomePage({
                 thumbnailUrl={p.thumbnail_url}
                 commercePrice={p.commerce_price}
                 originalPrice={p.original_price}
+                productName={p.product_name}
                 spec={p.spec ?? null}
                 detailHref={`/buy/products/${p.id}`}
                 addLabel="담기"
