@@ -34,7 +34,8 @@ export default function BuyListingCard({
       style={{
         width: 100,
         minWidth: 100,
-        background: '#f7f6f2',
+        background: '#fff',
+        borderRight: '1px solid #e5e7eb',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -86,7 +87,7 @@ export default function BuyListingCard({
         style={{
           flex: 1,
           minWidth: 0,
-          background: '#2b2b2b',
+          background: '#f7f6f2',
           padding: '12px 14px',
           display: 'flex',
           flexDirection: 'column',
@@ -95,15 +96,15 @@ export default function BuyListingCard({
       >
         <div>
           {nameLine ? (
-            <p style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 2px', lineHeight: 1.4 }}>
+            <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 2px', lineHeight: 1.4 }}>
               {nameLine}
             </p>
           ) : null}
-          <p style={{ fontSize: 19, fontWeight: 500, color: '#fff', margin: '0 0 2px', lineHeight: 1.2 }}>
+          <p style={{ fontSize: 19, fontWeight: 500, color: '#1a1a1a', margin: '0 0 2px', lineHeight: 1.2 }}>
             {commercePrice.toLocaleString()}원
           </p>
           {showSavings ? (
-            <p style={{ fontSize: 12, color: '#52B788', margin: 0 }}>
+            <p style={{ fontSize: 12, color: '#1f5d3a', margin: 0 }}>
               시중가 대비 {(originalPrice! - commercePrice).toLocaleString()}원 절감
             </p>
           ) : null}
@@ -120,7 +121,7 @@ export default function BuyListingCard({
             />
           </div>
         ) : (
-          <p style={{ fontSize: 12, color: '#9ca3af', margin: '10px 0 0' }}>현재 담을 수 없음</p>
+          <p style={{ fontSize: 12, color: '#6b7280', margin: '10px 0 0' }}>현재 담을 수 없음</p>
         )}
       </div>
     </div>
