@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { getCart, getListings, getRecentOrderItems, getStoreCategories } from '@/actions/buy'
+import BuyListingCard from '@/components/buy/BuyListingCard'
 import { fixedStripeAboveBottomNav } from '@/lib/app-shell'
 import { formatKRW } from '@/lib/utils'
-import CartAddButton from '@/components/buy/CartAddButton'
 
 const shell = { width: '100%', boxSizing: 'border-box' as const, padding: '20px 16px 80px' }
 
@@ -13,64 +13,7 @@ const card = {
   padding: 12,
 } as const
 
-const gridCardShell = {
-  borderRadius: 12,
-  boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-  background: '#fff',
-  overflow: 'hidden' as const,
-}
-
-const thumbImageStyle = {
-  width: '100%',
-  aspectRatio: '1 / 1',
-  objectFit: 'contain' as const,
-  display: 'block',
-  background: '#f5f5f5',
-}
-
-const thumbPlaceholderStyle = {
-  width: '100%',
-  aspectRatio: '1 / 1',
-  background: '#eef4f0',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  fontSize: 28,
-  color: 'var(--color-primary)',
-  lineHeight: 1,
-}
 const GRID_GAP = 10
-const INFO_PAD = 12
-const INFO_GAP = 6
-const PRICE_TO_BTN = 10
-
-const BRAND_GENERIC = new Set([
-  '업소용',
-  '프리미엄',
-  '국산',
-  '일반',
-  '특급',
-  '대용량',
-])
-
-function brandHintFromTitle(title: string): string | null {
-  const t = title.trim()
-  if (!t) return null
-  const first = t.split(/\s+/)[0]
-  if (!first || BRAND_GENERIC.has(first)) return null
-  return first
-}
-
-function shippingBadgeLabel(listing: { shipping_free?: boolean | null }): string | null {
-  if (listing.shipping_free === false) return null
-  return '무료배송'
-}
-
-function productNameInitial(name: string | null | undefined): string {
-  const t = name?.trim()
-  if (!t) return '?'
-  return t[0] ?? '?'
-}
 
 function buyHref(search?: string, catSlug?: string, subCatSlug?: string) {
   const p = new URLSearchParams()
@@ -91,26 +34,6 @@ const chipRowStyle = {
   paddingLeft: 16,
   paddingRight: 16,
   WebkitOverflowScrolling: 'touch' as const,
-}
-
-function PriceAidStack({
-  commercePrice,
-  originalPrice,
-}: {
-  commercePrice: number
-  originalPrice: number | null
-}) {
-  const savings =
-    originalPrice != null && originalPrice > commercePrice ? originalPrice - commercePrice : null
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      <span style={{ fontSize: 11, color: '#888' }}>식식이가</span>
-      <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--color-text)' }}>{formatKRW(commercePrice)}</span>
-      {savings != null && savings > 0 ? (
-        <span style={{ fontSize: 12, color: 'var(--color-primary)' }}>{formatKRW(savings)} 절감</span>
-      ) : null}
-    </div>
-  )
 }
 
 export default async function BuyHomePage({
@@ -287,103 +210,20 @@ export default async function BuyHomePage({
               WebkitOverflowScrolling: 'touch',
             }}
           >
-            {recent.map((it) => {
-              const title = it.listing_title?.trim() ?? ''
-              const brand = brandHintFromTitle(title)
-              const badge = shippingBadgeLabel(it)
-              const thumb = it.thumbnail_url?.trim()
-              return (
-                <div
-                  key={it.listing_id}
-                  style={{
-                    ...gridCardShell,
-                    flex: '0 0 auto',
-                    width: 168,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    boxSizing: 'border-box',
-                  }}
-                >
-                  <div style={{ position: 'relative', width: '100%' }}>
-                    {badge ? (
-                      <span
-                        style={{
-                          position: 'absolute',
-                          top: 6,
-                          left: 6,
-                          zIndex: 1,
-                          fontSize: 11,
-                          fontWeight: 600,
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                          background: 'var(--color-primary)',
-                          color: '#fff',
-                          lineHeight: 1.25,
-                        }}
-                      >
-                        {badge}
-                      </span>
-                    ) : null}
-                    {thumb ? (
-                      <img
-                        src={thumb}
-                        alt=""
-                        style={thumbImageStyle}
-                      />
-                    ) : (
-                      <div
-                        style={thumbPlaceholderStyle}
-                        aria-hidden
-                      >
-                        {productNameInitial(it.listing_title)}
-                      </div>
-                    )}
-                  </div>
-                  <div
-                    style={{
-                      padding: `${INFO_PAD}px ${INFO_PAD}px 0`,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: INFO_GAP,
-                      flex: 1,
-                    }}
-                  >
-                    {brand ? (
-                      <div style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600, lineHeight: 1.25 }}>
-                        {brand}
-                      </div>
-                    ) : null}
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: 'var(--color-text)',
-                        lineHeight: 1.35,
-                        minHeight: 36,
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      {title}
-                    </div>
-                    {it.listing_buyable && it.current_price != null ? (
-                      <PriceAidStack commercePrice={it.current_price} originalPrice={it.original_price} />
-                    ) : (
-                      <div style={{ fontSize: 12, color: '#9ca3af' }}>현재 담을 수 없음</div>
-                    )}
-                  </div>
-                  {it.listing_buyable ? (
-                    <div style={{ padding: `${PRICE_TO_BTN}px ${INFO_PAD}px ${INFO_PAD}px` }}>
-                      <CartAddButton listingId={it.listing_id} quantity={1} label="다시 담기" listingCard fullWidth primary />
-                    </div>
-                  ) : (
-                    <div style={{ height: INFO_PAD }} aria-hidden />
-                  )}
-                </div>
-              )
-            })}
+            {recent.map((it) => (
+              <div key={it.listing_id} style={{ flex: '0 0 auto', width: 168 }}>
+                <BuyListingCard
+                  listingId={it.listing_id}
+                  thumbnailUrl={it.thumbnail_url}
+                  commercePrice={it.current_price ?? it.unit_price}
+                  originalPrice={it.listing_buyable ? it.original_price : null}
+                  spec={it.spec}
+                  addLabel="다시 담기"
+                  buyable={it.listing_buyable && it.current_price != null}
+                  width={168}
+                />
+              </div>
+            ))}
           </div>
         ) : (
           <div
@@ -571,86 +411,19 @@ export default async function BuyHomePage({
             gap: GRID_GAP,
           }}
         >
-          {listings.map((p) => {
-            const title = p.product_name?.trim() ?? ''
-            const brand = brandHintFromTitle(title)
-            const badge = shippingBadgeLabel(p)
-            const thumb = p.thumbnail_url?.trim()
-            return (
-              <li key={p.id} style={{ ...gridCardShell, display: 'flex', flexDirection: 'column' }}>
-                <Link href={`/buy/products/${p.id}`} style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-                  <div style={{ position: 'relative', width: '100%' }}>
-                    {badge ? (
-                      <span
-                        style={{
-                          position: 'absolute',
-                          top: 6,
-                          left: 6,
-                          zIndex: 1,
-                          fontSize: 11,
-                          fontWeight: 600,
-                          padding: '2px 6px',
-                          borderRadius: 4,
-                          background: 'var(--color-primary)',
-                          color: '#fff',
-                          lineHeight: 1.25,
-                        }}
-                      >
-                        {badge}
-                      </span>
-                    ) : null}
-                    {thumb ? (
-                      <img
-                        src={thumb}
-                        alt=""
-                        style={thumbImageStyle}
-                      />
-                    ) : (
-                      <div
-                        style={thumbPlaceholderStyle}
-                        aria-hidden
-                      >
-                        {productNameInitial(p.product_name)}
-                      </div>
-                    )}
-                  </div>
-                  <div
-                    style={{
-                      padding: `${INFO_PAD}px ${INFO_PAD}px 0`,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: INFO_GAP,
-                    }}
-                  >
-                    {brand ? (
-                      <div style={{ fontSize: 11, color: 'var(--color-primary)', fontWeight: 600, lineHeight: 1.25 }}>
-                        {brand}
-                      </div>
-                    ) : null}
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 600,
-                        color: 'var(--color-text)',
-                        lineHeight: 1.35,
-                        minHeight: 36,
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      {title}
-                    </div>
-                    <PriceAidStack commercePrice={p.commerce_price} originalPrice={p.original_price} />
-                  </div>
-                </Link>
-                <div style={{ padding: `${PRICE_TO_BTN}px ${INFO_PAD}px ${INFO_PAD}px` }}>
-                  <CartAddButton listingId={p.id} quantity={1} label="담기" listingCard fullWidth primary />
-                </div>
-              </li>
-            )
-          })}
+          {listings.map((p) => (
+            <li key={p.id}>
+              <BuyListingCard
+                listingId={p.id}
+                thumbnailUrl={p.thumbnail_url}
+                commercePrice={p.commerce_price}
+                originalPrice={p.original_price}
+                spec={p.spec ?? null}
+                detailHref={`/buy/products/${p.id}`}
+                addLabel="담기"
+              />
+            </li>
+          ))}
         </ul>
       )}
 

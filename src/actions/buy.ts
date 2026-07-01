@@ -544,6 +544,7 @@ export async function getRecentOrderItems(): Promise<ActionResult<{ items: Recen
       thumbnail_url: null,
       current_price: null,
       original_price: null,
+      spec: null,
       listing_buyable: false,
     })
     if (items.length >= 10) break
@@ -554,7 +555,7 @@ export async function getRecentOrderItems(): Promise<ActionResult<{ items: Recen
   const lidList = items.map((i) => i.listing_id)
   const { data: listingRows, error: le2 } = await supabase
     .from('commerce_product_listings')
-    .select('id, commerce_price, original_price, thumbnail_url, status, is_visible, deleted_at')
+    .select('id, commerce_price, original_price, thumbnail_url, spec, status, is_visible, deleted_at')
     .in('id', lidList)
 
   if (le2) return { success: false, error: le2.message }
@@ -570,6 +571,7 @@ export async function getRecentOrderItems(): Promise<ActionResult<{ items: Recen
           commerce_price: r.commerce_price as number,
           original_price,
           thumbnail_url: (r.thumbnail_url as string | null) ?? null,
+          spec: (r.spec as string | null) ?? null,
           status: r.status as string,
           is_visible: r.is_visible as boolean,
           deleted_at: r.deleted_at as string | null,
@@ -585,6 +587,7 @@ export async function getRecentOrderItems(): Promise<ActionResult<{ items: Recen
     it.thumbnail_url = row.thumbnail_url?.trim() ? row.thumbnail_url.trim() : null
     it.current_price = buyable ? row.commerce_price : null
     it.original_price = buyable ? row.original_price : null
+    it.spec = buyable ? row.spec : null
     it.listing_buyable = buyable
   }
 

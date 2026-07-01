@@ -47,6 +47,7 @@ export type RecentOrderItemRow = {
   current_price: number | null
   /** listing 정상가 — 없으면 절감 미표시 */
   original_price: number | null
+  spec: string | null
   listing_buyable: boolean
   shipping_free?: boolean | null
 }
