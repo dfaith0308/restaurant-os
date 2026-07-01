@@ -407,7 +407,6 @@ export default async function BuyHomePage({
                 productName={p.product_name}
                 spec={p.spec ?? null}
                 detailHref={`/buy/products/${p.id}`}
-                addLabel="담기"
               />
             </li>
           ))}

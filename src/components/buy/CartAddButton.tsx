@@ -33,8 +33,18 @@ export default function CartAddButton({
   const raw = typeof label === 'string' ? label.trim() : ''
   const buttonLabel = !raw || raw === '닫기' ? '담기' : raw
 
+  const isFullWidth = fullWidth || listingCard
+
   return (
-    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'stretch', gap: 4 }}>
+    <span
+      style={{
+        display: isFullWidth ? 'flex' : 'inline-flex',
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        gap: 4,
+        width: isFullWidth ? '100%' : undefined,
+      }}
+    >
       <button
         type="button"
         disabled={pending || disabled}
@@ -52,7 +62,7 @@ export default function CartAddButton({
           })
         }}
         style={{
-          width: fullWidth || listingCard ? '100%' : undefined,
+          width: isFullWidth ? '100%' : undefined,
           boxSizing: 'border-box',
           padding: listingCard ? '8px' : compact ? '8px 10px' : '8px 12px',
           borderRadius: listingCard ? 6 : 8,

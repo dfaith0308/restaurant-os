@@ -21,7 +21,7 @@ export default function BuyListingCard({
   productName,
   spec,
   detailHref,
-  addLabel = '담기',
+  addLabel = '장바구니 담기',
   buyable = true,
 }: BuyListingCardProps) {
   const thumb = thumbnailUrl?.trim()
@@ -110,7 +110,7 @@ export default function BuyListingCard({
           ) : null}
         </div>
         {buyable ? (
-          <div style={{ marginTop: 10 }}>
+          <div style={{ marginTop: 10, width: '100%' }}>
             <CartAddButton
               listingId={listingId}
               quantity={1}
