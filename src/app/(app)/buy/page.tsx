@@ -49,7 +49,12 @@ export default async function BuyHomePage({
   const rawSubCat = Array.isArray(sp.subcat) ? sp.subcat[0] : sp.subcat
   let subCatSlug = rawSubCat?.trim() || undefined
 
-  const categoriesRes = await getStoreCategories()
+  const [categoriesRes, recentRes, cartRes] = await Promise.all([
+    getStoreCategories(),
+    getRecentOrderItems(),
+    getCart(),
+  ])
+
   const storeCategories = categoriesRes.success ? categoriesRes.data?.categories ?? [] : []
 
   if (catSlug && catSlug !== 'all') {
@@ -74,13 +79,9 @@ export default async function BuyHomePage({
       ? selectedParent.children.find((c) => c.slug === subCatSlug || c.id === subCatSlug)
       : null
 
-  const category_id = selectedSub?.id ?? selectedParent?.id ?? undefined
+  const category_idResolved = selectedSub?.id ?? selectedParent?.id ?? undefined
 
-  const [listRes, recentRes, cartRes] = await Promise.all([
-    getListings({ search, category_id }),
-    getRecentOrderItems(),
-    getCart(),
-  ])
+  const listRes = await getListings({ search, category_id: category_idResolved })
 
   const listings = listRes.success ? listRes.data?.listings ?? [] : []
   const recent = recentRes.success ? recentRes.data?.items ?? [] : []

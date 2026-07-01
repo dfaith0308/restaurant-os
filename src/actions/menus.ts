@@ -4,8 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createServerClient } from '@/lib/supabase-server'
 import { getTenantId } from '@/lib/get-restaurant'
 import {
-  getIngredientPriceAtDate,
   getIngredientPriceRiskMap,
+  getIngredientPricesAtDatesBatch,
   getIngredientsOperationData,
   type IngredientPriceRisk,
   type IngredientPriceRiskLevel,
@@ -225,7 +225,7 @@ type MenuIngredientJoinRow = {
 
 async function buildMenuIngredientsWithPrices(
   miRaw: MenuIngredientJoinRow[] | null | undefined,
-  calculationDate: string,
+  priceByIngredient: Map<string, number | null>,
 ): Promise<Map<string, MenuIngredientRow[]>> {
   const drafts: Array<{
     menu_id: string
@@ -255,17 +255,6 @@ async function buildMenuIngredientsWithPrices(
       },
     })
   }
-
-  const uniqueIngredientIds = [
-    ...new Set(drafts.map((d) => d.row.ingredient_id).filter(Boolean)),
-  ]
-  const priceByIngredient = new Map<string, number | null>()
-  await Promise.all(
-    uniqueIngredientIds.map(async (ingredientId) => {
-      const price = await getIngredientPriceAtDate(ingredientId, calculationDate)
-      priceByIngredient.set(ingredientId, price)
-    }),
-  )
 
   const byMenu = new Map<string, MenuIngredientRow[]>()
   for (const { menu_id, row } of drafts) {
@@ -335,14 +324,26 @@ export async function getMenus(): Promise<ActionResult<MenuWithCost[]>> {
   if (miErr) return { success: false, error: miErr.message, data: [] }
 
   const miRows = (miRaw ?? []) as MenuIngredientJoinRow[]
-  const byMenuToday = await buildMenuIngredientsWithPrices(miRows, calculationDate)
-  const datePast = subtractDaysFromDate(calculationDate, 30)
-  const byMenuPast = await buildMenuIngredientsWithPrices(miRows, datePast)
-
   const ingredientIds = [
     ...new Set(miRows.map((r) => r.ingredient_id).filter(Boolean)),
   ]
-  const riskRes = await getIngredientPriceRiskMap(ingredientIds)
+  const datePast = subtractDaysFromDate(calculationDate, 30)
+  const pricesByDate = await getIngredientPricesAtDatesBatch(
+    supabase,
+    tenant_id,
+    ingredientIds,
+    [calculationDate, datePast],
+  )
+  const byMenuToday = await buildMenuIngredientsWithPrices(
+    miRows,
+    pricesByDate.get(calculationDate) ?? new Map(),
+  )
+  const byMenuPast = await buildMenuIngredientsWithPrices(
+    miRows,
+    pricesByDate.get(datePast) ?? new Map(),
+  )
+
+  const riskRes = await getIngredientPriceRiskMap(ingredientIds, { tenant_id, supabase })
   const riskMap =
     riskRes.success && riskRes.data ? riskRes.data : {}
 
@@ -412,9 +413,19 @@ export async function getInactiveMenus(): Promise<ActionResult<MenuWithCost[]>> 
 
   if (miErr) return { success: false, error: miErr.message, data: [] }
 
+  const miRowsInactive = (miRaw ?? []) as MenuIngredientJoinRow[]
+  const inactiveIngredientIds = [
+    ...new Set(miRowsInactive.map((r) => r.ingredient_id).filter(Boolean)),
+  ]
+  const inactivePricesByDate = await getIngredientPricesAtDatesBatch(
+    supabase,
+    tenant_id,
+    inactiveIngredientIds,
+    [calculationDate],
+  )
   const byMenu = await buildMenuIngredientsWithPrices(
-    (miRaw ?? []) as MenuIngredientJoinRow[],
-    calculationDate,
+    miRowsInactive,
+    inactivePricesByDate.get(calculationDate) ?? new Map(),
   )
 
   const result: MenuWithCost[] = menus.map((m) => {

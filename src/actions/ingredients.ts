@@ -178,6 +178,135 @@ export async function getIngredientPriceAtDate(
   return Number.isFinite(fallbackPrice) ? fallbackPrice : null
 }
 
+type PriceHistoryLiteRow = {
+  ingredient_id: string
+  price: number
+  effective_from: string
+}
+
+/** 여러 재료·기준일 가격을 history 1회 + ingredients fallback 1회로 조회 */
+export async function getIngredientPricesAtDatesBatch(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  tenant_id: string,
+  ingredientIds: string[],
+  targetDates: string[],
+): Promise<Map<string, Map<string, number | null>>> {
+  const byDate = new Map<string, Map<string, number | null>>()
+  const validDates = [...new Set(targetDates.filter(isValidEffectiveDate))]
+  for (const date of validDates) {
+    byDate.set(date, new Map())
+  }
+
+  const uniqueIds = [...new Set(ingredientIds.filter(Boolean))]
+  if (uniqueIds.length === 0 || validDates.length === 0) {
+    return byDate
+  }
+
+  const { data: rawHistories, error: histError } = await supabase
+    .from('ingredient_price_history')
+    .select('ingredient_id, price, effective_from')
+    .eq('tenant_id', tenant_id)
+    .in('ingredient_id', uniqueIds)
+    .order('effective_from', { ascending: false })
+
+  if (histError) {
+    for (const date of validDates) {
+      for (const id of uniqueIds) {
+        byDate.get(date)!.set(id, null)
+      }
+    }
+    return byDate
+  }
+
+  const historyByIngredient = new Map<string, PriceHistoryLiteRow[]>()
+  for (const row of rawHistories ?? []) {
+    const ingredientId = row.ingredient_id as string
+    const price = Number(row.price)
+    if (!Number.isFinite(price)) continue
+    const bucket = historyByIngredient.get(ingredientId) ?? []
+    bucket.push({
+      ingredient_id: ingredientId,
+      price,
+      effective_from: row.effective_from as string,
+    })
+    historyByIngredient.set(ingredientId, bucket)
+  }
+
+  const needFallbackIds = new Set<string>()
+  for (const id of uniqueIds) {
+    const histories = historyByIngredient.get(id) ?? []
+    for (const date of validDates) {
+      const match = histories.find((h) => h.effective_from <= date)
+      if (match) {
+        byDate.get(date)!.set(id, match.price)
+      } else {
+        byDate.get(date)!.set(id, null)
+        needFallbackIds.add(id)
+      }
+    }
+  }
+
+  if (needFallbackIds.size === 0) return byDate
+
+  const { data: ingredientRows } = await supabase
+    .from('ingredients')
+    .select('id, current_price')
+    .eq('tenant_id', tenant_id)
+    .in('id', [...needFallbackIds])
+
+  const currentById = new Map<string, number | null>()
+  for (const row of ingredientRows ?? []) {
+    const id = row.id as string
+    const cp = row.current_price
+    if (cp == null) {
+      currentById.set(id, null)
+      continue
+    }
+    const n = Number(cp)
+    currentById.set(id, Number.isFinite(n) ? n : null)
+  }
+
+  for (const date of validDates) {
+    const priceMap = byDate.get(date)!
+    for (const id of needFallbackIds) {
+      if (priceMap.get(id) != null) continue
+      priceMap.set(id, currentById.get(id) ?? null)
+    }
+  }
+
+  return byDate
+}
+
+/** /today 신규 사용자 판별용 — orders limit 1 + ingredients count + price history 존재 여부 */
+export async function probeTodayOnboardingSignals(): Promise<{
+  activeIngredientsCount: number
+  hasIngredientOperationMeta: boolean
+}> {
+  const supabase = await createServerClient()
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id) {
+    return { activeIngredientsCount: 0, hasIngredientOperationMeta: false }
+  }
+
+  const [ingCountRes, histRes] = await Promise.all([
+    supabase
+      .from('ingredients')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenant_id)
+      .eq('is_active', true),
+    supabase
+      .from('ingredient_price_history')
+      .select('ingredient_id')
+      .eq('tenant_id', tenant_id)
+      .limit(1),
+  ])
+
+  return {
+    activeIngredientsCount: ingCountRes.count ?? 0,
+    hasIngredientOperationMeta: (histRes.data?.length ?? 0) > 0,
+  }
+}
+
 export async function getIngredients(): Promise<ActionResult<IngredientRow[]>> {
   const supabase = await createServerClient()
   const tenant_id = await getTenantId().catch(() => null)
@@ -441,9 +570,13 @@ function computeIngredientPriceRisk(
 
 export async function getIngredientPriceRiskMap(
   ingredientIds: string[],
+  options?: {
+    tenant_id?: string
+    supabase?: Awaited<ReturnType<typeof createServerClient>>
+  },
 ): Promise<ActionResult<Record<string, IngredientPriceRisk>>> {
-  const supabase = await createServerClient()
-  const tenant_id = await getTenantId().catch(() => null)
+  const supabase = options?.supabase ?? (await createServerClient())
+  const tenant_id = options?.tenant_id ?? (await getTenantId().catch(() => null))
   if (!tenant_id) {
     return { success: false, error: '인증 필요', data: undefined }
   }
@@ -743,6 +876,7 @@ export async function getIngredientsOperationData(): Promise<
     .eq('tenant_id', tenant_id)
     .order('effective_from', { ascending: false })
     .order('created_at', { ascending: false })
+    .limit(500)
 
   if (histError) {
     return { success: false, error: histError.message, data: undefined }

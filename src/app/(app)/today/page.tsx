@@ -12,7 +12,7 @@ import {
   buildTodaySupplierOperationInsights,
 } from '@/lib/order-capture'
 import { getOrdersOperationSlice } from '@/actions/orders'
-import { getIngredientsOperationData } from '@/actions/ingredients'
+import { getIngredientsOperationData, probeTodayOnboardingSignals } from '@/actions/ingredients'
 import { formatKRW } from '@/lib/utils'
 import type { Order, SavingOpportunity, TodayDashboard } from '@/types'
 import { getTenantId } from '@/lib/get-restaurant'
@@ -28,43 +28,23 @@ import KakaoInputRequest from '@/components/common/KakaoInputRequest'
 export default async function TodayPage() {
   const tenant_id = await getTenantId()
 
-  const [result, money, menusRes, orderSliceRes, ingOpRes, subStatus] = await Promise.all([
-    getTodayDashboard(tenant_id).catch(() => ({
-      success: false as const,
-      data: undefined,
-    })),
-    getMoneyDashboard(tenant_id).catch(() => ({
-      success: false as const,
-      data: undefined,
-    })),
-    getMenus().catch(() => ({
-      success: false as const,
-      data: undefined,
-    })),
-    getOrdersOperationSlice(tenant_id).catch((): { success: true; data: Order[] } => ({
+  const [orderProbeRes, onboardingProbe, subStatus] = await Promise.all([
+    getOrdersOperationSlice(tenant_id, 1).catch((): { success: true; data: Order[] } => ({
       success: true,
       data: [],
     })),
-    getIngredientsOperationData().catch(() => ({
-      success: false as const,
-      data: undefined,
+    probeTodayOnboardingSignals().catch(() => ({
+      activeIngredientsCount: 0,
+      hasIngredientOperationMeta: false,
     })),
     getSubscriptionStatus(),
   ])
 
   const isSubscriber = subStatus.is_active
-
-  const d = result.data
-  const ingOp = ingOpRes.success && ingOpRes.data ? ingOpRes.data : null
-  const menus = menusRes.success && menusRes.data ? menusRes.data : []
-  const orderSlice =
-    orderSliceRes.success && orderSliceRes.data ? orderSliceRes.data : []
-
-  const ingOpEmpty =
-    !ingOpRes.success ||
-    !ingOpRes.data ||
-    Object.keys(ingOpRes.data.metaByIngredient).length === 0
-  const isNewUser = orderSlice.length === 0 && ingOpEmpty
+  const orderProbe =
+    orderProbeRes.success && orderProbeRes.data ? orderProbeRes.data : []
+  const ingOpEmpty = !onboardingProbe.hasIngredientOperationMeta
+  const isNewUser = orderProbe.length === 0 && ingOpEmpty
 
   const subscribeBanner = !isSubscriber ? (
     <Link
@@ -156,6 +136,35 @@ export default async function TodayPage() {
       </main>
     )
   }
+
+  const [result, money, menusRes, orderSliceRes, ingOpRes] = await Promise.all([
+    getTodayDashboard(tenant_id).catch(() => ({
+      success: false as const,
+      data: undefined,
+    })),
+    getMoneyDashboard(tenant_id).catch(() => ({
+      success: false as const,
+      data: undefined,
+    })),
+    getMenus().catch(() => ({
+      success: false as const,
+      data: undefined,
+    })),
+    getOrdersOperationSlice(tenant_id).catch((): { success: true; data: Order[] } => ({
+      success: true,
+      data: [],
+    })),
+    getIngredientsOperationData().catch(() => ({
+      success: false as const,
+      data: undefined,
+    })),
+  ])
+
+  const d = result.data
+  const ingOp = ingOpRes.success && ingOpRes.data ? ingOpRes.data : null
+  const menus = menusRes.success && menusRes.data ? menusRes.data : []
+  const orderSlice =
+    orderSliceRes.success && orderSliceRes.data ? orderSliceRes.data : []
 
   const hub =
     menus.length > 0 || ingOp
