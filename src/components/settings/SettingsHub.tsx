@@ -385,6 +385,32 @@ export default function SettingsHub({ restaurant, fixedCosts, ingredients, menus
         </div>
       ) : null}
 
+      <p style={{ fontSize: 12, fontWeight: 700, color: '#9ca3af', margin: '0 0 10px', letterSpacing: '0.04em' }}>
+        계정
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+        <SettingsRow
+          label="계정"
+          description="비밀번호 변경"
+          icon="👤"
+          href="/settings/account"
+          status={null}
+          statusNote="로그인 비밀번호 관리"
+        />
+
+        <SettingsRow
+          label="알림 설정"
+          description="푸시 알림 on/off"
+          icon="🔔"
+          href="/settings/notifications"
+          status={null}
+          statusNote="시세·발주 알림"
+        />
+      </div>
+
+      <p style={{ fontSize: 12, fontWeight: 700, color: '#9ca3af', margin: '0 0 10px', letterSpacing: '0.04em' }}>
+        매장 운영
+      </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
 
         <SettingsRow

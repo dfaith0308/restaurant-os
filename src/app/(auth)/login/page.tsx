@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { checkSignupEmailAvailable, signupAction } from '@/actions/signup'
 import { createBrowserSupabase } from '@/lib/supabase-browser'
@@ -931,7 +932,12 @@ export default function LoginPage() {
 
         {mode === 'login' && (
           <>
-            <p style={{ textAlign: 'center', fontSize: 13, color: '#9ca3af', marginTop: 18 }}>
+            <p style={{ textAlign: 'center', fontSize: 13, color: '#9ca3af', marginTop: 14 }}>
+              <Link href="/login/reset" style={{ color: '#6b7280', textDecoration: 'none' }}>
+                비밀번호를 잊으셨나요?
+              </Link>
+            </p>
+            <p style={{ textAlign: 'center', fontSize: 13, color: '#9ca3af', marginTop: 10 }}>
               계정이 없으신가요?{' '}
               <button
                 type="button"
