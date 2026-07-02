@@ -4,8 +4,11 @@ import { useState, useTransition, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { updateRestaurant } from '@/actions/restaurant'
 import type { RestaurantInfo } from '@/actions/restaurant'
+import { crawlNaverPlace } from '@/actions/naver-place'
+import type { NaverPlaceCrawlData, NaverPlaceMenuItem } from '@/actions/naver-place'
 import { parseNaverPlaceImage } from '@/lib/naver-place-parser'
 import type { NaverPlaceInfo } from '@/lib/naver-place-parser'
+import { saveNaverPlaceMenusForImport } from '@/lib/naver-place-import'
 import Link from 'next/link'
 
 const BRAND_ORANGE = '#F97316'
@@ -18,10 +21,46 @@ const INPUT_BASE: React.CSSProperties = {
 }
 
 type PlaceImportStatus = 'idle' | 'loading' | 'success' | 'partial' | 'failed'
+type ReviewTab = 'visitor' | 'blog'
+
+function normalizePlaceInfo(
+  info: NaverPlaceInfo | NaverPlaceCrawlData,
+): NaverPlaceInfo {
+  if ('business_hours' in info && Array.isArray(info.business_hours)) {
+    return {
+      name: info.name,
+      address: info.address,
+      phone: info.phone,
+      business_hours_text:
+        info.business_hours.length > 0 ? info.business_hours.join(' / ') : null,
+      menus: info.menus,
+    }
+  }
+
+  const place = info as NaverPlaceInfo
+  return {
+    name: place.name ?? null,
+    address: place.address ?? null,
+    phone: place.phone ?? null,
+    business_hours_text: place.business_hours_text ?? null,
+    menus: place.menus,
+  }
+}
 
 export default function RestaurantSettingsClient({ restaurant }: { restaurant: RestaurantInfo }) {
   const router = useRouter()
   const placeImageInputRef = useRef<HTMLInputElement>(null)
+  const [naverUrl, setNaverUrl] = useState('')
+  const [crawling, setCrawling] = useState(false)
+  const [crawlError, setCrawlError] = useState<string | null>(null)
+  const [urlImportStatus, setUrlImportStatus] = useState<PlaceImportStatus>('idle')
+  const [extractedMenus, setExtractedMenus] = useState<NaverPlaceMenuItem[]>([])
+  const [extractedVisitorReviews, setExtractedVisitorReviews] = useState<string[]>([])
+  const [extractedBlogReviews, setExtractedBlogReviews] = useState<
+    Array<{ title: string; summary: string }>
+  >([])
+  const [reviewsExpanded, setReviewsExpanded] = useState(false)
+  const [reviewTab, setReviewTab] = useState<ReviewTab>('visitor')
   const [name,           setName]           = useState(restaurant.name ?? '')
   const [region,         setRegion]         = useState(restaurant.region ?? '')
   const [ownerName,      setOwnerName]      = useState(restaurant.owner_name ?? '')
@@ -36,31 +75,80 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
   const [status,    setStatus]    = useState<'idle' | 'dirty' | 'saved'>('idle')
   const [isPending, startTr]      = useTransition()
 
-  function applyPlaceInfo(info: NaverPlaceInfo): 'success' | 'partial' | 'failed' {
+  function applyPlaceInfo(info: NaverPlaceInfo | NaverPlaceCrawlData): 'success' | 'partial' | 'failed' {
+    const normalized = normalizePlaceInfo(info)
     let filledCount = 0
 
-    if (info.name?.trim()) {
-      setName(info.name.trim())
+    if (normalized.name?.trim()) {
+      setName(normalized.name.trim())
       filledCount += 1
     }
-    if (info.address?.trim()) {
-      setRegion(info.address.trim())
+    if (normalized.address?.trim()) {
+      setRegion(normalized.address.trim())
       filledCount += 1
     }
-    if (info.phone?.trim()) {
-      setPhone(info.phone.trim())
+    if (normalized.phone?.trim()) {
+      setPhone(normalized.phone.trim())
       filledCount += 1
     }
-    if (info.business_hours_text?.trim()) {
-      setBusinessHoursText(info.business_hours_text.trim())
+    if (normalized.business_hours_text?.trim()) {
+      setBusinessHoursText(normalized.business_hours_text.trim())
       filledCount += 1
     }
-
-    // 향후: 메뉴/가격 hydrate 추가 가능 (info.menus)
 
     if (filledCount === 0) return 'failed'
     if (filledCount === 4) return 'success'
     return 'partial'
+  }
+
+  async function handleCrawl() {
+    const trimmed = naverUrl.trim()
+    if (!trimmed) {
+      setCrawlError('네이버 플레이스 URL을 입력해주세요')
+      return
+    }
+
+    setCrawling(true)
+    setCrawlError(null)
+    setUrlImportStatus('loading')
+    setExtractedMenus([])
+    setExtractedVisitorReviews([])
+    setExtractedBlogReviews([])
+    setReviewsExpanded(false)
+
+    try {
+      const res = await crawlNaverPlace(trimmed)
+      if (!res.success) {
+        setCrawlError(res.error)
+        setUrlImportStatus('failed')
+        return
+      }
+
+      const result = applyPlaceInfo(res.data)
+      setUrlImportStatus(result)
+      if (result !== 'failed') setStatus('dirty')
+
+      if (res.data.menus?.length > 0) {
+        setExtractedMenus(res.data.menus)
+      }
+      if (res.data.visitor_reviews?.length > 0) {
+        setExtractedVisitorReviews(res.data.visitor_reviews)
+      }
+      if (res.data.blog_reviews?.length > 0) {
+        setExtractedBlogReviews(res.data.blog_reviews)
+      }
+    } catch {
+      setCrawlError('정보를 가져오지 못했습니다')
+      setUrlImportStatus('failed')
+    } finally {
+      setCrawling(false)
+    }
+  }
+
+  function handleGoToMenusImport() {
+    if (extractedMenus.length === 0) return
+    saveNaverPlaceMenusForImport(extractedMenus)
+    router.push('/settings/menus?import=naver')
   }
 
   function handlePlaceImageSelect(file: File | undefined) {
@@ -168,6 +256,183 @@ export default function RestaurantSettingsClient({ restaurant }: { restaurant: R
           e.target.value = ''
         }}
       />
+
+      <div style={{
+        background: '#f7f6f2',
+        borderRadius: 12,
+        padding: '14px 16px',
+        marginBottom: 16,
+        border: '0.5px solid #e8e5de',
+      }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', margin: 0 }}>
+          네이버 플레이스 URL
+        </p>
+        <p style={{ fontSize: 12, color: '#6b7280', lineHeight: 1.5, marginTop: 4, marginBottom: 12 }}>
+          플레이스 링크를 붙여넣으면 매장·메뉴·리뷰 정보를 수집합니다.
+        </p>
+
+        <input
+          type="url"
+          placeholder="https://map.naver.com/v5/entry/place/..."
+          value={naverUrl}
+          onChange={e => { setNaverUrl(e.target.value); setCrawlError(null) }}
+          style={{ ...INPUT_BASE, marginBottom: 10, fontSize: 13 }}
+        />
+
+        <button
+          type="button"
+          onClick={handleCrawl}
+          disabled={crawling || !naverUrl.trim()}
+          style={{
+            width: '100%',
+            background: crawling || !naverUrl.trim() ? '#d1d5db' : '#1f5d3a',
+            color: '#ffffff',
+            border: 'none',
+            borderRadius: 10,
+            padding: '11px 18px',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: crawling || !naverUrl.trim() ? 'not-allowed' : 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          {crawling ? '수집 중...' : '정보 가져오기'}
+        </button>
+
+        {crawlError && (
+          <p style={{ fontSize: 12, color: '#B91C1C', marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
+            {crawlError}
+          </p>
+        )}
+        {urlImportStatus === 'success' && (
+          <p style={{ fontSize: 12, color: '#1f5d3a', marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
+            매장 정보를 가져왔어요. 아래 내용을 확인하고 저장하세요.
+          </p>
+        )}
+        {urlImportStatus === 'partial' && (
+          <p style={{ fontSize: 12, color: BRAND_ORANGE, marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
+            일부 정보를 가져왔어요. 비어있는 항목은 직접 입력해주세요.
+          </p>
+        )}
+        {urlImportStatus === 'failed' && !crawlError && (
+          <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 10, marginBottom: 0, lineHeight: 1.5 }}>
+            정보를 가져오지 못했어요. URL을 확인하거나 스크린샷 업로드를 이용해주세요.
+          </p>
+        )}
+      </div>
+
+      {extractedMenus.length > 0 && (
+        <div style={{
+          background: '#ffffff',
+          borderRadius: 12,
+          padding: '14px 16px',
+          marginBottom: 16,
+          border: '0.5px solid #e8e5de',
+        }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b', margin: '0 0 4px' }}>
+            수집된 메뉴 {extractedMenus.length}개
+          </p>
+          <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 12px', lineHeight: 1.4 }}>
+            {extractedMenus.slice(0, 3).map(m => m.name).join(', ')}
+            {extractedMenus.length > 3 ? ' …' : ''}
+          </p>
+          <button
+            type="button"
+            onClick={handleGoToMenusImport}
+            style={{
+              width: '100%',
+              background: BRAND_ORANGE,
+              color: '#fff',
+              border: 'none',
+              borderRadius: 10,
+              padding: '10px 16px',
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            메뉴 설정에 자동 등록
+          </button>
+        </div>
+      )}
+
+      {(extractedVisitorReviews.length > 0 || extractedBlogReviews.length > 0) && (
+        <div style={{
+          background: '#ffffff',
+          borderRadius: 12,
+          padding: '14px 16px',
+          marginBottom: 16,
+          border: '0.5px solid #e8e5de',
+        }}>
+          <button
+            type="button"
+            onClick={() => setReviewsExpanded(v => !v)}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#2b2b2b' }}>
+              수집된 리뷰
+              {' '}
+              (방문자 {extractedVisitorReviews.length} · 블로그 {extractedBlogReviews.length})
+            </span>
+            <span style={{ fontSize: 16, color: '#9ca3af' }}>{reviewsExpanded ? '∧' : '∨'}</span>
+          </button>
+
+          {reviewsExpanded && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+                {(['visitor', 'blog'] as ReviewTab[]).map(tab => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setReviewTab(tab)}
+                    style={{
+                      flex: 1,
+                      padding: '8px 10px',
+                      borderRadius: 8,
+                      border: reviewTab === tab ? '1.5px solid #1f5d3a' : '1px solid #e5e7eb',
+                      background: reviewTab === tab ? '#f0fdf4' : '#fff',
+                      color: reviewTab === tab ? '#1f5d3a' : '#6b7280',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    {tab === 'visitor' ? '방문자 리뷰' : '블로그 리뷰'}
+                  </button>
+                ))}
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 240, overflowY: 'auto' }}>
+                {reviewTab === 'visitor' && extractedVisitorReviews.map((review, i) => (
+                  <p key={i} style={{ fontSize: 12, color: '#374151', margin: 0, lineHeight: 1.5, background: '#f7f6f2', borderRadius: 8, padding: '10px 12px' }}>
+                    {review}
+                  </p>
+                ))}
+                {reviewTab === 'blog' && extractedBlogReviews.map((review, i) => (
+                  <div key={i} style={{ background: '#f7f6f2', borderRadius: 8, padding: '10px 12px' }}>
+                    <p style={{ fontSize: 12, fontWeight: 600, color: '#2b2b2b', margin: '0 0 4px' }}>{review.title}</p>
+                    {review.summary && (
+                      <p style={{ fontSize: 12, color: '#6b7280', margin: 0, lineHeight: 1.5 }}>{review.summary}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={{
         background: '#f7f6f2',

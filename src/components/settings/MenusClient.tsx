@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState, useTransition, type FocusEvent } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { formatKRW } from '@/lib/utils'
+import {
+  clearNaverPlaceMenusForImport,
+  loadNaverPlaceMenusForImport,
+  parseNaverMenuPrice,
+  type NaverPlaceMenuImportItem,
+} from '@/lib/naver-place-import'
 import { getIngredientsOperationData, type IngredientsOperationData } from '@/actions/ingredients'
 import {
   activateMenu,
@@ -335,9 +342,13 @@ export default function MenusClient(props: {
   ingredients: Ingredient[]
   error: string | null
 }) {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [menus, setMenus] = useState<MenuWithCost[]>(props.menus)
   const [inactiveMenus, setInactiveMenus] = useState<MenuWithCost[]>(props.inactiveMenus)
   const [isPending, startTr] = useTransition()
+  const [naverImportMenus, setNaverImportMenus] = useState<NaverPlaceMenuImportItem[]>([])
+  const [naverImportMessage, setNaverImportMessage] = useState<string | null>(null)
 
   const [query, setQuery] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -376,6 +387,50 @@ export default function MenusClient(props: {
   useEffect(() => {
     void refreshOperationData()
   }, [refreshOperationData])
+
+  useEffect(() => {
+    if (searchParams.get('import') !== 'naver') return
+    const loaded = loadNaverPlaceMenusForImport()
+    if (loaded?.length) setNaverImportMenus(loaded)
+  }, [searchParams])
+
+  function handleNaverImportRegister() {
+    if (naverImportMenus.length === 0) return
+
+    startTr(async () => {
+      let created = 0
+      let skipped = 0
+      const existingNames = new Set(menus.map(m => m.name.trim()))
+
+      for (const item of naverImportMenus) {
+        const name = item.name.trim()
+        if (!name || existingNames.has(name)) {
+          skipped += 1
+          continue
+        }
+
+        const res = await createMenu({
+          name,
+          price: parseNaverMenuPrice(item.price),
+        })
+        if (res.success) {
+          created += 1
+          existingNames.add(name)
+        } else {
+          skipped += 1
+        }
+      }
+
+      clearNaverPlaceMenusForImport()
+      setNaverImportMenus([])
+      setNaverImportMessage(
+        created > 0
+          ? `네이버 플레이스 메뉴 ${created}개를 등록했습니다${skipped > 0 ? ` (${skipped}개 건너뜀)` : ''}.`
+          : '등록할 새 메뉴가 없습니다.',
+      )
+      if (created > 0) router.refresh()
+    })
+  }
 
   const categories = useMemo(() => {
     const set = new Set<string>()
@@ -1148,6 +1203,58 @@ export default function MenusClient(props: {
         .menu-restore-btn:hover:not(:disabled) { opacity: 0.8; }
       `}</style>
       <main style={{ maxWidth: 520, margin: '0 auto', padding: '20px 16px 80px', background: '#f7f6f2', minHeight: '100vh', boxSizing: 'border-box' }}>
+        {naverImportMenus.length > 0 && (
+          <div style={{
+            background: '#fff7ed',
+            border: '1px solid #fed7aa',
+            borderRadius: 12,
+            padding: '14px 16px',
+            marginBottom: 16,
+          }}>
+            <p style={{ fontSize: 13, fontWeight: 600, color: '#9a3412', margin: '0 0 4px' }}>
+              네이버 플레이스에서 수집한 메뉴 {naverImportMenus.length}개
+            </p>
+            <p style={{ fontSize: 12, color: '#c2410c', margin: '0 0 12px', lineHeight: 1.4 }}>
+              {naverImportMenus.slice(0, 4).map(m => m.name).join(', ')}
+              {naverImportMenus.length > 4 ? ' …' : ''}
+            </p>
+            <button
+              type="button"
+              onClick={handleNaverImportRegister}
+              disabled={isPending}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                background: '#F97316',
+                color: '#fff',
+                border: 'none',
+                borderRadius: 10,
+                fontSize: 13,
+                fontWeight: 600,
+                cursor: isPending ? 'not-allowed' : 'pointer',
+                fontFamily: 'inherit',
+                opacity: isPending ? 0.7 : 1,
+              }}
+            >
+              {isPending ? '등록 중…' : '메뉴 자동 등록'}
+            </button>
+          </div>
+        )}
+
+        {naverImportMessage && (
+          <div style={{
+            background: '#f0fdf4',
+            border: '1px solid #bbf7d0',
+            borderRadius: 10,
+            padding: '10px 14px',
+            marginBottom: 16,
+            fontSize: 12,
+            color: '#166534',
+          }}>
+            {naverImportMessage}
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <Link href="/settings" style={{ fontSize: 13, color: '#1f5d3a', fontWeight: 500, textDecoration: 'none' }}>← 설정</Link>
 
