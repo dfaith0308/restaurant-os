@@ -37,6 +37,7 @@ export default function BuyProductDetailClient({
   detailTemplate,
 }: Props) {
   const [qty, setQty] = useState(1)
+  const [selectedOption, setSelectedOption] = useState<'single' | 'free' | 'bulk'>('single')
   const [showIngredients, setShowIngredients] = useState(false)
   const [showCartPopup, setShowCartPopup] = useState(false)
   const popupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -61,6 +62,22 @@ export default function BuyProductDetailClient({
     : null
   const bulkTotal = bulkPrice && bulkQty ? bulkPrice * bulkQty : null
   const bulkSaving = bulkPrice && bulkQty ? (price - bulkPrice) * bulkQty : null
+
+  function syncOptionFromQty(nextQty: number) {
+    if (bulkQty && bulkDiscountRate && nextQty >= bulkQty) {
+      setSelectedOption('bulk')
+    } else if (freeShippingQty && nextQty >= freeShippingQty) {
+      setSelectedOption('free')
+    } else {
+      setSelectedOption('single')
+    }
+  }
+
+  function applyQty(nextQty: number) {
+    const q = Math.max(1, nextQty)
+    setQty(q)
+    syncOptionFromQty(q)
+  }
 
   return (
     <div style={{ background: '#f7f6f2', minHeight: '100vh', paddingBottom: `calc(${BOTTOM_NAV_HEIGHT_PX}px + 88px + env(safe-area-inset-bottom))`, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
@@ -130,13 +147,16 @@ export default function BuyProductDetailClient({
         <div
           role="button"
           tabIndex={0}
-          onClick={() => setQty(1)}
-          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setQty(1) }}
-          style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 16px', marginBottom: 8, background: '#fff', cursor: 'pointer' }}
+          onClick={() => { setQty(1); setSelectedOption('single') }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setQty(1); setSelectedOption('single') } }}
+          style={{ position: 'relative', border: selectedOption === 'single' ? '2px solid #1a1a1a' : '1px solid #e5e7eb', borderRadius: 10, padding: '14px 16px', marginBottom: 8, background: '#fff', cursor: 'pointer' }}
         >
+          {selectedOption === 'single' && (
+            <span style={{ position: 'absolute', top: 12, right: 16, fontSize: 12, color: '#1a1a1a', fontWeight: 700 }}>✓ 선택됨</span>
+          )}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
             <span style={{ fontSize: 13, fontWeight: 500, color: '#1a1a1a' }}>낱개 구매</span>
-            <span style={{ fontSize: 16, fontWeight: 500, color: '#1a1a1a' }}>{price.toLocaleString()}원</span>
+            <span style={{ fontSize: 16, fontWeight: 500, color: '#1a1a1a', paddingRight: selectedOption === 'single' ? 56 : 0 }}>{price.toLocaleString()}원</span>
           </div>
           <p style={{ fontSize: 12, color: '#9ca3af', margin: 0 }}>배송비 {baseShippingFee.toLocaleString()}원 별도</p>
         </div>
@@ -145,16 +165,19 @@ export default function BuyProductDetailClient({
           <div
             role="button"
             tabIndex={0}
-            onClick={() => setQty(freeShippingQty)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setQty(freeShippingQty) }}
-            style={{ border: '2px solid #52B788', borderRadius: 10, padding: '14px 16px', marginBottom: 8, background: '#f0f7f3', cursor: 'pointer' }}
+            onClick={() => { setQty(freeShippingQty); setSelectedOption('free') }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setQty(freeShippingQty); setSelectedOption('free') } }}
+            style={{ position: 'relative', border: selectedOption === 'free' ? '2px solid #1f5d3a' : '2px solid #e5e7eb', borderRadius: 10, padding: '14px 16px', marginBottom: 8, background: selectedOption === 'free' ? '#f0f7f3' : '#fff', cursor: 'pointer' }}
           >
+            {selectedOption === 'free' && (
+              <span style={{ position: 'absolute', top: 12, right: 16, fontSize: 12, color: '#1f5d3a', fontWeight: 700 }}>✓ 선택됨</span>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 13, fontWeight: 500, color: '#1f5d3a' }}>{freeShippingQty}개 이상 구매</span>
                 <span style={{ fontSize: 11, background: '#1f5d3a', color: '#fff', padding: '2px 7px', borderRadius: 20 }}>무료배송</span>
               </div>
-              <span style={{ fontSize: 16, fontWeight: 500, color: '#1f5d3a' }}>{(price * freeShippingQty).toLocaleString()}원~</span>
+              <span style={{ fontSize: 16, fontWeight: 500, color: '#1f5d3a', paddingRight: selectedOption === 'free' ? 56 : 0 }}>{(price * freeShippingQty).toLocaleString()}원~</span>
             </div>
             <p style={{ fontSize: 12, color: '#52B788', margin: 0 }}>배송비 {baseShippingFee.toLocaleString()}원 절약</p>
           </div>
@@ -164,16 +187,19 @@ export default function BuyProductDetailClient({
           <div
             role="button"
             tabIndex={0}
-            onClick={() => setQty(bulkQty)}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setQty(bulkQty) }}
-            style={{ border: '2px solid #E8701C', borderRadius: 10, padding: '14px 16px', background: '#fff8f5', cursor: 'pointer' }}
+            onClick={() => { setQty(bulkQty); setSelectedOption('bulk') }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { setQty(bulkQty); setSelectedOption('bulk') } }}
+            style={{ position: 'relative', border: selectedOption === 'bulk' ? '2px solid #E8701C' : '2px solid #e5e7eb', borderRadius: 10, padding: '14px 16px', background: selectedOption === 'bulk' ? '#fff8f5' : '#fff', cursor: 'pointer' }}
           >
+            {selectedOption === 'bulk' && (
+              <span style={{ position: 'absolute', top: 12, right: 16, fontSize: 12, color: '#E8701C', fontWeight: 700 }}>✓ 선택됨</span>
+            )}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 13, fontWeight: 500, color: '#E8701C' }}>{bulkQty}개 이상 구매</span>
                 <span style={{ fontSize: 11, background: '#E8701C', color: '#fff', padding: '2px 7px', borderRadius: 20 }}>{bulkDiscountRate}% 할인</span>
               </div>
-              <span style={{ fontSize: 16, fontWeight: 500, color: '#E8701C' }}>{Math.round(bulkTotal).toLocaleString()}원~</span>
+              <span style={{ fontSize: 16, fontWeight: 500, color: '#E8701C', paddingRight: selectedOption === 'bulk' ? 56 : 0 }}>{Math.round(bulkTotal).toLocaleString()}원~</span>
             </div>
             <p style={{ fontSize: 12, color: '#E8701C', margin: 0 }}>
               정가 대비 {Math.round(bulkSaving).toLocaleString()}원 절약 + 무료배송
@@ -201,7 +227,7 @@ export default function BuyProductDetailClient({
           <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
             <button
               type="button"
-              onClick={() => setQty((q) => Math.max(1, q - 1))}
+              onClick={() => applyQty(qty - 1)}
               style={{ width: 36, height: 44, background: '#f7f6f2', border: 'none', fontSize: 18, cursor: 'pointer', color: '#374151', fontFamily: 'inherit' }}
             >
               −
@@ -209,7 +235,7 @@ export default function BuyProductDetailClient({
             <span style={{ width: 44, textAlign: 'center', fontSize: 15, fontWeight: 500 }}>{qty}</span>
             <button
               type="button"
-              onClick={() => setQty((q) => q + 1)}
+              onClick={() => applyQty(qty + 1)}
               style={{ width: 36, height: 44, background: '#f7f6f2', border: 'none', fontSize: 18, cursor: 'pointer', color: '#374151', fontFamily: 'inherit' }}
             >
               +
