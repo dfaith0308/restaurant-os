@@ -23,7 +23,6 @@ function parseWeightGrams(spec?: string | null): number | null {
 
 export default function ProductDetailTemplate({
   productName,
-  brandName,
   spec,
   aiStrengths,
   aiUsage,
@@ -63,7 +62,6 @@ export default function ProductDetailTemplate({
         }}
       >
         <p style={{ fontSize: 20, fontWeight: 500, color: '#fff', margin: 0 }}>
-          {brandName ? `${brandName} ` : ''}
           {productName}
         </p>
         {spec && (
