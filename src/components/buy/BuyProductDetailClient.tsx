@@ -3,6 +3,7 @@
 import { useState, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import CartAddButton from '@/components/buy/CartAddButton'
+import { BOTTOM_NAV_HEIGHT_PX, fixedStripeAboveBottomNav } from '@/lib/app-shell'
 
 interface Props {
   listingId: string
@@ -62,7 +63,7 @@ export default function BuyProductDetailClient({
   const bulkSaving = bulkPrice && bulkQty ? (price - bulkPrice) * bulkQty : null
 
   return (
-    <div style={{ background: '#f7f6f2', minHeight: '100vh', paddingBottom: 'calc(100px + env(safe-area-inset-bottom))', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+    <div style={{ background: '#f7f6f2', minHeight: '100vh', paddingBottom: `calc(${BOTTOM_NAV_HEIGHT_PX}px + 88px + env(safe-area-inset-bottom))`, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
 
       <div style={{ position: 'sticky', top: 0, zIndex: 20, background: '#f7f6f2', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #ece9e3' }}>
         <Link href="/buy" style={{ fontSize: 22, color: '#2b2b2b', textDecoration: 'none', lineHeight: 1 }}>←</Link>
@@ -126,7 +127,13 @@ export default function BuyProductDetailClient({
       <div style={{ background: '#fff', padding: '16px', marginBottom: 8 }}>
         <p style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', margin: '0 0 12px', letterSpacing: '.06em' }}>구매 옵션</p>
 
-        <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 16px', marginBottom: 8, background: '#fff' }}>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => setQty(1)}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setQty(1) }}
+          style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: '14px 16px', marginBottom: 8, background: '#fff', cursor: 'pointer' }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
             <span style={{ fontSize: 13, fontWeight: 500, color: '#1a1a1a' }}>낱개 구매</span>
             <span style={{ fontSize: 16, fontWeight: 500, color: '#1a1a1a' }}>{price.toLocaleString()}원</span>
@@ -135,7 +142,13 @@ export default function BuyProductDetailClient({
         </div>
 
         {freeShippingQty ? (
-          <div style={{ border: '2px solid #52B788', borderRadius: 10, padding: '14px 16px', marginBottom: 8, background: '#f0f7f3' }}>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setQty(freeShippingQty)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setQty(freeShippingQty) }}
+            style={{ border: '2px solid #52B788', borderRadius: 10, padding: '14px 16px', marginBottom: 8, background: '#f0f7f3', cursor: 'pointer' }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 13, fontWeight: 500, color: '#1f5d3a' }}>{freeShippingQty}개 이상 구매</span>
@@ -148,7 +161,13 @@ export default function BuyProductDetailClient({
         ) : null}
 
         {bulkQty && bulkDiscountRate && bulkTotal != null && bulkSaving != null ? (
-          <div style={{ border: '2px solid #E8701C', borderRadius: 10, padding: '14px 16px', background: '#fff8f5' }}>
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => setQty(bulkQty)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') setQty(bulkQty) }}
+            style={{ border: '2px solid #E8701C', borderRadius: 10, padding: '14px 16px', background: '#fff8f5', cursor: 'pointer' }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 13, fontWeight: 500, color: '#E8701C' }}>{bulkQty}개 이상 구매</span>
@@ -169,9 +188,17 @@ export default function BuyProductDetailClient({
         <Link href="/rfq/new" style={{ fontSize: 13, color: '#9ca3af', textDecoration: 'underline' }}>원하는 상품이 없으신가요? 발주요청하기</Link>
       </div>
 
-      <div style={{ position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 480, padding: '12px 16px', paddingBottom: 'calc(12px + env(safe-area-inset-bottom))', background: '#fff', borderTop: '1px solid #ece9e3', boxSizing: 'border-box', zIndex: 10 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+      <div
+        style={fixedStripeAboveBottomNav({
+          background: '#fff',
+          borderTop: '1px solid #ece9e3',
+          boxShadow: '0 -2px 10px rgba(0,0,0,0.06)',
+          padding: '12px 16px calc(12px + env(safe-area-inset-bottom, 0px))',
+          boxSizing: 'border-box',
+        })}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden', flexShrink: 0 }}>
             <button
               type="button"
               onClick={() => setQty((q) => Math.max(1, q - 1))}
@@ -188,13 +215,14 @@ export default function BuyProductDetailClient({
               +
             </button>
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <CartAddButton
               listingId={listingId}
               quantity={qty}
               label={`장바구니 담기 · ${subtotal.toLocaleString()}원`}
               primary
               fullWidth
+              listingCard
               onSuccess={handleCartSuccess}
             />
           </div>
@@ -202,7 +230,7 @@ export default function BuyProductDetailClient({
       </div>
 
       {showCartPopup && (
-        <div style={{ position: 'fixed', bottom: 'calc(76px + env(safe-area-inset-bottom))', left: '50%', transform: 'translateX(-50%)', width: 'calc(100% - 32px)', maxWidth: 448, background: '#1f5d3a', borderRadius: 14, padding: '16px 20px', zIndex: 20, boxShadow: '0 8px 24px rgba(0,0,0,0.18)' }}>
+        <div style={{ position: 'fixed', bottom: `calc(${BOTTOM_NAV_HEIGHT_PX}px + 80px + env(safe-area-inset-bottom))`, left: '50%', transform: 'translateX(-50%)', width: 'calc(100% - 32px)', maxWidth: 448, background: '#1f5d3a', borderRadius: 14, padding: '16px 20px', zIndex: 45, boxShadow: '0 8px 24px rgba(0,0,0,0.18)' }}>
           <p style={{ fontSize: 14, fontWeight: 700, color: '#fff', margin: '0 0 12px' }}>✓ 장바구니에 담겼습니다</p>
           <div style={{ display: 'flex', gap: 8 }}>
             <Link href="/buy/cart" style={{ flex: 1, padding: '10px 0', borderRadius: 8, background: '#fff', color: '#1f5d3a', fontSize: 13, fontWeight: 700, textAlign: 'center', textDecoration: 'none', display: 'block' }}>장바구니 보기</Link>
