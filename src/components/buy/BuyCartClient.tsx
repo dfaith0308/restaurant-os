@@ -1,6 +1,6 @@
 'use client'
 
-import { useTransition, useState } from 'react'
+import { useEffect, useRef, useTransition, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { removeFromCart, updateCartItemQuantity } from '@/actions/buy'
@@ -15,6 +15,10 @@ const card = {
   padding: 12,
 } as const
 
+function qtyMapFromItems(items: CartRow[]): Record<string, number> {
+  return Object.fromEntries(items.map((i) => [i.id, i.quantity]))
+}
+
 export default function BuyCartClient({
   items,
   discountAmount = 0,
@@ -27,8 +31,24 @@ export default function BuyCartClient({
   const router = useRouter()
   const [pending, start] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [qtyById, setQtyById] = useState<Record<string, number>>(() => qtyMapFromItems(items))
+  const debounceRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
-  const subtotal = items.reduce((s, it) => s + it.commerce_price * it.quantity, 0)
+  useEffect(() => {
+    setQtyById(qtyMapFromItems(items))
+  }, [items])
+
+  useEffect(() => {
+    const timers = debounceRefs.current
+    return () => {
+      Object.values(timers).forEach(clearTimeout)
+    }
+  }, [])
+
+  const subtotal = items.reduce(
+    (s, it) => s + it.commerce_price * (qtyById[it.id] ?? it.quantity),
+    0,
+  )
   const total = subtotal - discountAmount
 
   if (items.length === 0) {
@@ -54,17 +74,23 @@ export default function BuyCartClient({
     )
   }
 
-  function setQty(id: string, next: number) {
-    if (next < 1) return
+  function handleQtyChange(id: string, newQty: number) {
+    if (newQty < 1 || newQty > 999) return
+    const originalQty = items.find((i) => i.id === id)?.quantity ?? newQty
+
     setError(null)
-    start(async () => {
-      const r = await updateCartItemQuantity(id, next)
+    setQtyById((prev) => ({ ...prev, [id]: newQty }))
+
+    clearTimeout(debounceRefs.current[id])
+    debounceRefs.current[id] = setTimeout(async () => {
+      const r = await updateCartItemQuantity(id, newQty)
       if (!r.success) {
         setError(r.error ?? '수량 변경 실패')
+        setQtyById((prev) => ({ ...prev, [id]: originalQty }))
         return
       }
       router.refresh()
-    })
+    }, 500)
   }
 
   return (
@@ -73,7 +99,8 @@ export default function BuyCartClient({
 
       <ul style={{ listStyle: 'none', margin: 0, padding: 0, paddingBottom: 140, display: 'flex', flexDirection: 'column', gap: 12 }}>
         {items.map((it) => {
-          const sub = it.commerce_price * it.quantity
+          const localQty = qtyById[it.id] ?? it.quantity
+          const lineSub = it.commerce_price * localQty
           return (
             <li key={it.id} style={{ ...card }}>
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
@@ -113,8 +140,8 @@ export default function BuyCartClient({
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <button
                         type="button"
-                        disabled={pending || it.quantity <= 1}
-                        onClick={() => setQty(it.id, it.quantity - 1)}
+                        disabled={localQty <= 1}
+                        onClick={() => handleQtyChange(it.id, localQty - 1)}
                         aria-label="수량 감소"
                         style={{
                           width: 32,
@@ -124,17 +151,43 @@ export default function BuyCartClient({
                           background: '#fff',
                           fontSize: 18,
                           lineHeight: 1,
-                          cursor: it.quantity <= 1 || pending ? 'not-allowed' : 'pointer',
-                          opacity: it.quantity <= 1 ? 0.4 : 1,
+                          cursor: localQty <= 1 ? 'not-allowed' : 'pointer',
+                          opacity: localQty <= 1 ? 0.4 : 1,
+                          fontFamily: 'inherit',
                         }}
                       >
                         −
                       </button>
-                      <span style={{ fontSize: 15, fontWeight: 700, minWidth: 24, textAlign: 'center' }}>{it.quantity}</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={999}
+                        value={localQty}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value, 10)
+                          if (!isNaN(val) && val >= 1) handleQtyChange(it.id, val)
+                        }}
+                        onBlur={(e) => {
+                          const val = parseInt(e.target.value, 10)
+                          if (isNaN(val) || val < 1) handleQtyChange(it.id, 1)
+                        }}
+                        aria-label="수량"
+                        style={{
+                          width: 48,
+                          textAlign: 'center',
+                          fontSize: 15,
+                          fontWeight: 500,
+                          border: '1px solid #e5e7eb',
+                          borderRadius: 6,
+                          padding: '4px 0',
+                          fontFamily: 'inherit',
+                          MozAppearance: 'textfield',
+                        }}
+                      />
                       <button
                         type="button"
-                        disabled={pending || it.quantity >= 999}
-                        onClick={() => setQty(it.id, it.quantity + 1)}
+                        disabled={localQty >= 999}
+                        onClick={() => handleQtyChange(it.id, localQty + 1)}
                         aria-label="수량 증가"
                         style={{
                           width: 32,
@@ -144,18 +197,22 @@ export default function BuyCartClient({
                           background: '#fff',
                           fontSize: 18,
                           lineHeight: 1,
-                          cursor: pending ? 'wait' : 'pointer',
+                          cursor: localQty >= 999 ? 'not-allowed' : 'pointer',
+                          fontFamily: 'inherit',
                         }}
                       >
                         +
                       </button>
                     </div>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>{formatKRW(sub)}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text)' }}>
+                      {lineSub.toLocaleString()}원
+                    </div>
                   </div>
                   <button
                     type="button"
                     disabled={pending}
                     onClick={() => {
+                      clearTimeout(debounceRefs.current[it.id])
                       setError(null)
                       start(async () => {
                         const r = await removeFromCart(it.id)
