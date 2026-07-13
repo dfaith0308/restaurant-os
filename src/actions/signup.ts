@@ -172,7 +172,7 @@ export async function signupAction(input: SignupInput): Promise<ActionResult> {
     .insert({
       name: storeName,
       role: 'restaurant',
-      is_approved: false,
+      is_approved: true,
       business_type: input.businessType,
       business_number: cleanedBn.length === 10 ? cleanedBn : null,
       representative_name: representativeName,

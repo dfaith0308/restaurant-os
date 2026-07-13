@@ -45,7 +45,7 @@ export default function OnboardingPage() {
       // 1. tenants 생성 (realmyos DB 단일화 구조)
       const { data: tenant, error: tErr } = await supabase
         .from('tenants')
-        .insert({ name: restaurantName.trim(), role: 'restaurant', region: region.trim() || null, is_approved: false })
+        .insert({ name: restaurantName.trim(), role: 'restaurant', region: region.trim() || null, is_approved: true })
         .select('id').single()
 
       if (tErr || !tenant) { setError('매장 등록 실패: ' + tErr?.message); return }

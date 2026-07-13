@@ -398,7 +398,7 @@ export default function LoginPage() {
         return
       }
 
-      setDone(true)
+      router.replace('/today')
       return
     }
 
@@ -467,8 +467,8 @@ export default function LoginPage() {
             가입 완료
           </div>
           <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.7, margin: '0 0 24px' }}>
-            담당자 승인 후 사용할 수 있습니다.<br />
-            로그인 후 승인을 기다려주세요.
+            가입이 완료되었습니다.<br />
+            로그인하여 서비스를 이용해주세요.
           </p>
           <button
             type="button"
