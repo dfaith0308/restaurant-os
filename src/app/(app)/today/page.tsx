@@ -14,7 +14,6 @@ import {
 import { getOrdersOperationSlice } from '@/actions/orders'
 import { getIngredientsOperationData, probeTodayOnboardingSignals } from '@/actions/ingredients'
 import { formatKRW } from '@/lib/utils'
-import { KAKAO_CHANNEL_URL } from '@/lib/constants'
 import type { Order, SavingOpportunity, TodayDashboard } from '@/types'
 import { getTenantId } from '@/lib/get-restaurant'
 import { TodayOperationInsights } from '@/components/today/TodayOperationInsights'
@@ -24,8 +23,7 @@ import TodaySupplierInsights from '@/components/today/TodaySupplierInsights'
 import SupplierRiskSection from '@/components/today/SupplierRiskSection'
 import TodayMainOperationFeed from '@/components/today/TodayMainOperationFeed'
 import TodayActionPriorityCard from '@/components/today/TodayActionPriorityCard'
-
-const BRAND_GREEN = '#1f5d3a'
+import KakaoInputRequest from '@/components/common/KakaoInputRequest'
 
 export default async function TodayPage() {
   const tenant_id = await getTenantId()
@@ -78,90 +76,62 @@ export default async function TodayPage() {
 
   if (isNewUser) {
     return (
-      <main
-        style={{
-          maxWidth: 480,
-          margin: '0 auto',
-          minHeight: 'calc(100vh - 64px)',
-          display: 'flex',
-          flexDirection: 'column',
-          padding: '0 0 96px',
-        }}
-      >
-        {subscribeBanner ? (
-          <div
-            style={{
-              position: 'sticky',
-              top: 0,
-              zIndex: 10,
-              padding: '12px 16px 0',
-              background: '#fff',
-            }}
-          >
-            {subscribeBanner}
-          </div>
-        ) : null}
-
-        <div style={{ flex: 1, padding: '20px 16px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <Link
-            href="/buy"
-            style={{
-              display: 'block',
-              padding: '24px 20px',
-              background: BRAND_GREEN,
-              borderRadius: 16,
-              textDecoration: 'none',
-              boxShadow: '0 4px 14px rgba(31, 93, 58, 0.22)',
-            }}
-          >
-            <p style={{ fontSize: 18, fontWeight: 800, color: '#fff', margin: '0 0 6px' }}>🛒 식자재 구매하기</p>
-            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.85)', margin: 0, lineHeight: 1.5 }}>
-              첫 구매 후 원가 분석이 시작됩니다
-            </p>
-          </Link>
-
-          <Link
-            href="/rfq"
-            style={{
-              display: 'block',
-              padding: '18px 20px',
-              background: '#fff',
-              border: '1px solid #e5e7eb',
-              borderRadius: 14,
-              textDecoration: 'none',
-            }}
-          >
-            <p style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>📋 발주 요청하기</p>
-            <p style={{ fontSize: 12, color: '#6b7280', margin: 0, lineHeight: 1.5 }}>
-              기존 거래처 발주를 앱으로 통합하세요
-            </p>
-          </Link>
+      <main style={{ maxWidth: 480, margin: '0 auto', padding: '32px 20px 96px', textAlign: 'center' }}>
+        <div style={{ textAlign: 'left' }}>
+          {subscribeBanner}
+          <KakaoInputRequest />
+        </div>
+        <div style={{ marginBottom: 32 }}>
+          <p style={{ fontSize: 28, margin: '0 0 12px' }}>👋</p>
+          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px' }}>
+            환영합니다, 사장님
+          </h1>
+          <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.6, margin: 0 }}>
+            식식이OS에서 식자재를 구매하면<br />
+            원가와 수익이 자동으로 계산됩니다
+          </p>
         </div>
 
-        <div style={{ padding: '28px 16px 8px', textAlign: 'center' }}>
-          <p style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.6, margin: '0 0 12px' }}>
-            전표 사진 보내시면 원가가 자동으로 잡힙니다
-          </p>
-          <a
-            href={KAKAO_CHANNEL_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 6,
-              padding: '10px 16px',
-              borderRadius: 10,
-              background: '#f0f7f3',
-              border: `1px solid ${BRAND_GREEN}33`,
-              color: BRAND_GREEN,
-              fontSize: 13,
-              fontWeight: 700,
-              textDecoration: 'none',
-            }}
-          >
-            💬 카카오톡 채널 문의
-          </a>
+        <Link
+          href="/buy"
+          style={{
+            display: 'block',
+            padding: '18px 20px',
+            background: '#1f5d3a',
+            borderRadius: 14,
+            textDecoration: 'none',
+            marginBottom: 12,
+          }}
+        >
+          <p style={{ fontSize: 16, fontWeight: 800, color: '#fff', margin: '0 0 4px' }}>🛒 식자재 구매하기</p>
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', margin: 0 }}>첫 구매 후 원가 분석이 시작됩니다</p>
+        </Link>
+
+        <Link
+          href="/rfq"
+          style={{
+            display: 'block',
+            padding: '16px 20px',
+            background: '#fff',
+            border: '1px solid #e5e7eb',
+            borderRadius: 14,
+            textDecoration: 'none',
+            marginBottom: 12,
+          }}
+        >
+          <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>📋 발주 요청하기</p>
+          <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>기존 거래처 발주를 앱으로 통합하세요</p>
+        </Link>
+
+        <div style={{ marginTop: 32, padding: '16px 20px', background: '#f0f7f3', borderRadius: 12 }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: '#1f5d3a', margin: '0 0 10px' }}>식식이OS 혜택</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {['2종류 이상 구매 시 장바구니 자동 할인', '무료배송 기준 수량 안내', '원가 자동 계산 · 메뉴 수익성 분석'].map((t) => (
+              <p key={t} style={{ fontSize: 12, color: '#374151', margin: 0, textAlign: 'left' }}>
+                ✓ {t}
+              </p>
+            ))}
+          </div>
         </div>
       </main>
     )
