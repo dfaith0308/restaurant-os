@@ -14,6 +14,8 @@ import {
 import { getOrdersOperationSlice } from '@/actions/orders'
 import { getIngredientsOperationData, probeTodayOnboardingSignals } from '@/actions/ingredients'
 import { formatKRW } from '@/lib/utils'
+import { KAKAO_CHANNEL_URL } from '@/lib/constants'
+import { createServerClient } from '@/lib/supabase-server'
 import type { Order, SavingOpportunity, TodayDashboard } from '@/types'
 import { getTenantId } from '@/lib/get-restaurant'
 import { TodayOperationInsights } from '@/components/today/TodayOperationInsights'
@@ -23,7 +25,29 @@ import TodaySupplierInsights from '@/components/today/TodaySupplierInsights'
 import SupplierRiskSection from '@/components/today/SupplierRiskSection'
 import TodayMainOperationFeed from '@/components/today/TodayMainOperationFeed'
 import TodayActionPriorityCard from '@/components/today/TodayActionPriorityCard'
-import KakaoInputRequest from '@/components/common/KakaoInputRequest'
+
+const BRAND_GREEN = '#1f5d3a'
+const PAGE_BG = '#f7f6f2'
+const TEXT_CHARCOAL = '#2b2b2b'
+const BORDER_LIGHT = '#e2e1dc'
+const KAKAO_YELLOW = '#FEE500'
+
+async function getTenantGreetingName(tenantId: string): Promise<string> {
+  const supabase = await createServerClient()
+  const { data } = await supabase
+    .from('tenants')
+    .select('name, representative_name')
+    .eq('id', tenantId)
+    .maybeSingle()
+
+  const storeName = data?.name?.trim()
+  if (storeName) return storeName
+
+  const repName = data?.representative_name?.trim()
+  if (repName) return repName
+
+  return ''
+}
 
 export default async function TodayPage() {
   const tenant_id = await getTenantId()
@@ -45,6 +69,7 @@ export default async function TodayPage() {
     orderProbeRes.success && orderProbeRes.data ? orderProbeRes.data : []
   const ingOpEmpty = !onboardingProbe.hasIngredientOperationMeta
   const isNewUser = orderProbe.length === 0 && ingOpEmpty
+  const greetingName = isNewUser ? await getTenantGreetingName(tenant_id) : ''
 
   const subscribeBanner = !isSubscriber ? (
     <Link
@@ -53,84 +78,98 @@ export default async function TodayPage() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        gap: 12,
         padding: '14px 16px',
-        background: '#1f5d3a',
-        borderRadius: 12,
+        background: BRAND_GREEN,
         textDecoration: 'none',
-        marginBottom: 12,
       }}
     >
       <div>
-        <p style={{ fontSize: 13, fontWeight: 800, color: '#fff', margin: '0 0 2px' }}>
-          🎁 얼리버드 선착순 100명 · 월 9,900원
+        <p style={{ fontSize: 13, fontWeight: 700, color: '#fff', margin: '0 0 2px' }}>
+          얼리버드 선착순 100명 · 월 9,900원
         </p>
         <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.75)', margin: 0 }}>
           지금 구독하고 장바구니 할인 혜택 받으세요
         </p>
       </div>
-      <span style={{ fontSize: 14, color: '#fff', fontWeight: 700, flexShrink: 0 }}>
+      <span
+        style={{
+          flexShrink: 0,
+          padding: '8px 12px',
+          borderRadius: 8,
+          background: '#fff',
+          color: BRAND_GREEN,
+          fontSize: 13,
+          fontWeight: 700,
+        }}
+      >
         구독하기 →
       </span>
     </Link>
   ) : null
 
   if (isNewUser) {
+    const welcomeTitle = greetingName
+      ? `${greetingName} 대표님, 환영합니다.`
+      : '사장님, 환영합니다.'
+
     return (
-      <main style={{ maxWidth: 480, margin: '0 auto', padding: '32px 20px 96px', textAlign: 'center' }}>
-        <div style={{ textAlign: 'left' }}>
-          {subscribeBanner}
-          <KakaoInputRequest />
-        </div>
-        <div style={{ marginBottom: 32 }}>
-          <p style={{ fontSize: 28, margin: '0 0 12px' }}>👋</p>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px' }}>
-            환영합니다, 사장님
-          </h1>
-          <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.6, margin: 0 }}>
-            식식이OS에서 식자재를 구매하면<br />
-            원가와 수익이 자동으로 계산됩니다
+      <main
+        style={{
+          maxWidth: 480,
+          margin: '0 auto',
+          minHeight: 'calc(100vh - 64px)',
+          background: PAGE_BG,
+          padding: '0 0 96px',
+        }}
+      >
+        {subscribeBanner ? (
+          <div style={{ position: 'sticky', top: 0, zIndex: 10, background: PAGE_BG }}>
+            {subscribeBanner}
+          </div>
+        ) : null}
+
+        <div style={{ padding: '20px 16px 0' }}>
+          <p
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              color: BRAND_GREEN,
+              margin: '0 0 8px',
+              letterSpacing: '0.02em',
+            }}
+          >
+            식식이OS
           </p>
-        </div>
+          <h1
+            style={{
+              fontSize: 21,
+              fontWeight: 700,
+              color: TEXT_CHARCOAL,
+              margin: '0 0 8px',
+              lineHeight: 1.35,
+            }}
+          >
+            {welcomeTitle}
+          </h1>
+          <p style={{ fontSize: 13, color: '#888888', margin: '0 0 20px', lineHeight: 1.5 }}>
+            처음이시라면 아래 3가지부터 시작해보세요.
+          </p>
 
-        <Link
-          href="/buy"
-          style={{
-            display: 'block',
-            padding: '18px 20px',
-            background: '#1f5d3a',
-            borderRadius: 14,
-            textDecoration: 'none',
-            marginBottom: 12,
-          }}
-        >
-          <p style={{ fontSize: 16, fontWeight: 800, color: '#fff', margin: '0 0 4px' }}>🛒 식자재 구매하기</p>
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', margin: 0 }}>첫 구매 후 원가 분석이 시작됩니다</p>
-        </Link>
-
-        <Link
-          href="/rfq"
-          style={{
-            display: 'block',
-            padding: '16px 20px',
-            background: '#fff',
-            border: '1px solid #e5e7eb',
-            borderRadius: 14,
-            textDecoration: 'none',
-            marginBottom: 12,
-          }}
-        >
-          <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', margin: '0 0 4px' }}>📋 발주 요청하기</p>
-          <p style={{ fontSize: 12, color: '#6b7280', margin: 0 }}>기존 거래처 발주를 앱으로 통합하세요</p>
-        </Link>
-
-        <div style={{ marginTop: 32, padding: '16px 20px', background: '#f0f7f3', borderRadius: 12 }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: '#1f5d3a', margin: '0 0 10px' }}>식식이OS 혜택</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {['2종류 이상 구매 시 장바구니 자동 할인', '무료배송 기준 수량 안내', '원가 자동 계산 · 메뉴 수익성 분석'].map((t) => (
-              <p key={t} style={{ fontSize: 12, color: '#374151', margin: 0, textAlign: 'left' }}>
-                ✓ {t}
-              </p>
-            ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <ReceiptPhotoCard />
+            <NewUserActionRow
+              href="/buy"
+              icon="🛒"
+              title="식자재 구매하기"
+              description="구독자 전용가로 더 저렴하게"
+            />
+            <NewUserActionRow
+              href="/rfq"
+              icon="📋"
+              title="발주 요청하기"
+              description="원하는 식자재를 찾아드립니다"
+            />
           </div>
         </div>
       </main>
@@ -392,6 +431,139 @@ function TodayCards({ d, moneyTight }: { d: TodayDashboard; moneyTight: boolean 
   }
 
   return <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{cards}</div>
+}
+
+const RECEIPT_CHECKLIST = [
+  '지금 가격이 적정한지',
+  '더 합리적인 거래처가 있는지',
+  '원가 구조가 맞는지',
+] as const
+
+function ReceiptPhotoCard() {
+  return (
+    <div
+      style={{
+        background: '#ffffff',
+        border: `1.5px solid ${BRAND_GREEN}`,
+        borderRadius: 14,
+        padding: 20,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 14 }}>
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 10,
+            background: '#e4efe9',
+            color: BRAND_GREEN,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 20,
+            flexShrink: 0,
+          }}
+          aria-hidden
+        >
+          📄
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 15, fontWeight: 600, color: TEXT_CHARCOAL, margin: '0 0 4px' }}>
+            전표 사진 보내기
+          </p>
+          <p style={{ fontSize: 13, color: '#555555', margin: 0, lineHeight: 1.5 }}>
+            지금 구매하시는 식자재, 전문가가 직접 점검해드립니다
+          </p>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 0 }}>
+        {RECEIPT_CHECKLIST.map((item) => (
+          <div key={item} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ color: BRAND_GREEN, fontSize: 13, fontWeight: 700, flexShrink: 0 }}>✓</span>
+            <p style={{ fontSize: 13, color: '#444444', margin: 0 }}>{item}</p>
+          </div>
+        ))}
+      </div>
+
+      <a
+        href={KAKAO_CHANNEL_URL}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          display: 'block',
+          marginTop: 16,
+          padding: 13,
+          background: KAKAO_YELLOW,
+          color: '#191600',
+          borderRadius: 10,
+          textAlign: 'center',
+          fontSize: 14,
+          fontWeight: 600,
+          textDecoration: 'none',
+        }}
+      >
+        카카오톡으로 보내기
+      </a>
+
+      <p style={{ fontSize: 11, color: '#aaaaaa', textAlign: 'center', margin: '10px 0 0' }}>
+        🛡 확인 후 사진 즉시 삭제
+      </p>
+    </div>
+  )
+}
+
+function NewUserActionRow({
+  href,
+  icon,
+  title,
+  description,
+}: {
+  href: string
+  icon: string
+  title: string
+  description: string
+}) {
+  return (
+    <Link
+      href={href}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 14,
+        padding: 16,
+        background: '#ffffff',
+        border: `0.5px solid ${BORDER_LIGHT}`,
+        borderRadius: 12,
+        textDecoration: 'none',
+      }}
+    >
+      <div
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 10,
+          background: '#f5f5f3',
+          color: '#888888',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 20,
+          flexShrink: 0,
+        }}
+        aria-hidden
+      >
+        {icon}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 14, fontWeight: 600, color: TEXT_CHARCOAL, margin: '0 0 2px' }}>{title}</p>
+        <p style={{ fontSize: 12, color: '#888888', margin: 0 }}>{description}</p>
+      </div>
+      <span style={{ fontSize: 16, color: '#cccccc', flexShrink: 0 }} aria-hidden>
+        →
+      </span>
+    </Link>
+  )
 }
 
 function pickSavingOpportunity(opps: SavingOpportunity[]): SavingOpportunity | null {
