@@ -120,7 +120,7 @@ export default async function TodayPage() {
           margin: '0 auto',
           minHeight: 'calc(100vh - 64px)',
           background: PAGE_BG,
-          padding: '0 0 96px',
+          boxSizing: 'border-box',
         }}
       >
         {subscribeBanner ? (
@@ -129,7 +129,7 @@ export default async function TodayPage() {
           </div>
         ) : null}
 
-        <div style={{ padding: '20px 16px 0' }}>
+        <div style={{ padding: '20px 16px 80px' }}>
           <p
             style={{
               fontSize: 11,
