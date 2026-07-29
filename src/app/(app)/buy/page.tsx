@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { getCart, getListings, getRecentOrderItems, getStoreCategories } from '@/actions/buy'
+import BuyCatalogShell from '@/components/buy/BuyCatalogShell'
 import BuyListingCard from '@/components/buy/BuyListingCard'
 import { fixedStripeAboveBottomNav } from '@/lib/app-shell'
 import { formatKRW } from '@/lib/utils'
@@ -12,27 +13,6 @@ const card = {
   background: '#fff',
   padding: 12,
 } as const
-
-function buyHref(search?: string, catSlug?: string, subCatSlug?: string) {
-  const p = new URLSearchParams()
-  if (search?.trim()) p.set('search', search.trim())
-  if (catSlug && catSlug !== 'all') p.set('cat', catSlug)
-  if (subCatSlug) p.set('subcat', subCatSlug)
-  const q = p.toString()
-  return q ? `/buy?${q}` : '/buy'
-}
-
-const chipRowStyle = {
-  display: 'flex',
-  gap: 8,
-  overflowX: 'auto' as const,
-  paddingBottom: 4,
-  marginLeft: -16,
-  marginRight: -16,
-  paddingLeft: 16,
-  paddingRight: 16,
-  WebkitOverflowScrolling: 'touch' as const,
-}
 
 export default async function BuyHomePage({
   searchParams,
@@ -226,199 +206,75 @@ export default async function BuyHomePage({
         )}
       </section>
 
-      <form action="/buy" method="get" style={{ marginBottom: 12 }}>
-        {catSlug && catSlug !== 'all' ? <input type="hidden" name="cat" value={catSlug} /> : null}
-        {subCatSlug ? <input type="hidden" name="subcat" value={subCatSlug} /> : null}
-        <input
-          name="search"
-          defaultValue={search ?? ''}
-          placeholder="상품명 검색"
-          style={{
-            width: '100%',
-            boxSizing: 'border-box',
-            padding: '12px 14px',
-            borderRadius: 8,
-            border: '1px solid #e5e7eb',
-            fontSize: 14,
-          }}
-        />
-      </form>
-
-      <div
-        style={{
-          ...chipRowStyle,
-          marginBottom: selectedParent && selectedParent.children.length > 0 ? 0 : 20,
-        }}
+      <BuyCatalogShell
+        categories={storeCategories.map((c) => ({
+          id: c.id,
+          name: c.name,
+          slug: c.slug,
+          children: c.children,
+        }))}
+        search={search}
+        catSlug={catSlug}
+        subCatSlug={subCatSlug}
       >
-        <Link
-          href={buyHref(search, 'all')}
-          scroll={false}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            padding: '8px 16px',
-            borderRadius: 20,
-            fontSize: 14,
-            fontWeight: !catSlug || catSlug === 'all' ? 600 : 400,
-            background: !catSlug || catSlug === 'all' ? '#1f5d3a' : 'var(--color-background-primary)',
-            color: !catSlug || catSlug === 'all' ? '#fff' : 'var(--color-text-primary)',
-            border: `1px solid ${!catSlug || catSlug === 'all' ? '#1f5d3a' : 'var(--color-border-default)'}`,
-            textDecoration: 'none',
-            whiteSpace: 'nowrap',
-            flex: '0 0 auto',
-          }}
-        >
-          전체
-        </Link>
+        <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 12px' }}>전체 상품</h2>
 
-        {storeCategories.map((c) => {
-          const isActive = catSlug === c.slug || catSlug === c.id
-          return (
+        {listings.length === 0 ? (
+          <div style={{ ...card, textAlign: 'center', padding: '24px 16px' }}>
+            <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.55, margin: '0 0 16px' }}>
+              아직 구매 가능한 상품이 없습니다
+              <br />
+              원하는 상품을 요청하면 확인 후 등록해드릴게요
+            </p>
             <Link
-              key={c.id}
-              href={buyHref(search, c.slug ?? c.id)}
-              scroll={false}
+              href="/rfq/new"
               style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '8px 16px',
-                borderRadius: 20,
+                display: 'inline-block',
+                padding: '12px 18px',
+                borderRadius: 8,
+                background: 'var(--color-primary)',
+                color: '#fff',
+                textDecoration: 'none',
                 fontSize: 14,
-                fontWeight: isActive ? 600 : 400,
-                background: isActive ? '#1f5d3a' : 'var(--color-background-primary)',
-                color: isActive ? '#fff' : 'var(--color-text-primary)',
-                border: `1px solid ${isActive ? '#1f5d3a' : 'var(--color-border-default)'}`,
-                textDecoration: 'none',
-                whiteSpace: 'nowrap',
-                flex: '0 0 auto',
+                fontWeight: 700,
               }}
             >
-              {c.name}
+              상품 요청하기
             </Link>
-          )
-        })}
-      </div>
-
-      {selectedParent && selectedParent.children.length > 0 ? (
-        <div
-          style={{
-            background: '#f3f7f5',
-            borderRadius: 10,
-            padding: '10px 0',
-            marginBottom: 20,
-            marginLeft: -16,
-            marginRight: -16,
-          }}
-        >
-          <div style={chipRowStyle}>
-            <Link
-              href={buyHref(search, catSlug)}
-              scroll={false}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                padding: '6px 14px',
-                borderRadius: 16,
-                fontSize: 13,
-                fontWeight: !subCatSlug ? 600 : 400,
-                background: !subCatSlug ? '#f0f7f3' : '#fff',
-                color: !subCatSlug ? '#1f5d3a' : '#374151',
-                border: `1px solid ${!subCatSlug ? '#1f5d3a' : '#e5e7eb'}`,
-                textDecoration: 'none',
-                whiteSpace: 'nowrap',
-                flex: '0 0 auto',
-              }}
-            >
-              {selectedParent.name} 전체
-            </Link>
-
-            {selectedParent.children.map((sub) => {
-              const isActive = subCatSlug === sub.slug || subCatSlug === sub.id
-              return (
-                <Link
-                  key={sub.id}
-                  href={buyHref(search, catSlug, sub.slug ?? sub.id)}
-                  scroll={false}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    padding: '6px 14px',
-                    borderRadius: 16,
-                    fontSize: 13,
-                    fontWeight: isActive ? 600 : 400,
-                    background: isActive ? '#f0f7f3' : '#fff',
-                    color: isActive ? '#1f5d3a' : '#374151',
-                    border: `1px solid ${isActive ? '#1f5d3a' : '#e5e7eb'}`,
-                    textDecoration: 'none',
-                    whiteSpace: 'nowrap',
-                    flex: '0 0 auto',
-                  }}
-                >
-                  {sub.name}
-                </Link>
-              )
-            })}
           </div>
-        </div>
-      ) : null}
-
-      <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 12px' }}>전체 상품</h2>
-
-      {listings.length === 0 ? (
-        <div style={{ ...card, textAlign: 'center', padding: '24px 16px' }}>
-          <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.55, margin: '0 0 16px' }}>
-            아직 구매 가능한 상품이 없습니다
-            <br />
-            원하는 상품을 요청하면 확인 후 등록해드릴게요
-          </p>
-          <Link
-            href="/rfq/new"
+        ) : (
+          <ul
             style={{
-              display: 'inline-block',
-              padding: '12px 18px',
-              borderRadius: 8,
-              background: 'var(--color-primary)',
-              color: '#fff',
-              textDecoration: 'none',
-              fontSize: 14,
-              fontWeight: 700,
+              listStyle: 'none',
+              margin: 0,
+              padding: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
             }}
           >
-            상품 요청하기
+            {listings.map((p) => (
+              <li key={p.id}>
+                <BuyListingCard
+                  listingId={p.id}
+                  thumbnailUrl={p.thumbnail_url}
+                  commercePrice={p.commerce_price}
+                  originalPrice={p.original_price}
+                  productName={p.product_name}
+                  spec={p.spec ?? null}
+                  detailHref={`/buy/products/${p.id}`}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div style={{ marginTop: 28, textAlign: 'center' }}>
+          <Link href="/buy/orders" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'underline' }}>
+            구매 내역 보기
           </Link>
         </div>
-      ) : (
-        <ul
-          style={{
-            listStyle: 'none',
-            margin: 0,
-            padding: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 8,
-          }}
-        >
-          {listings.map((p) => (
-            <li key={p.id}>
-              <BuyListingCard
-                listingId={p.id}
-                thumbnailUrl={p.thumbnail_url}
-                commercePrice={p.commerce_price}
-                originalPrice={p.original_price}
-                productName={p.product_name}
-                spec={p.spec ?? null}
-                detailHref={`/buy/products/${p.id}`}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <div style={{ marginTop: 28, textAlign: 'center' }}>
-        <Link href="/buy/orders" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'underline' }}>
-          구매 내역 보기
-        </Link>
-      </div>
+      </BuyCatalogShell>
 
       <div
         style={fixedStripeAboveBottomNav({
