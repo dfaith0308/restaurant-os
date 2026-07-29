@@ -33,7 +33,53 @@ export default function CartAddButton({
   const raw = typeof label === 'string' ? label.trim() : ''
   const buttonLabel = !raw || raw === '닫기' ? '담기' : raw
 
-  const isFullWidth = fullWidth || listingCard
+  if (listingCard) {
+    return (
+      <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+        <button
+          type="button"
+          disabled={pending || disabled}
+          aria-label={buttonLabel}
+          onClick={() => {
+            setErr(null)
+            start(async () => {
+              const r = await addToCart(listingId, quantity)
+              if (!r.success) {
+                setErr(r.error ?? '실패')
+                return
+              }
+              router.refresh()
+              onSuccess?.()
+            })
+          }}
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            border: 'none',
+            background: '#1f5d3a',
+            color: '#fff',
+            fontSize: 22,
+            fontWeight: 500,
+            lineHeight: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: pending || disabled ? 'not-allowed' : 'pointer',
+            opacity: pending ? 0.7 : disabled ? 0.45 : 1,
+            fontFamily: 'inherit',
+            padding: 0,
+            flexShrink: 0,
+          }}
+        >
+          +
+        </button>
+        {err ? <span style={{ fontSize: 10, color: '#b91c1c', maxWidth: 72, textAlign: 'center' }}>{err}</span> : null}
+      </span>
+    )
+  }
+
+  const isFullWidth = fullWidth
 
   return (
     <span
@@ -64,19 +110,15 @@ export default function CartAddButton({
         style={{
           width: isFullWidth ? '100%' : undefined,
           boxSizing: 'border-box',
-          padding: listingCard ? '8px' : compact ? '8px 10px' : '8px 12px',
-          borderRadius: listingCard ? 6 : 8,
+          padding: compact ? '8px 10px' : '8px 12px',
+          borderRadius: 8,
           border: primary ? 'none' : '1px solid var(--color-border)',
-          background: primary ? (listingCard ? '#1f5d3a' : 'var(--color-primary)') : '#fff',
+          background: primary ? 'var(--color-primary)' : '#fff',
           color: primary ? '#fff' : 'var(--color-text)',
-          fontSize: listingCard ? 13 : compact ? 12 : 13,
-          fontWeight: listingCard ? 500 : 700,
-          fontFamily: listingCard ? 'inherit' : undefined,
+          fontSize: compact ? 12 : 13,
+          fontWeight: 700,
           cursor: pending || disabled ? 'not-allowed' : 'pointer',
           opacity: pending ? 0.7 : disabled ? 0.45 : 1,
-          display: listingCard ? 'flex' : undefined,
-          alignItems: listingCard ? 'center' : undefined,
-          justifyContent: listingCard ? 'center' : undefined,
         }}
       >
         {buttonLabel}

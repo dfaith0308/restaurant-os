@@ -13,6 +13,23 @@ type BuyListingCardProps = {
   buyable?: boolean
 }
 
+function PhotoPlaceholderIcon() {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <rect x="3" y="5" width="18" height="14" rx="2" stroke="#c4c4c4" strokeWidth="1.5" />
+      <circle cx="9" cy="10" r="1.75" fill="#c4c4c4" />
+      <path d="M4.5 16.5l4.2-4.2a1 1 0 011.4 0L14 16l2.1-2.1a1 1 0 011.4 0l2 2" stroke="#c4c4c4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export default function BuyListingCard({
   listingId,
   thumbnailUrl,
@@ -26,40 +43,54 @@ export default function BuyListingCard({
 }: BuyListingCardProps) {
   const thumb = thumbnailUrl?.trim()
   const nameLine = [productName?.trim(), spec?.trim()].filter(Boolean).join(' · ')
-  const showSavings =
-    originalPrice != null && originalPrice > commercePrice
+  const showSavings = originalPrice != null && originalPrice > commercePrice
+  const discountRate = showSavings
+    ? Math.max(1, Math.round(((originalPrice! - commercePrice) / originalPrice!) * 100))
+    : 0
 
   const imageArea = (
     <div
       style={{
-        width: 100,
-        minWidth: 100,
-        background: '#fff',
-        borderRight: '1px solid #e5e7eb',
+        position: 'relative',
+        width: 56,
+        height: 56,
+        minWidth: 56,
+        borderRadius: 10,
+        overflow: 'hidden',
+        background: '#f3f4f6',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        flexShrink: 0,
       }}
     >
       {thumb ? (
         <img
           src={thumb}
           alt=""
-          style={{ width: '100%', height: 100, objectFit: 'contain', display: 'block' }}
+          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
         />
       ) : (
-        <div
+        <PhotoPlaceholderIcon />
+      )}
+      {showSavings ? (
+        <span
           style={{
-            width: 100,
-            height: 100,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            position: 'absolute',
+            top: 4,
+            left: 4,
+            background: '#E8701C',
+            color: '#fff',
+            fontSize: 10,
+            fontWeight: 800,
+            lineHeight: 1,
+            padding: '3px 5px',
+            borderRadius: 6,
           }}
         >
-          <span style={{ color: '#ccc', fontSize: 11 }}>이미지 없음</span>
-        </div>
-      )}
+          {discountRate}%
+        </span>
+      ) : null}
     </div>
   )
 
@@ -67,12 +98,14 @@ export default function BuyListingCard({
     <div
       style={{
         display: 'flex',
+        alignItems: 'center',
+        gap: 12,
         borderRadius: 12,
-        overflow: 'hidden',
         border: '1px solid #e5e7eb',
         background: '#fff',
         width: '100%',
         boxSizing: 'border-box',
+        padding: '10px 12px',
       }}
     >
       {detailHref ? (
@@ -83,47 +116,59 @@ export default function BuyListingCard({
         imageArea
       )}
 
-      <div
-        style={{
-          flex: 1,
-          minWidth: 0,
-          background: '#f7f6f2',
-          padding: '12px 14px',
-          display: 'flex',
-          flexDirection: 'column',
-          justifyContent: 'space-between',
-        }}
-      >
-        <div>
-          {nameLine ? (
-            <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 2px', lineHeight: 1.4 }}>
-              {nameLine}
-            </p>
-          ) : null}
-          <p style={{ fontSize: 19, fontWeight: 500, color: '#1a1a1a', margin: '0 0 2px', lineHeight: 1.2 }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {nameLine ? (
+          <p
+            style={{
+              fontSize: 13,
+              color: '#374151',
+              margin: '0 0 4px',
+              lineHeight: 1.35,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {nameLine}
+          </p>
+        ) : null}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
+          <p style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', margin: 0, lineHeight: 1.2 }}>
             {commercePrice.toLocaleString()}원
           </p>
           {showSavings ? (
-            <p style={{ fontSize: 12, color: '#1f5d3a', margin: 0 }}>
-              시중가 대비 {(originalPrice! - commercePrice).toLocaleString()}원 절감
-            </p>
+            <span
+              style={{
+                fontSize: 12,
+                color: '#9ca3af',
+                textDecoration: 'line-through',
+                lineHeight: 1.2,
+              }}
+            >
+              {originalPrice!.toLocaleString()}원
+            </span>
           ) : null}
         </div>
-        {buyable ? (
-          <div style={{ marginTop: 10, width: '100%' }}>
-            <CartAddButton
-              listingId={listingId}
-              quantity={1}
-              label={addLabel}
-              listingCard
-              fullWidth
-              primary
-            />
-          </div>
-        ) : (
-          <p style={{ fontSize: 12, color: '#6b7280', margin: '10px 0 0' }}>현재 담을 수 없음</p>
-        )}
+        {showSavings ? (
+          <p style={{ fontSize: 11, color: '#1f5d3a', margin: '3px 0 0', fontWeight: 600 }}>
+            {(originalPrice! - commercePrice).toLocaleString()}원 절감
+          </p>
+        ) : null}
       </div>
+
+      {buyable ? (
+        <div style={{ flexShrink: 0 }}>
+          <CartAddButton
+            listingId={listingId}
+            quantity={1}
+            label={addLabel}
+            listingCard
+            primary
+          />
+        </div>
+      ) : (
+        <p style={{ fontSize: 11, color: '#6b7280', margin: 0, flexShrink: 0 }}>담기 불가</p>
+      )}
     </div>
   )
 }
