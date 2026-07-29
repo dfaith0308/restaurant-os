@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition, useRef, useEffect } from 'react'
+import { useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { loadPaymentWidget, type PaymentWidgetInstance } from '@tosspayments/payment-widget-sdk'
+import { loadTossPayments } from '@tosspayments/tosspayments-sdk'
 import { createCommerceOrder } from '@/actions/buy'
 import { formatKRW } from '@/lib/utils'
 import { shareTextViaKakao } from '@/lib/kakao-share'
@@ -34,7 +34,6 @@ export default function BuyCheckoutClient({
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState<DoneState | null>(null)
   const checkoutSubmissionIdRef = useRef<string | null>(null)
-  const paymentWidgetRef = useRef<PaymentWidgetInstance | null>(null)
 
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
@@ -45,42 +44,8 @@ export default function BuyCheckoutClient({
   const subtotal = items.reduce((s, it) => s + it.commerce_price * it.quantity, 0)
   const total = subtotal - discountAmount
 
-  useEffect(() => {
-    if (pm !== 'card' || !tossEnabled) {
-      paymentWidgetRef.current = null
-      return
-    }
-
-    const clientKey = process.env.NEXT_PUBLIC_TOSS_WIDGET_CLIENT_KEY
-    if (!clientKey) return
-
-    if (!checkoutSubmissionIdRef.current) {
-      checkoutSubmissionIdRef.current = crypto.randomUUID()
-    }
-
-    let cancelled = false
-
-    ;(async () => {
-      try {
-        const widget = await loadPaymentWidget(clientKey, checkoutSubmissionIdRef.current!)
-        if (cancelled) return
-        paymentWidgetRef.current = widget
-        await widget.renderPaymentMethods('#payment-widget', { value: total })
-        await widget.renderAgreement('#agreement')
-      } catch (e) {
-        if (!cancelled) {
-          console.error('[BuyCheckoutClient] payment widget init failed', e)
-        }
-      }
-    })()
-
-    return () => {
-      cancelled = true
-    }
-  }, [pm, tossEnabled, total])
-
   async function handleCardPayment() {
-    const clientKey = process.env.NEXT_PUBLIC_TOSS_WIDGET_CLIENT_KEY
+    const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY
     if (!clientKey) {
       setError('카드 결제가 준비 중입니다.')
       return
@@ -114,23 +79,21 @@ export default function BuyCheckoutClient({
     const orderId = orderRes.data.order_id
     const orderAmount = orderRes.data.total_amount
 
-    let paymentWidget = paymentWidgetRef.current
-    if (!paymentWidget) {
-      paymentWidget = await loadPaymentWidget(clientKey, checkout_submission_id)
-      paymentWidgetRef.current = paymentWidget
-      await paymentWidget.renderPaymentMethods('#payment-widget', { value: orderAmount })
-      await paymentWidget.renderAgreement('#agreement')
-    } else {
-      await paymentWidget.renderPaymentMethods('#payment-widget', { value: orderAmount })
-    }
-
     const phoneDigits = phone.replace(/\D/g, '')
     const orderName =
       items.length === 1
         ? (items[0].product_name?.trim() ?? '식자재')
         : `${items[0].product_name?.trim() ?? '식자재'} 외 ${items.length - 1}건`
 
-    await paymentWidget.requestPayment({
+    const customerKey = crypto.randomUUID()
+    const tossPayments = await loadTossPayments(clientKey)
+    const payment = tossPayments.payment({ customerKey })
+    await payment.requestPayment({
+      method: 'CARD',
+      amount: {
+        currency: 'KRW',
+        value: orderAmount,
+      },
       orderId,
       orderName,
       successUrl: `${window.location.origin}/buy/checkout/success`,
@@ -405,12 +368,6 @@ export default function BuyCheckoutClient({
               </label>
             ))}
           </div>
-          {pm === 'card' && tossEnabled && (
-            <>
-              <div id="payment-widget" style={{ marginTop: 12 }} />
-              <div id="agreement" style={{ marginTop: 12 }} />
-            </>
-          )}
         </div>
 
         {/* 최종 금액 요약 */}

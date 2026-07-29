@@ -41,7 +41,7 @@ export default async function BuyCheckoutPage() {
     bankTransfer = bankRes.data
   }
 
-  const tossEnabled = Boolean(process.env.NEXT_PUBLIC_TOSS_WIDGET_CLIENT_KEY)
+  const tossEnabled = Boolean(process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY)
 
   return (
     <main style={shell}>
