@@ -10,11 +10,14 @@ export type BuyCatalogCategory = {
   children: { id: string; name: string; slug: string }[]
 }
 
-function buyHref(search?: string, catSlug?: string, subCatSlug?: string) {
+export type BuySort = 'default' | 'price_asc' | 'price_desc'
+
+function buyHref(search?: string, catSlug?: string, subCatSlug?: string, sort?: BuySort) {
   const p = new URLSearchParams()
   if (search?.trim()) p.set('search', search.trim())
   if (catSlug && catSlug !== 'all') p.set('cat', catSlug)
   if (subCatSlug) p.set('subcat', subCatSlug)
+  if (sort && sort !== 'default') p.set('sort', sort)
   const q = p.toString()
   return q ? `/buy?${q}` : '/buy'
 }
@@ -31,17 +34,25 @@ const chipRowStyle = {
   WebkitOverflowScrolling: 'touch' as const,
 }
 
+const SORT_OPTIONS: { id: BuySort; label: string }[] = [
+  { id: 'default', label: '기본순' },
+  { id: 'price_asc', label: '낮은가격' },
+  { id: 'price_desc', label: '높은가격' },
+]
+
 export default function BuyCatalogShell({
   categories,
   search,
   catSlug,
   subCatSlug,
+  sort = 'default',
   children,
 }: {
   categories: BuyCatalogCategory[]
   search?: string
   catSlug?: string
   subCatSlug?: string
+  sort?: BuySort
   children: ReactNode
 }) {
   const router = useRouter()
@@ -52,8 +63,8 @@ export default function BuyCatalogShell({
     setQuery(search ?? '')
   }, [search])
 
-  function navigate(nextSearch?: string, nextCat?: string, nextSub?: string) {
-    const href = buyHref(nextSearch, nextCat, nextSub)
+  function navigate(nextSearch?: string, nextCat?: string, nextSub?: string, nextSort?: BuySort) {
+    const href = buyHref(nextSearch, nextCat, nextSub, nextSort ?? sort)
     startTransition(() => {
       router.replace(href, { scroll: false })
     })
@@ -61,7 +72,7 @@ export default function BuyCatalogShell({
 
   function onSearchSubmit(e: FormEvent) {
     e.preventDefault()
-    navigate(query.trim() || undefined, catSlug, subCatSlug)
+    navigate(query.trim() || undefined, catSlug, subCatSlug, sort)
   }
 
   const selectedParent =
@@ -93,15 +104,11 @@ export default function BuyCatalogShell({
       <div
         style={{
           ...chipRowStyle,
-          marginBottom: selectedParent && selectedParent.children.length > 0 ? 0 : 20,
+          marginBottom: 10,
           opacity: isPending ? 0.7 : 1,
         }}
       >
-        <button
-          type="button"
-          onClick={() => navigate(search, 'all')}
-          style={chipStyle(allActive)}
-        >
+        <button type="button" onClick={() => navigate(search, 'all', undefined, sort)} style={chipStyle(allActive)}>
           전체
         </button>
 
@@ -111,7 +118,7 @@ export default function BuyCatalogShell({
             <button
               key={c.id}
               type="button"
-              onClick={() => navigate(search, c.slug || c.id)}
+              onClick={() => navigate(search, c.slug || c.id, undefined, sort)}
               style={chipStyle(isActive)}
             >
               {c.name}
@@ -126,18 +133,14 @@ export default function BuyCatalogShell({
             background: '#f3f7f5',
             borderRadius: 10,
             padding: '10px 0',
-            marginBottom: 20,
+            marginBottom: 10,
             marginLeft: -16,
             marginRight: -16,
             opacity: isPending ? 0.7 : 1,
           }}
         >
           <div style={chipRowStyle}>
-            <button
-              type="button"
-              onClick={() => navigate(search, catSlug)}
-              style={subChipStyle(!subCatSlug)}
-            >
+            <button type="button" onClick={() => navigate(search, catSlug, undefined, sort)} style={subChipStyle(!subCatSlug)}>
               {selectedParent.name} 전체
             </button>
             {selectedParent.children.map((sub) => {
@@ -146,7 +149,7 @@ export default function BuyCatalogShell({
                 <button
                   key={sub.id}
                   type="button"
-                  onClick={() => navigate(search, catSlug, sub.slug || sub.id)}
+                  onClick={() => navigate(search, catSlug, sub.slug || sub.id, sort)}
                   style={subChipStyle(isActive)}
                 >
                   {sub.name}
@@ -156,6 +159,27 @@ export default function BuyCatalogShell({
           </div>
         </div>
       ) : null}
+
+      <div
+        style={{
+          ...chipRowStyle,
+          marginBottom: 20,
+          opacity: isPending ? 0.7 : 1,
+        }}
+        role="group"
+        aria-label="정렬"
+      >
+        {SORT_OPTIONS.map((opt) => (
+          <button
+            key={opt.id}
+            type="button"
+            onClick={() => navigate(search, catSlug, subCatSlug, opt.id)}
+            style={sortChipStyle(sort === opt.id)}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
 
       <div
         style={{
@@ -199,6 +223,24 @@ function subChipStyle(active: boolean): CSSProperties {
     fontWeight: active ? 600 : 400,
     background: active ? '#f0f7f3' : '#fff',
     color: active ? '#1f5d3a' : '#374151',
+    border: `1px solid ${active ? '#1f5d3a' : '#e5e7eb'}`,
+    whiteSpace: 'nowrap',
+    flex: '0 0 auto',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
+  }
+}
+
+function sortChipStyle(active: boolean): CSSProperties {
+  return {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '6px 12px',
+    borderRadius: 16,
+    fontSize: 13,
+    fontWeight: active ? 600 : 400,
+    background: active ? '#f0f7f3' : '#fff',
+    color: active ? '#1f5d3a' : '#6b7280',
     border: `1px solid ${active ? '#1f5d3a' : '#e5e7eb'}`,
     whiteSpace: 'nowrap',
     flex: '0 0 auto',

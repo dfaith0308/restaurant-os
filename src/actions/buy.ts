@@ -258,11 +258,13 @@ async function tryReturnExistingCommerceOrderBySubmission(
 export async function getListings(filters?: {
   category_id?: string
   search?: string
+  sort?: 'default' | 'price_asc' | 'price_desc'
 }): Promise<ActionResult<{ listings: BuyListingRow[] }>> {
   const supabase = await createServerClient()
 
   const term = filters?.search?.trim()
   const cat = filters?.category_id?.trim()
+  const sort = filters?.sort ?? 'default'
 
   let productIds: string[] | null = null
   let categoryIds: string[] | null = null
@@ -310,7 +312,14 @@ export async function getListings(filters?: {
     .in('status', ['visible', 'sold_out'])
     .eq('is_visible', true)
     .is('deleted_at', null)
-    .order('created_at', { ascending: false })
+
+  if (sort === 'price_asc') {
+    q = q.order('commerce_price', { ascending: true })
+  } else if (sort === 'price_desc') {
+    q = q.order('commerce_price', { ascending: false })
+  } else {
+    q = q.order('created_at', { ascending: false })
+  }
 
   if (productIds) q = q.in('product_id', productIds)
   if (categoryIds) q = q.in('category_id', categoryIds)

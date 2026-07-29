@@ -18,7 +18,12 @@ const card = {
 export default async function BuyHomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ search?: string | string[]; cat?: string | string[]; subcat?: string | string[] }>
+  searchParams: Promise<{
+    search?: string | string[]
+    cat?: string | string[]
+    subcat?: string | string[]
+    sort?: string | string[]
+  }>
 }) {
   const sp = await searchParams
   const rawSearch = Array.isArray(sp.search) ? sp.search[0] : sp.search
@@ -29,6 +34,11 @@ export default async function BuyHomePage({
 
   const rawSubCat = Array.isArray(sp.subcat) ? sp.subcat[0] : sp.subcat
   let subCatSlug = rawSubCat?.trim() || undefined
+
+  const rawSort = Array.isArray(sp.sort) ? sp.sort[0] : sp.sort
+  const sortRaw = rawSort?.trim()
+  const sort =
+    sortRaw === 'price_asc' || sortRaw === 'price_desc' ? sortRaw : ('default' as const)
 
   const [categoriesRes, recentRes, cartRes] = await Promise.all([
     getStoreCategories(),
@@ -62,7 +72,7 @@ export default async function BuyHomePage({
 
   const category_idResolved = selectedSub?.id ?? selectedParent?.id ?? undefined
 
-  const listRes = await getListings({ search, category_id: category_idResolved })
+  const listRes = await getListings({ search, category_id: category_idResolved, sort })
 
   const listings = listRes.success ? listRes.data?.listings ?? [] : []
   const recent = recentRes.success ? recentRes.data?.items ?? [] : []
@@ -176,6 +186,7 @@ export default async function BuyHomePage({
         search={search}
         catSlug={catSlug}
         subCatSlug={subCatSlug}
+        sort={sort}
       >
         <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 12px' }}>전체 상품</h2>
 
