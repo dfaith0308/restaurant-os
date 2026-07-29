@@ -51,7 +51,7 @@ export default function BuyCheckoutClient({
       return
     }
 
-    const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY
+    const clientKey = process.env.NEXT_PUBLIC_TOSS_WIDGET_CLIENT_KEY
     if (!clientKey) return
 
     if (!checkoutSubmissionIdRef.current) {
@@ -80,7 +80,7 @@ export default function BuyCheckoutClient({
   }, [pm, tossEnabled, total])
 
   async function handleCardPayment() {
-    const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY
+    const clientKey = process.env.NEXT_PUBLIC_TOSS_WIDGET_CLIENT_KEY
     if (!clientKey) {
       setError('카드 결제가 준비 중입니다.')
       return
