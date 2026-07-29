@@ -10,6 +10,7 @@ interface Props {
   productName: string
   price: number
   thumbnailUrl: string | null
+  imageUrls?: string[] | null
   baseShippingFee: number
   freeShippingQty: number | null
   bulkQty: number | null
@@ -21,11 +22,19 @@ interface Props {
   detailTemplate?: React.ReactNode
 }
 
+function buildGalleryUrls(thumbnailUrl: string | null, imageUrls?: string[] | null): string[] {
+  const fromList = (imageUrls ?? []).map((u) => u?.trim()).filter((u): u is string => Boolean(u))
+  if (fromList.length > 0) return [...new Set(fromList)]
+  const thumb = thumbnailUrl?.trim()
+  return thumb ? [thumb] : []
+}
+
 export default function BuyProductDetailClient({
   listingId,
   productName,
   price,
   thumbnailUrl,
+  imageUrls,
   baseShippingFee,
   freeShippingQty,
   bulkQty,
@@ -36,11 +45,14 @@ export default function BuyProductDetailClient({
   categoryName,
   detailTemplate,
 }: Props) {
+  const gallery = useMemo(() => buildGalleryUrls(thumbnailUrl, imageUrls), [thumbnailUrl, imageUrls])
+  const [activeIdx, setActiveIdx] = useState(0)
   const [qty, setQty] = useState(1)
   const [selectedOption, setSelectedOption] = useState<'single' | 'free' | 'bulk'>('single')
   const [showIngredients, setShowIngredients] = useState(false)
   const [showCartPopup, setShowCartPopup] = useState(false)
   const popupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scrollerRef = useRef<HTMLDivElement | null>(null)
 
   function handleCartSuccess() {
     if (popupTimerRef.current) clearTimeout(popupTimerRef.current)
@@ -79,6 +91,20 @@ export default function BuyProductDetailClient({
     syncOptionFromQty(q)
   }
 
+  function onGalleryScroll() {
+    const el = scrollerRef.current
+    if (!el || gallery.length <= 1) return
+    const idx = Math.round(el.scrollLeft / Math.max(el.clientWidth, 1))
+    setActiveIdx(Math.max(0, Math.min(gallery.length - 1, idx)))
+  }
+
+  function goToSlide(idx: number) {
+    const el = scrollerRef.current
+    setActiveIdx(idx)
+    if (!el) return
+    el.scrollTo({ left: idx * el.clientWidth, behavior: 'smooth' })
+  }
+
   return (
     <div style={{ background: '#f7f6f2', minHeight: '100vh', paddingBottom: `calc(${BOTTOM_NAV_HEIGHT_PX}px + 88px + env(safe-area-inset-bottom))`, fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
 
@@ -88,12 +114,104 @@ export default function BuyProductDetailClient({
       </div>
 
       <div style={{ background: '#fff', marginBottom: 8, padding: '12px 16px' }}>
-        {thumbnailUrl ? (
-          <img
-            src={thumbnailUrl}
-            alt={productName}
-            style={{ width: '100%', maxHeight: 240, objectFit: 'contain', display: 'block', background: '#f7f6f2', borderRadius: 12 }}
-          />
+        {gallery.length > 0 ? (
+          <>
+            <div
+              ref={scrollerRef}
+              onScroll={onGalleryScroll}
+              style={{
+                display: 'flex',
+                overflowX: 'auto',
+                scrollSnapType: 'x mandatory',
+                WebkitOverflowScrolling: 'touch',
+                borderRadius: 12,
+                background: '#f7f6f2',
+              }}
+            >
+              {gallery.map((src, i) => (
+                <div
+                  key={`${src}-${i}`}
+                  style={{
+                    flex: '0 0 100%',
+                    scrollSnapAlign: 'start',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minHeight: 200,
+                  }}
+                >
+                  <img
+                    src={src}
+                    alt={gallery.length > 1 ? `${productName} ${i + 1}` : productName}
+                    loading={i === 0 ? 'eager' : 'lazy'}
+                    decoding={i === 0 ? 'sync' : 'async'}
+                    style={{ width: '100%', maxHeight: 240, objectFit: 'contain', display: 'block' }}
+                  />
+                </div>
+              ))}
+            </div>
+            {gallery.length > 1 ? (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 10 }}>
+                  {gallery.map((_, i) => (
+                    <button
+                      key={`dot-${i}`}
+                      type="button"
+                      aria-label={`${i + 1}번째 이미지`}
+                      onClick={() => goToSlide(i)}
+                      style={{
+                        width: i === activeIdx ? 16 : 6,
+                        height: 6,
+                        borderRadius: 999,
+                        border: 'none',
+                        padding: 0,
+                        background: i === activeIdx ? '#1f5d3a' : '#d1d5db',
+                        cursor: 'pointer',
+                        transition: 'width 0.15s ease',
+                      }}
+                    />
+                  ))}
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    overflowX: 'auto',
+                    marginTop: 10,
+                    WebkitOverflowScrolling: 'touch',
+                    paddingBottom: 2,
+                  }}
+                >
+                  {gallery.map((src, i) => (
+                    <button
+                      key={`thumb-${i}`}
+                      type="button"
+                      onClick={() => goToSlide(i)}
+                      aria-label={`${i + 1}번째 썸네일`}
+                      style={{
+                        flex: '0 0 auto',
+                        width: 52,
+                        height: 52,
+                        padding: 0,
+                        borderRadius: 8,
+                        border: i === activeIdx ? '2px solid #1f5d3a' : '1px solid #e5e7eb',
+                        overflow: 'hidden',
+                        background: '#f7f6f2',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <img
+                        src={src}
+                        alt=""
+                        loading="lazy"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              </>
+            ) : null}
+          </>
         ) : (
           <div style={{ width: '100%', height: 200, background: '#f7f6f2', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48 }}>🛒</div>
         )}

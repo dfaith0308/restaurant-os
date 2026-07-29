@@ -34,6 +34,7 @@ export default async function BuyProductPage({ params }: { params: Promise<{ id:
       productName={productName}
       price={price}
       thumbnailUrl={p.thumbnail_url ?? null}
+      imageUrls={p.image_urls ?? null}
       baseShippingFee={p.base_shipping_fee ?? 3500}
       freeShippingQty={p.free_shipping_qty ?? null}
       bulkQty={p.bulk_qty ?? null}
