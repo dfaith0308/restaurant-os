@@ -4,6 +4,7 @@ import { useState, useTransition, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { loadTossPayments } from '@tosspayments/tosspayments-sdk'
 import { createCommerceOrder } from '@/actions/buy'
+import { BOTTOM_NAV_HEIGHT_PX, fixedStripeAboveBottomNav } from '@/lib/app-shell'
 import { formatKRW } from '@/lib/utils'
 import { shareTextViaKakao } from '@/lib/kakao-share'
 import type { StorefrontBankTransferSettings } from '@/lib/storefront-bank-transfer'
@@ -237,7 +238,7 @@ export default function BuyCheckoutClient({
   ]
 
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto', background: '#f7f6f2', minHeight: '100vh', paddingBottom: 'calc(80px + env(safe-area-inset-bottom))' }}>
+    <div style={{ maxWidth: 480, margin: '0 auto', background: '#f7f6f2', minHeight: '100vh', paddingBottom: `calc(${BOTTOM_NAV_HEIGHT_PX}px + 88px + env(safe-area-inset-bottom))` }}>
 
       {/* 헤더 */}
       <div style={{ position: 'sticky', top: 0, zIndex: 20, background: '#f7f6f2', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10, borderBottom: '1px solid #ece9e3' }}>
@@ -378,21 +379,15 @@ export default function BuyCheckoutClient({
 
       </div>
 
-      {/* 하단 고정 주문 버튼 */}
-      <div style={{
-        position: 'fixed',
-        bottom: 0,
-        left: '50%',
-        transform: 'translateX(-50%)',
-        width: '100%',
-        maxWidth: 480,
-        padding: 'calc(12px) 16px',
-        paddingBottom: 'calc(12px + env(safe-area-inset-bottom))',
-        background: '#fff',
-        borderTop: '1px solid #ece9e3',
-        boxSizing: 'border-box',
-        zIndex: 10,
-      }}>
+      {/* 하단 고정 주문 버튼 — BottomNav(64px) 위 */}
+      <div
+        style={fixedStripeAboveBottomNav({
+          padding: '12px 16px calc(12px + env(safe-area-inset-bottom, 0px))',
+          background: '#fff',
+          borderTop: '1px solid #ece9e3',
+          boxSizing: 'border-box',
+        })}
+      >
         <button
           type="button"
           disabled={pending}
