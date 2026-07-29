@@ -369,6 +369,34 @@ export default function BuyCheckoutClient({
               </label>
             ))}
           </div>
+          {pm === 'card' && tossEnabled ? (
+            <div
+              style={{
+                marginTop: 12,
+                padding: '10px 12px',
+                borderRadius: 10,
+                background: '#f7f6f2',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 8,
+              }}
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+                style={{ flexShrink: 0, marginTop: 1 }}
+              >
+                <rect x="5" y="11" width="14" height="10" rx="2" stroke="#6b7280" strokeWidth="1.6" />
+                <path d="M8 11V8a4 4 0 018 0v3" stroke="#6b7280" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+              <p style={{ fontSize: 12, color: '#6b7280', margin: 0, lineHeight: 1.45 }}>
+                토스페이먼츠 안전결제 · 카드정보는 저장하지 않습니다
+              </p>
+            </div>
+          ) : null}
         </div>
 
         {/* 최종 금액 요약 */}
