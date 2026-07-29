@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useTransition, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, useTransition, type CSSProperties, type FormEvent, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 
 export type BuyCatalogCategory = {
@@ -100,7 +100,7 @@ export default function BuyCatalogShell({
         <button
           type="button"
           onClick={() => navigate(search, 'all')}
-          style={chipStyle(allActive, true)}
+          style={chipStyle(allActive)}
         >
           전체
         </button>
@@ -112,7 +112,7 @@ export default function BuyCatalogShell({
               key={c.id}
               type="button"
               onClick={() => navigate(search, c.slug || c.id)}
-              style={chipStyle(isActive, true)}
+              style={chipStyle(isActive)}
             >
               {c.name}
             </button>
@@ -171,7 +171,7 @@ export default function BuyCatalogShell({
   )
 }
 
-function chipStyle(active: boolean, primary: boolean): React.CSSProperties {
+function chipStyle(active: boolean): CSSProperties {
   return {
     display: 'inline-flex',
     alignItems: 'center',
@@ -189,7 +189,7 @@ function chipStyle(active: boolean, primary: boolean): React.CSSProperties {
   }
 }
 
-function subChipStyle(active: boolean): React.CSSProperties {
+function subChipStyle(active: boolean): CSSProperties {
   return {
     display: 'inline-flex',
     alignItems: 'center',
