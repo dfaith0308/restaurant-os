@@ -223,6 +223,8 @@ export default async function BuyHomePage({
                   productName={p.product_name}
                   spec={p.spec ?? null}
                   detailHref={`/buy/products/${p.id}`}
+                  status={p.status}
+                  buyable={p.status === 'visible'}
                 />
               </li>
             ))}

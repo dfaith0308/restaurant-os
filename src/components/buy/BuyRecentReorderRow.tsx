@@ -49,7 +49,8 @@ export default function BuyRecentReorderRow({ items }: { items: RecentOrderItemR
           const thumb = it.thumbnail_url?.trim()
           const hasCurrent = it.current_price != null
           const price = hasCurrent ? it.current_price! : it.unit_price
-          const buyable = it.listing_buyable && hasCurrent
+          const isSoldOut = it.status === 'sold_out'
+          const buyable = it.listing_buyable && hasCurrent && !isSoldOut
 
           return (
             <div
@@ -65,10 +66,12 @@ export default function BuyRecentReorderRow({ items }: { items: RecentOrderItemR
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 8,
+                opacity: isSoldOut ? 0.85 : 1,
               }}
             >
               <div
                 style={{
+                  position: 'relative',
                   width: '100%',
                   height: 88,
                   borderRadius: 8,
@@ -84,11 +87,34 @@ export default function BuyRecentReorderRow({ items }: { items: RecentOrderItemR
                   <img
                     src={thumb}
                     alt=""
-                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover',
+                      display: 'block',
+                      opacity: isSoldOut ? 0.55 : 1,
+                    }}
                   />
                 ) : (
                   <PhotoPlaceholder />
                 )}
+                {isSoldOut ? (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      top: 6,
+                      left: 6,
+                      background: '#6b7280',
+                      color: '#fff',
+                      fontSize: 10,
+                      fontWeight: 800,
+                      padding: '3px 6px',
+                      borderRadius: 6,
+                    }}
+                  >
+                    품절
+                  </span>
+                ) : null}
               </div>
 
               <p
@@ -110,7 +136,9 @@ export default function BuyRecentReorderRow({ items }: { items: RecentOrderItemR
 
               <div>
                 <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>{formatKRW(price)}</p>
-                {!it.listing_buyable ? (
+                {isSoldOut ? (
+                  <p style={{ fontSize: 11, color: '#6b7280', margin: '4px 0 0' }}>품절</p>
+                ) : !it.listing_buyable ? (
                   <p style={{ fontSize: 11, color: '#9ca3af', margin: '4px 0 0' }}>현재 판매하지 않음</p>
                 ) : !hasCurrent ? (
                   <p style={{ fontSize: 11, color: '#9ca3af', margin: '4px 0 0' }}>가격 변동 있을 수 있음</p>
@@ -137,7 +165,7 @@ export default function BuyRecentReorderRow({ items }: { items: RecentOrderItemR
                     fontFamily: 'inherit',
                   }}
                 >
-                  다시 담기
+                  {isSoldOut ? '품절' : '다시 담기'}
                 </button>
               )}
             </div>

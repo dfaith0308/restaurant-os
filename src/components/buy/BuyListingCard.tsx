@@ -11,6 +11,8 @@ type BuyListingCardProps = {
   detailHref?: string
   addLabel?: string
   buyable?: boolean
+  /** sold_out 등 — 품절 배지 */
+  status?: string | null
 }
 
 function PhotoPlaceholderIcon() {
@@ -25,7 +27,13 @@ function PhotoPlaceholderIcon() {
     >
       <rect x="3" y="5" width="18" height="14" rx="2" stroke="#c4c4c4" strokeWidth="1.5" />
       <circle cx="9" cy="10" r="1.75" fill="#c4c4c4" />
-      <path d="M4.5 16.5l4.2-4.2a1 1 0 011.4 0L14 16l2.1-2.1a1 1 0 011.4 0l2 2" stroke="#c4c4c4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M4.5 16.5l4.2-4.2a1 1 0 011.4 0L14 16l2.1-2.1a1 1 0 011.4 0l2 2"
+        stroke="#c4c4c4"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 }
@@ -40,10 +48,13 @@ export default function BuyListingCard({
   detailHref,
   addLabel = '장바구니 담기',
   buyable = true,
+  status = null,
 }: BuyListingCardProps) {
   const thumb = thumbnailUrl?.trim()
   const nameLine = [productName?.trim(), spec?.trim()].filter(Boolean).join(' · ')
-  const showSavings = originalPrice != null && originalPrice > commercePrice
+  const isSoldOut = status === 'sold_out'
+  const canAdd = buyable && !isSoldOut
+  const showSavings = !isSoldOut && originalPrice != null && originalPrice > commercePrice
   const discountRate = showSavings
     ? Math.max(1, Math.round(((originalPrice! - commercePrice) / originalPrice!) * 100))
     : 0
@@ -68,12 +79,35 @@ export default function BuyListingCard({
         <img
           src={thumb}
           alt=""
-          style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            display: 'block',
+            opacity: isSoldOut ? 0.55 : 1,
+          }}
         />
       ) : (
         <PhotoPlaceholderIcon />
       )}
-      {showSavings ? (
+      {isSoldOut ? (
+        <span
+          style={{
+            position: 'absolute',
+            top: 4,
+            left: 4,
+            background: '#6b7280',
+            color: '#fff',
+            fontSize: 10,
+            fontWeight: 800,
+            lineHeight: 1,
+            padding: '3px 5px',
+            borderRadius: 6,
+          }}
+        >
+          품절
+        </span>
+      ) : showSavings ? (
         <span
           style={{
             position: 'absolute',
@@ -149,25 +183,23 @@ export default function BuyListingCard({
             </span>
           ) : null}
         </div>
-        {showSavings ? (
+        {isSoldOut ? (
+          <p style={{ fontSize: 11, color: '#6b7280', margin: '3px 0 0', fontWeight: 600 }}>품절</p>
+        ) : showSavings ? (
           <p style={{ fontSize: 11, color: '#1f5d3a', margin: '3px 0 0', fontWeight: 600 }}>
             {(originalPrice! - commercePrice).toLocaleString()}원 절감
           </p>
         ) : null}
       </div>
 
-      {buyable ? (
+      {canAdd ? (
         <div style={{ flexShrink: 0 }}>
-          <CartAddButton
-            listingId={listingId}
-            quantity={1}
-            label={addLabel}
-            listingCard
-            primary
-          />
+          <CartAddButton listingId={listingId} quantity={1} label={addLabel} listingCard primary />
         </div>
       ) : (
-        <p style={{ fontSize: 11, color: '#6b7280', margin: 0, flexShrink: 0 }}>담기 불가</p>
+        <p style={{ fontSize: 11, color: '#6b7280', margin: 0, flexShrink: 0 }}>
+          {isSoldOut ? '품절' : '담기 불가'}
+        </p>
       )}
     </div>
   )

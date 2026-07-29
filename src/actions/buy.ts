@@ -307,7 +307,7 @@ export async function getListings(filters?: {
       products ( name, category_id )
     `,
     )
-    .eq('status', 'visible')
+    .in('status', ['visible', 'sold_out'])
     .eq('is_visible', true)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
@@ -332,6 +332,7 @@ export async function getListings(filters?: {
       typeof op === 'number' && Number.isFinite(op) && op >= 0 ? Math.round(op) : null
     return {
       ...(rest as Omit<BuyListingRow, 'product_name' | 'category_id' | 'original_price' | 'brand_name' | 'spec'>),
+      status: String(row.status ?? 'visible'),
       thumbnail_url: (row.thumbnail_url as string | null) ?? null,
       image_urls: (row.image_urls as string[] | null) ?? null,
       description: (row.description as string | null) ?? null,
@@ -444,7 +445,7 @@ export async function getListing(id: string): Promise<ActionResult<{ listing: Bu
     `,
     )
     .eq('id', lid)
-    .eq('status', 'visible')
+    .in('status', ['visible', 'sold_out'])
     .eq('is_visible', true)
     .is('deleted_at', null)
     .maybeSingle()
@@ -546,6 +547,7 @@ export async function getRecentOrderItems(): Promise<ActionResult<{ items: Recen
       original_price: null,
       spec: null,
       listing_buyable: false,
+      status: undefined,
     })
     if (items.length >= 10) break
   }
@@ -585,10 +587,14 @@ export async function getRecentOrderItems(): Promise<ActionResult<{ items: Recen
     if (!row) continue
     const buyable = row.status === 'visible' && row.is_visible && !row.deleted_at
     it.thumbnail_url = row.thumbnail_url?.trim() ? row.thumbnail_url.trim() : null
-    it.current_price = buyable ? row.commerce_price : null
-    it.original_price = buyable ? row.original_price : null
-    it.spec = buyable ? row.spec : null
+    // 품절도 현재가 표시용으로 commerce_price 유지 (담기는 listing_buyable=false)
+    it.current_price =
+      row.status === 'visible' || row.status === 'sold_out' ? row.commerce_price : null
+    it.original_price =
+      row.status === 'visible' || row.status === 'sold_out' ? row.original_price : null
+    it.spec = row.status === 'visible' || row.status === 'sold_out' ? row.spec : null
     it.listing_buyable = buyable
+    it.status = row.status
   }
 
   return { success: true, data: { items } }
@@ -634,6 +640,7 @@ async function assertListingBuyable(
   }
 
   if (row.deleted_at) return { ok: false, error: '판매 종료된 상품입니다' }
+  if (row.status === 'sold_out') return { ok: false, error: '품절된 상품입니다' }
   if (row.status !== 'visible' || !row.is_visible) return { ok: false, error: '현재 담을 수 없는 상품입니다' }
 
   const raw = row.products
@@ -708,6 +715,7 @@ async function batchLoadListingsForCheckout(
     const row = byId.get(id)
     if (!row) return { ok: false, error: '상품을 찾을 수 없습니다' }
     if (row.deleted_at) return { ok: false, error: '판매 종료된 상품입니다' }
+    if (row.status === 'sold_out') return { ok: false, error: '품절된 상품입니다' }
     if (row.status !== 'visible' || row.is_visible !== true) {
       return { ok: false, error: '현재 담을 수 없는 상품입니다' }
     }

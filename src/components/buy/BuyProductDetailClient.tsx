@@ -11,6 +11,7 @@ interface Props {
   price: number
   thumbnailUrl: string | null
   imageUrls?: string[] | null
+  soldOut?: boolean
   baseShippingFee: number
   freeShippingQty: number | null
   bulkQty: number | null
@@ -35,6 +36,7 @@ export default function BuyProductDetailClient({
   price,
   thumbnailUrl,
   imageUrls,
+  soldOut = false,
   baseShippingFee,
   freeShippingQty,
   bulkQty,
@@ -221,7 +223,25 @@ export default function BuyProductDetailClient({
         {categoryName ? (
           <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 4px' }}>{categoryName}</p>
         ) : null}
-        <h1 style={{ fontSize: 19, fontWeight: 700, color: '#1a1a1a', margin: '0 0 12px', lineHeight: 1.35 }}>{productName}</h1>
+        <h1 style={{ fontSize: 19, fontWeight: 700, color: '#1a1a1a', margin: '0 0 12px', lineHeight: 1.35 }}>
+          {productName}
+          {soldOut ? (
+            <span
+              style={{
+                marginLeft: 8,
+                fontSize: 12,
+                fontWeight: 800,
+                color: '#fff',
+                background: '#6b7280',
+                padding: '3px 8px',
+                borderRadius: 6,
+                verticalAlign: 'middle',
+              }}
+            >
+              품절
+            </span>
+          ) : null}
+        </h1>
 
         {(origin || allergen) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
@@ -360,15 +380,35 @@ export default function BuyProductDetailClient({
             </button>
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <CartAddButton
-              listingId={listingId}
-              quantity={qty}
-              label={`장바구니 담기 · ${subtotal.toLocaleString()}원`}
-              primary
-              fullWidth
-              listingCard
-              onSuccess={handleCartSuccess}
-            />
+            {soldOut ? (
+              <button
+                type="button"
+                disabled
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#e5e7eb',
+                  color: '#6b7280',
+                  fontSize: 15,
+                  fontWeight: 800,
+                  cursor: 'not-allowed',
+                  fontFamily: 'inherit',
+                }}
+              >
+                품절
+              </button>
+            ) : (
+              <CartAddButton
+                listingId={listingId}
+                quantity={qty}
+                label={`장바구니 담기 · ${subtotal.toLocaleString()}원`}
+                primary
+                fullWidth
+                onSuccess={handleCartSuccess}
+              />
+            )}
           </div>
         </div>
       </div>

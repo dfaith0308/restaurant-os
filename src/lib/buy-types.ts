@@ -49,6 +49,8 @@ export type RecentOrderItemRow = {
   original_price: number | null
   spec: string | null
   listing_buyable: boolean
+  /** listing status — sold_out 등은 노출하되 담기 불가 */
+  status?: string
   shipping_free?: boolean | null
 }
 
