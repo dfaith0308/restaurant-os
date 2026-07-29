@@ -21,7 +21,7 @@ export default function CartAddButton({
   primary?: boolean
   compact?: boolean
   fullWidth?: boolean
-  /** /buy 그리드: 풀 너비·높이 36px, radius 6 */
+  /** 목록 카드: 36×36 원형 + 아이콘 (텍스트 라벨 숨김, aria-label만 사용) */
   listingCard?: boolean
   disabled?: boolean
   onSuccess?: () => void
