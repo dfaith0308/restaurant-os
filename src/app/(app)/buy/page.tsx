@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { getCart, getListings, getRecentOrderItems, getStoreCategories } from '@/actions/buy'
 import BuyCatalogShell from '@/components/buy/BuyCatalogShell'
 import BuyListingCard from '@/components/buy/BuyListingCard'
+import BuyRecentReorderRow from '@/components/buy/BuyRecentReorderRow'
 import { fixedStripeAboveBottomNav } from '@/lib/app-shell'
 import { formatKRW } from '@/lib/utils'
 
@@ -73,6 +74,9 @@ export default async function BuyHomePage({
   const cartLineCount = cartItems.length
   const cartCount = cartItems.reduce((s, i) => s + i.quantity, 0)
   const cartTotal = cartItems.reduce((s, it) => s + it.commerce_price * it.quantity, 0)
+
+  const showRecent =
+    recent.length > 0 && !search && (!catSlug || catSlug === 'all') && !subCatSlug
 
   return (
     <main style={shell}>
@@ -160,51 +164,7 @@ export default async function BuyHomePage({
         </div>
       )}
 
-      <section style={{ marginBottom: 20 }}>
-        {recent.length === 0 ? (
-          <p
-            style={{
-              fontSize: 13,
-              color: '#6b7280',
-              lineHeight: 1.5,
-              margin: '0 0 10px',
-            }}
-          >
-            자주 구매하는 식자재를
-            <br />
-            한 번에 다시 주문할 수 있어요
-          </p>
-        ) : null}
-        <h2 style={{ fontSize: 15, fontWeight: 800, color: 'var(--color-text)', margin: '0 0 12px' }}>다시 사기</h2>
-        {recent.length > 0 ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {recent.map((it) => (
-              <BuyListingCard
-                key={it.listing_id}
-                listingId={it.listing_id}
-                thumbnailUrl={it.thumbnail_url}
-                commercePrice={it.current_price ?? it.unit_price}
-                originalPrice={it.listing_buyable ? it.original_price : null}
-                productName={it.listing_title}
-                spec={it.spec}
-                addLabel="다시 담기"
-                buyable={it.listing_buyable && it.current_price != null}
-              />
-            ))}
-          </div>
-        ) : (
-          <div
-            style={{
-              ...card,
-              fontSize: 14,
-              color: '#6b7280',
-              lineHeight: 1.55,
-            }}
-          >
-            구매 이력이 생기면 이곳에서 빠르게 다시 담을 수 있어요.
-          </div>
-        )}
-      </section>
+      {showRecent ? <BuyRecentReorderRow items={recent} /> : null}
 
       <BuyCatalogShell
         categories={storeCategories.map((c) => ({
