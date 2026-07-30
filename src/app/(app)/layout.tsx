@@ -20,7 +20,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     >
       <PushSubscriber />
       <div style={{ paddingBottom: BOTTOM_NAV_HEIGHT_PX + 8 }}>{children}</div>
-      <LegalFooter />
+      <LegalFooter reserveBottomNav />
       <BottomNav />
     </div>
   )
