@@ -94,7 +94,7 @@ function resolveCartDisplayName(input: {
 }
 
 async function enrichProductNamesFromProductsTable(
-  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  _supabase: Awaited<ReturnType<typeof createServerClient>>,
   rows: RowWithProductName[],
 ): Promise<void> {
   const needIds = [
@@ -104,7 +104,9 @@ async function enrichProductNamesFromProductsTable(
   ]
   if (needIds.length === 0) return
 
-  const { data: prows } = await supabase
+  // products RLS가 식당 세션에서 막히는 경우가 있어(정책 미적용 등) service role로 name만 조회
+  const admin = await createSupabaseAdmin()
+  const { data: prows } = await admin
     .from('products')
     .select('id, name')
     .in('id', needIds)
@@ -270,9 +272,41 @@ export async function getListings(filters?: {
   let categoryIds: string[] | null = null
 
   if (term) {
-    const { data: prods, error: pe } = await supabase.from('products').select('id').ilike('name', `%${term}%`).limit(200)
+    const admin = await createSupabaseAdmin()
+    const pattern = `%${term}%`
+    const termLower = term.toLowerCase()
+
+    // products.name: 식당 세션 RLS로 막히는 경우가 있어 service role로 검색
+    // (노출 listing의 product_id와 교집합만 최종 사용)
+    const [{ data: prods, error: pe }, { data: listingRows, error: le }] = await Promise.all([
+      admin.from('products').select('id').ilike('name', pattern).is('deleted_at', null).limit(200),
+      supabase
+        .from('commerce_product_listings')
+        .select('product_id, brand_name, description, spec')
+        .in('status', ['visible', 'sold_out'])
+        .eq('is_visible', true)
+        .is('deleted_at', null)
+        .limit(500),
+    ])
     if (pe) return { success: false, error: pe.message }
-    productIds = (prods ?? []).map((p: { id: string }) => p.id)
+    if (le) return { success: false, error: le.message }
+
+    const idsFromName = new Set((prods ?? []).map((p: { id: string }) => p.id))
+    const idsFromListingFields = new Set<string>()
+    for (const row of listingRows ?? []) {
+      const hay = `${row.brand_name ?? ''} ${row.description ?? ''} ${row.spec ?? ''}`.toLowerCase()
+      if (hay.includes(termLower) && row.product_id) {
+        idsFromListingFields.add(row.product_id as string)
+      }
+    }
+
+    // 노출 listing에 속한 product만 검색 결과로 허용
+    const visibleProductIds = new Set(
+      (listingRows ?? []).map((r) => r.product_id as string).filter(Boolean),
+    )
+    productIds = [...new Set([...idsFromName, ...idsFromListingFields])].filter((id) =>
+      visibleProductIds.has(id),
+    )
     if (productIds.length === 0) return { success: true, data: { listings: [] } }
   }
 
