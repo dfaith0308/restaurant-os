@@ -3,7 +3,7 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.siksiki.app",
+      "package_name": "com.siksiki.restaurant",
       "sha256_cert_fingerprints": [
         "50:5E:89:AF:B6:37:63:8D:FF:8E:AD:CC:17:CA:90:4F:1E:47:A1:60:3E:43:04:3E:D9:B2:41:DF:82:EE:CE:E7",
         "2D:54:46:3E:DA:00:77:27:59:84:67:6A:DE:70:40:A2:36:45:97:18:F2:42:1D:33:D6:71:B1:6A:15:41:14:E1"
