@@ -400,6 +400,154 @@ export async function getListings(filters?: {
   return { success: true, data: { listings } }
 }
 
+/**
+ * 찜 목록의 listing_id 집합.
+ * 하트 표시용이라 실패해도 화면이 죽지 않게 빈 배열로 떨어뜨린다
+ * (wishlist_items 마이그레이션 적용 전에도 /buy 가 정상 동작해야 함).
+ */
+export async function getWishlistListingIds(): Promise<string[]> {
+  const supabase = await createServerClient()
+  const ctx = await getAuthCtx(supabase)
+  if (!ctx) return []
+
+  const { data, error } = await supabase
+    .from('wishlist_items')
+    .select('listing_id')
+    .eq('tenant_id', ctx.tenant_id)
+
+  if (error) return []
+  return (data ?? []).map((r) => r.listing_id as string)
+}
+
+/** 찜 토글. 담겨 있으면 빼고, 없으면 담는다. */
+export async function toggleWishlist(
+  listing_id: string,
+): Promise<ActionResult<{ wished: boolean }>> {
+  const supabase = await createServerClient()
+  const ctx = await getAuthCtx(supabase)
+  if (!ctx) return { success: false, error: '로그인이 필요합니다' }
+
+  const lid = String(listing_id ?? '').trim()
+  if (!lid) return { success: false, error: '상품이 필요합니다' }
+
+  const { data: existing, error: findErr } = await supabase
+    .from('wishlist_items')
+    .select('id')
+    .eq('tenant_id', ctx.tenant_id)
+    .eq('listing_id', lid)
+    .maybeSingle()
+
+  if (findErr) return { success: false, error: findErr.message }
+
+  if (existing) {
+    const { error } = await supabase
+      .from('wishlist_items')
+      .delete()
+      .eq('id', existing.id)
+      .eq('tenant_id', ctx.tenant_id)
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/buy')
+    revalidatePath('/buy/wishlist')
+    revalidatePath(`/buy/products/${lid}`)
+    return { success: true, data: { wished: false } }
+  }
+
+  const { error } = await supabase
+    .from('wishlist_items')
+    .insert({ tenant_id: ctx.tenant_id, listing_id: lid })
+  if (error) return { success: false, error: error.message }
+
+  revalidatePath('/buy')
+  revalidatePath('/buy/wishlist')
+  revalidatePath(`/buy/products/${lid}`)
+  return { success: true, data: { wished: true } }
+}
+
+/**
+ * 찜한 상품 목록.
+ * wishlist_items → commerce_product_listings 조인 1회 + 상품명 보정 1회로 끝낸다 (N+1 없음).
+ */
+export async function getWishlist(): Promise<ActionResult<{ listings: BuyListingRow[] }>> {
+  const supabase = await createServerClient()
+  const ctx = await getAuthCtx(supabase)
+  if (!ctx) return { success: false, error: '로그인이 필요합니다' }
+
+  const { data, error } = await supabase
+    .from('wishlist_items')
+    .select(
+      `
+      listing_id,
+      created_at,
+      commerce_product_listings (
+        id,
+        tenant_id,
+        product_id,
+        commerce_price,
+        original_price,
+        status,
+        is_visible,
+        created_at,
+        thumbnail_url,
+        image_urls,
+        description,
+        category_id,
+        brand_name,
+        spec,
+        products ( name, category_id )
+      )
+    `,
+    )
+    .eq('tenant_id', ctx.tenant_id)
+    .order('created_at', { ascending: false })
+
+  if (error) return { success: false, error: error.message }
+
+  const listings: BuyListingRow[] = []
+  for (const wish of data ?? []) {
+    const raw = (wish as Record<string, unknown>).commerce_product_listings
+    const row = (Array.isArray(raw) ? raw[0] : raw) as Record<string, unknown> | null
+    if (!row) continue
+    // 판매중단·삭제된 상품은 찜 목록에서 제외
+    if (row.deleted_at) continue
+
+    const { product_name: normalizedName, category_id: productCategoryId } = normalizeProductName(row)
+    const brand_name = (row.brand_name as string | null) ?? null
+    const spec = (row.spec as string | null) ?? null
+    const product_name = normalizedName
+      ? extractPureProductName(normalizedName, brand_name, spec)
+      : null
+    const op = row.original_price
+    const original_price =
+      typeof op === 'number' && Number.isFinite(op) && op >= 0 ? Math.round(op) : null
+    const { products: _p, ...rest } = row as BuyListingRow & { products?: unknown }
+
+    listings.push({
+      ...(rest as Omit<BuyListingRow, 'product_name' | 'category_id' | 'original_price' | 'brand_name' | 'spec'>),
+      status: String(row.status ?? 'visible'),
+      thumbnail_url: (row.thumbnail_url as string | null) ?? null,
+      image_urls: (row.image_urls as string[] | null) ?? null,
+      description: (row.description as string | null) ?? null,
+      original_price,
+      product_name,
+      brand_name,
+      spec,
+      category_id: ((row.category_id as string | null) ?? null) ?? productCategoryId,
+    })
+  }
+
+  await enrichProductNamesFromProductsTable(supabase, listings)
+  for (const listing of listings) {
+    if (!listing.product_name?.trim()) continue
+    listing.product_name = extractPureProductName(
+      listing.product_name,
+      listing.brand_name ?? null,
+      listing.spec ?? null,
+    )
+  }
+
+  return { success: true, data: { listings } }
+}
+
 export async function getStoreCategories(): Promise<
   ActionResult<{
     categories: {
