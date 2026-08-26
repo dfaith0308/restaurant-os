@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getCommerceOrderDetail } from '@/actions/buy'
+import BuyOrderCancelSection from '@/components/buy/BuyOrderCancelSection'
 import { formatKRW } from '@/lib/utils'
 
 const STATUS_LABEL: Record<string, { label: string; color: string; bg: string }> = {
@@ -122,6 +123,12 @@ export default async function CommerceOrderDetailPage({
             </div>
           </div>
         )}
+
+        <BuyOrderCancelSection
+          orderId={o.id}
+          status={o.status}
+          paymentStatus={o.payment_status}
+        />
 
         <Link href="/buy" style={{
           display: 'block',

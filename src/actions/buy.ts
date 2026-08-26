@@ -1247,6 +1247,59 @@ export async function createCommerceOrder(
   }
 }
 
+/**
+ * 고객 직접 주문 취소.
+ *
+ * 아직 돈이 움직이지 않은 `pending_payment` 단계에서만 허용한다.
+ * 결제 이후(paid 이상)는 환불·회계 역분개가 얽혀 있어 관리자 경로
+ * (realmyos updateCommerceOrderStatus)에서만 처리한다.
+ */
+export async function cancelBuyOrder(orderId: string): Promise<ActionResult<void>> {
+  const supabase = await createServerClient()
+  const ctx = await getAuthCtx(supabase)
+  if (!ctx) return { success: false, error: '로그인이 필요합니다' }
+
+  const oid = String(orderId ?? '').trim()
+  if (!oid) return { success: false, error: '주문 ID가 필요합니다' }
+
+  // 본인 소유 + 현재 상태 확인
+  const { data: row, error: fetchErr } = await supabase
+    .from('commerce_orders')
+    .select('id, status, payment_status')
+    .eq('id', oid)
+    .eq('tenant_id', ctx.tenant_id)
+    .maybeSingle()
+
+  if (fetchErr) return { success: false, error: fetchErr.message }
+  if (!row) return { success: false, error: '주문을 찾을 수 없습니다' }
+
+  if (row.status !== 'pending_payment') {
+    return { success: false, error: '결제가 진행된 주문은 고객센터로 문의해 주세요' }
+  }
+  if (row.payment_status === 'paid') {
+    return { success: false, error: '결제가 진행된 주문은 고객센터로 문의해 주세요' }
+  }
+
+  // 조회와 갱신 사이 상태가 바뀌었을 수 있으므로 update 조건으로 한 번 더 방어
+  const { data: updated, error: upErr } = await supabase
+    .from('commerce_orders')
+    .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+    .eq('id', oid)
+    .eq('tenant_id', ctx.tenant_id)
+    .eq('status', 'pending_payment')
+    .select('id')
+    .maybeSingle()
+
+  if (upErr) return { success: false, error: upErr.message }
+  if (!updated) {
+    return { success: false, error: '주문 상태가 변경되었습니다. 새로고침 후 다시 확인해 주세요' }
+  }
+
+  revalidatePath('/buy/orders')
+  revalidatePath(`/buy/orders/${oid}`)
+  return { success: true }
+}
+
 export async function getMyCommerceOrders(): Promise<ActionResult<{ orders: CommerceOrderListRow[] }>> {
   const supabase = await createServerClient()
   const ctx = await getAuthCtx(supabase)
