@@ -10,10 +10,31 @@ import { formatKRW } from '@/lib/utils'
 
 const card = {
   borderRadius: 12,
-  boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+  border: '1px solid #e5e7eb',
   background: '#fff',
   padding: 12,
 } as const
+
+function TrashIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        d="M4 7h16M10 11v6M14 11v6M5 7l1 13a1 1 0 001 1h10a1 1 0 001-1l1-13M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
 
 function qtyMapFromItems(items: CartRow[]): Record<string, number> {
   return Object.fromEntries(items.map((i) => [i.id, i.quantity]))
@@ -115,7 +136,7 @@ export default function BuyCartClient({
                       height: 72,
                       objectFit: 'cover',
                       borderRadius: 8,
-                      background: '#e5e7eb',
+                      background: '#f3f4f6',
                       flexShrink: 0,
                     }}
                   />
@@ -125,7 +146,7 @@ export default function BuyCartClient({
                       width: 72,
                       height: 72,
                       borderRadius: 8,
-                      background: '#e5e7eb',
+                      background: '#f3f4f6',
                       flexShrink: 0,
                     }}
                     aria-hidden
@@ -147,7 +168,7 @@ export default function BuyCartClient({
                           width: 32,
                           height: 32,
                           borderRadius: 8,
-                          border: '1px solid #ddd',
+                          border: '1px solid #e5e7eb',
                           background: '#fff',
                           fontSize: 18,
                           lineHeight: 1,
@@ -172,6 +193,7 @@ export default function BuyCartClient({
                           if (isNaN(val) || val < 1) handleQtyChange(it.id, 1)
                         }}
                         aria-label="수량"
+                        className="qty-input"
                         style={{
                           width: 48,
                           textAlign: 'center',
@@ -193,7 +215,7 @@ export default function BuyCartClient({
                           width: 32,
                           height: 32,
                           borderRadius: 8,
-                          border: '1px solid #ddd',
+                          border: '1px solid #e5e7eb',
                           background: '#fff',
                           fontSize: 18,
                           lineHeight: 1,
@@ -225,8 +247,11 @@ export default function BuyCartClient({
                     }}
                     style={{
                       marginTop: 10,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 5,
                       fontSize: 13,
-                      color: '#dc2626',
+                      color: '#b91c1c',
                       padding: '6px 14px',
                       border: '1px solid #fecaca',
                       borderRadius: 6,
@@ -236,7 +261,8 @@ export default function BuyCartClient({
                       fontWeight: 500,
                     }}
                   >
-                    🗑 삭제
+                    <TrashIcon />
+                    삭제
                   </button>
                 </div>
               </div>
@@ -248,7 +274,7 @@ export default function BuyCartClient({
       <div
         style={fixedStripeAboveBottomNav({
           background: '#fff',
-          borderTop: '1px solid #eee',
+          borderTop: '1px solid #e5e7eb',
           boxShadow: '0 -2px 10px rgba(0,0,0,0.06)',
           padding: '16px 16px calc(16px + env(safe-area-inset-bottom, 0px))',
           boxSizing: 'border-box',
@@ -261,7 +287,7 @@ export default function BuyCartClient({
               <span>{formatKRW(subtotal)}</span>
             </div>
             {discountAmount > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#1f5d3a', fontWeight: 600 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: 'var(--color-primary)', fontWeight: 600 }}>
                 <span>장바구니 할인</span>
                 <span>- {formatKRW(discountAmount)}</span>
               </div>
@@ -282,14 +308,14 @@ export default function BuyCartClient({
                 }}
               >
                 <div>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: '#1f5d3a', margin: '0 0 2px' }}>
+                  <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-primary)', margin: '0 0 2px' }}>
                     🎁 구독하면 장바구니 할인 혜택!
                   </p>
                   <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>
                     2종류 이상 담으면 자동으로 할인이 적용됩니다
                   </p>
                 </div>
-                <span style={{ fontSize: 13, color: '#1f5d3a', fontWeight: 700, flexShrink: 0 }}>구독하기 →</span>
+                <span style={{ fontSize: 13, color: 'var(--color-primary)', fontWeight: 700, flexShrink: 0 }}>구독하기 →</span>
               </Link>
             ) : discountAmount === 0 && items.length >= 2 ? (
               <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 4px', textAlign: 'right' }}>
