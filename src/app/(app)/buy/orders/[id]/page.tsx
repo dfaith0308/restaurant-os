@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getCommerceOrderDetail } from '@/actions/buy'
 import BuyOrderCancelSection from '@/components/buy/BuyOrderCancelSection'
+import KakaoInquiryButton from '@/components/common/KakaoInquiryButton'
 import { formatKRW } from '@/lib/utils'
 
 const STATUS_LABEL: Record<string, { label: string; color: string; bg: string }> = {
@@ -129,6 +130,13 @@ export default async function CommerceOrderDetailPage({
           status={o.status}
           paymentStatus={o.payment_status}
         />
+
+        <div style={{ marginBottom: 10 }}>
+          <KakaoInquiryButton
+            title="주문 문의하기"
+            desc={`주문번호 ${o.order_number ?? o.id.slice(0, 8).toUpperCase()} 를 알려주세요`}
+          />
+        </div>
 
         <Link href="/buy" style={{
           display: 'block',
