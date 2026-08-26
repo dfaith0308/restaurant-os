@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getCommerceOrderDetail } from '@/actions/buy'
 import BuyOrderCancelSection from '@/components/buy/BuyOrderCancelSection'
+import BuyOrderTimeline from '@/components/buy/BuyOrderTimeline'
 import KakaoInquiryButton from '@/components/common/KakaoInquiryButton'
 import { formatKRW } from '@/lib/utils'
 
@@ -73,6 +74,8 @@ export default async function CommerceOrderDetailPage({
             </div>
           </div>
         </div>
+
+        <BuyOrderTimeline status={o.status} />
 
         <div style={{ background: '#fff', borderRadius: 12, padding: '16px 18px', marginBottom: 10 }}>
           <p style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', margin: '0 0 12px', letterSpacing: '.06em', textTransform: 'uppercase' as const }}>주문 품목</p>
