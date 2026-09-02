@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '결제 정보가 올바르지 않습니다' }, { status: 400 })
   }
 
-  const secretKey = process.env.TOSS_SECRET_KEY
+  const secretKey = process.env.TOSS_BUY_SECRET_KEY
   if (!secretKey) {
     return NextResponse.json({ error: '결제 키가 설정되지 않았습니다' }, { status: 500 })
   }
