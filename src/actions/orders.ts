@@ -48,7 +48,7 @@ function mapOrderRow(row: OrderSelectRow): Order {
       buyer_tenant_id: row.buyer_tenant_id,
       rfq_id: row.rfq_id ?? null,
       bid_id: row.bid_id ?? null,
-      counterparty_name: cap.counterparty.trim() || (row.supplier_name ?? ''),
+      supplier_name: cap.counterparty.trim() || (row.supplier_name ?? ''),
       product_name: formatCaptureSourceLabel(cap.source),
       quantity: row.quantity,
       unit: row.unit,
@@ -65,7 +65,7 @@ function mapOrderRow(row: OrderSelectRow): Order {
     buyer_tenant_id: row.buyer_tenant_id,
     rfq_id: row.rfq_id ?? null,
     bid_id: row.bid_id ?? null,
-    counterparty_name: row.supplier_name ?? '',
+    supplier_name: row.supplier_name ?? '',
     product_name: row.product_name,
     quantity: row.quantity,
     unit: row.unit,
@@ -112,10 +112,9 @@ export async function markOrderDelivered(
     product_name: string
     rfq_requests: { ingredient_id: string | null } | null
     supplier_name?: string | null
-    counterparty_name?: string | null
   }
   const o = order as RawMarkOrder
-  const supplierLabel = (o.supplier_name ?? o.counterparty_name ?? '').trim()
+  const supplierLabel = (o.supplier_name ?? '').trim()
 
   if (o.buyer_tenant_id !== tenant_id) {
     return { success: false, error: '권한 없음' }
@@ -143,26 +142,17 @@ export async function markOrderDelivered(
   const ingredientId = (o.rfq_requests as { ingredient_id: string | null } | null)?.ingredient_id ?? null
 
   if (ingredientId) {
+    // ingredients 에는 supplier_name / barcode 컬럼이 없다. 납품 단가만 갱신하고,
+    // 거래처는 price_history.supplier_name 에 남긴다. barcode 도 가져올 출처가 없어
+    // 비워 두므로 personalized-price 는 ingredient_name 기준으로 조회한다.
     await supabase
       .from('ingredients')
-      .update({
-        current_price: o.unit_price,
-        supplier_name: supplierLabel,
-      })
+      .update({ current_price: o.unit_price })
       .eq('id', ingredientId)
-
-    let barcode: string | null = null
-    const { data: ing } = await supabase
-      .from('ingredients')
-      .select('barcode')
-      .eq('id', ingredientId)
-      .maybeSingle()
-    barcode = ing?.barcode ?? null
 
     await supabase.from('price_history').insert({
       tenant_id:       o.buyer_tenant_id,
       ingredient_name: o.product_name,
-      barcode,
       price:           o.unit_price,
       unit:            o.unit,
       supplier_name:   supplierLabel,
@@ -241,7 +231,7 @@ export async function cancelOrder(
 export interface PendingDelivery {
   order_id:      string
   rfq_id:        string | null
-  counterparty_name: string
+  supplier_name: string
   product_name:  string
   quantity:      number
   unit:          string
@@ -275,10 +265,11 @@ export async function getPendingDeliveries(
   const bidDeliveryMap = new Map<string, number | null>()
 
   if (bidIds.length > 0) {
+    // bidIds 는 buyer_tenant_id 로 이미 걸러진 orders 에서 나온 값이라
+    // id 목록만으로 스코핑이 성립한다. rfq_bids 에는 tenant 컬럼이 없다.
     const { data: bids } = await supabase
       .from('rfq_bids')
       .select('id, delivery_days')
-      .eq('tenant_id', tenant_id)
       .in('id', bidIds)
 
     for (const b of bids ?? []) {
@@ -298,7 +289,7 @@ export async function getPendingDeliveries(
     return {
       order_id:      o.id,
       rfq_id:        o.rfq_id ?? null,
-      counterparty_name: (o as { supplier_name: string | null }).supplier_name ?? '',
+      supplier_name: (o as { supplier_name: string | null }).supplier_name ?? '',
       product_name:  o.product_name,
       quantity:      o.quantity,
       unit:          o.unit,
@@ -442,7 +433,7 @@ export async function updateOrderStatus(
 
 export interface CaptureOperationalOrderInput {
   source: OrderOperationCaptureSource
-  counterparty_name: string
+  supplier_name: string
   body: string
   /** 검토 단계에서 이미 파싱된 경우 GPT 재호출 생략 */
   parsed_items?: OrderParsedLine[] | null
@@ -553,7 +544,7 @@ export async function captureOperationalOrder(
   const tenant_id = await getTenantId().catch(() => null)
   if (!tenant_id) return { success: false, error: '인증 필요' }
 
-  const counterparty = (input.counterparty_name ?? '').trim()
+  const counterparty = (input.supplier_name ?? '').trim()
   if (!counterparty) return { success: false, error: '거래처(상호)를 입력해주세요' }
 
   let body = (input.body ?? '').trim()

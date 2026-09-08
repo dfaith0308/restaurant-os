@@ -46,10 +46,10 @@ export interface RfqRequest {
 }
 
 export interface RfqBid {
-  id:             string
-  rfq_id:         string
-  supplier_id:    string | null
-  supplier_name:  string
+  id:                 string
+  rfq_id:             string
+  supplier_tenant_id: string | null
+  supplier_name:      string
   price:          number          // 단가
   delivery_days:  number | null
   note:           string | null
@@ -86,7 +86,7 @@ export interface Order {
   buyer_tenant_id: string
   rfq_id:        string | null
   bid_id:        string | null
-  counterparty_name: string  // payments 테이블 컬럼명 (supplier_name 아님)
+  supplier_name: string  // orders.supplier_name
   product_name:  string
   quantity:      number
   unit:          string
@@ -157,7 +157,7 @@ export interface TodayDashboard {
   pending_deliveries: {
     order_id:      string
     rfq_id:        string | null
-    counterparty_name: string  // payments 테이블 컬럼명 (supplier_name 아님)
+    supplier_name: string  // orders.supplier_name
     product_name:  string
     quantity:      number
     unit:          string
@@ -210,7 +210,7 @@ export interface SavingOpportunity {
     id:            string
     name:          string
     brand:         string | null
-    counterparty_name: string  // payments 테이블 컬럼명 (supplier_name 아님) | null
+    supplier_name: string
   } | null
 }
 

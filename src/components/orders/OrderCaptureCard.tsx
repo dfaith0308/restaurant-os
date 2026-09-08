@@ -36,7 +36,7 @@ export default function OrderCaptureCard() {
     startTransition(async () => {
       const res = await captureOperationalOrder({
         source,
-        counterparty_name: counterparty,
+        supplier_name: counterparty,
         body,
       })
       if (!res.success) {

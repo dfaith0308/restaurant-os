@@ -383,7 +383,7 @@ function OrderCard({ order }: { order: Order }) {
         </div>
 
         <div style={{ fontSize: 13, color: '#6b7280' }}>
-          {order.counterparty_name} · {order.quantity}{order.unit}
+          {order.supplier_name} · {order.quantity}{order.unit}
         </div>
         <div style={{ fontSize: 13, color: 'var(--color-text)', fontWeight: 700, marginTop: 6 }}>
           {order.total_amount > 0 ? formatKRW(order.total_amount) : '금액 미정'}
