@@ -15,14 +15,19 @@ export interface IngredientRow {
   target_price: number | null
   category: string | null
   memo: string | null
-  barcode: string | null
+  /**
+   * 운영 ingredients 에 barcode 컬럼이 없어 조회하지 않는다. 항상 undefined 다.
+   * 빈 값을 넣어 "바코드 없음"처럼 보이게 하지 않고, 필드 자체를 비워 둔다.
+   * @see INGREDIENT_SKU_LAYER_ENABLED
+   */
+  barcode?: string | null
   is_active: boolean
   created_at: string
   updated_at: string | null
 }
 
 const INGREDIENT_SELECT =
-  'id, tenant_id, name, unit, current_price, target_price, category, memo, barcode, is_active, created_at, updated_at'
+  'id, tenant_id, name, unit, current_price, target_price, category, memo, is_active, created_at, updated_at'
 
 function isLikelySameIngredient(a: string, b: string): boolean {
   const left = normalizeIngredientName(a)
@@ -358,7 +363,6 @@ export async function createIngredient(input: {
       current_price,
       target_price: input.target_price ?? null,
       memo: input.memo?.trim() || null,
-      barcode: input.barcode?.replace(/\D/g, '').trim() || null,
       is_active: true,
     })
     .select('id')
@@ -431,9 +435,6 @@ export async function updateIngredient(
     target_price: input.target_price ?? null,
     memo: input.memo?.trim() || null,
     updated_at: new Date().toISOString(),
-  }
-  if (input.barcode !== undefined) {
-    patch.barcode = (input.barcode ?? '').replace(/\D/g, '').trim() || null
   }
 
   const { error } = await supabase
@@ -858,7 +859,9 @@ export async function getIngredientsOperationData(): Promise<
 
   const { data: ingredients, error: ingError } = await supabase
     .from('ingredients')
-    .select('id, name, memo, updated_at, supplier_name')
+    // supplier_name 컬럼은 운영 ingredients 에 없다. 아래 로직도 이 컬럼이 아니라
+    // memo 를 parseSupplierFromMemo 로 파싱해 거래처를 얻으므로 조회에서 뺀다.
+    .select('id, name, memo, updated_at')
     .eq('tenant_id', tenant_id)
     .eq('is_active', true)
 
@@ -963,11 +966,13 @@ export async function getIngredientsOperationData(): Promise<
     ocrSupplierByCanonical[key] = val.supplier
   }
 
+  // ingredients.supplier_name 컬럼은 운영 DB 에 없다. 이 파일이 이미 거래처를 뽑을 때
+  // 쓰는 실제 출처(memo)를 그대로 쓴다 — 없는 컬럼을 임의값으로 대체하는 게 아니다.
   const ingredientSupplierByName: Record<string, string | null> = {}
   for (const row of ingredients ?? []) {
     const name = String(row.name ?? '').trim()
     if (!name) continue
-    const sn = (row.supplier_name as string | null)?.trim()
+    const sn = parseSupplierFromMemo((row.memo as string | null) ?? null)?.trim()
     ingredientSupplierByName[name] = sn && sn.length > 0 ? sn : null
   }
 
@@ -1084,7 +1089,6 @@ export async function createIngredientsBatch(
         current_price,
         target_price: input.target_price ?? null,
         memo: input.memo?.trim() || null,
-        barcode: input.barcode?.replace(/\D/g, '').trim() || null,
         is_active: true,
       })
       .select(INGREDIENT_SELECT)

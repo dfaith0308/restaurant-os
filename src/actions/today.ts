@@ -70,8 +70,11 @@ export async function getTodayDashboard(
       .eq('month', month)
       .maybeSingle(),
 
+    // 운영 ingredients 에 실제로 있는 컬럼만 조회한다. supplier_name / barcode /
+    // brand / parsed_name / possible_duplicate_group_id / group_confirmed_same_at 는
+    // 컬럼 자체가 없다. 아래 SKU·그룹 로직은 그대로 두되 값이 없으니 자연히 비활성된다.
     supabase.from('ingredients')
-      .select('id, name, unit, current_price, supplier_name, created_at, barcode, brand, parsed_name, possible_duplicate_group_id, group_confirmed_same_at')
+      .select('id, name, unit, current_price, created_at')
       .eq('tenant_id', tenant_id)
       .eq('is_active', true)
       .order('created_at', { ascending: false }),
@@ -94,7 +97,22 @@ export async function getTodayDashboard(
       .filter((x): x is string => !!x),
   )
 
-  const ingList = ingredients ?? []
+  // SKU/그룹 필드는 조회하지 않으므로 항상 undefined 다. 값을 지어내지 않고
+  // "출처 없음" 상태 그대로 둔다 — 아래 그룹핑/바코드 분기가 전부 스스로 꺼진다.
+  type TodayIngredientRow = {
+    id: string
+    name: string
+    unit: string
+    current_price: number | null
+    created_at: string
+    supplier_name?: string | null
+    barcode?: string | null
+    brand?: string | null
+    parsed_name?: string | null
+    possible_duplicate_group_id?: string | null
+    group_confirmed_same_at?: string | null
+  }
+  const ingList = (ingredients ?? []) as TodayIngredientRow[]
 
   // 오늘 이미 판단한 식자재 제외 (ai_decision_logs 기준)
   const todayStart = new Date()
@@ -183,7 +201,7 @@ export async function getTodayDashboard(
       ingredient_name:  i.name,
       unit:             i.unit,
       current_price:    i.current_price!,
-      supplier_name:    i.supplier_name,
+      supplier_name:    i.supplier_name ?? null,
       personal_history: historyByName[i.name] ?? [],
       barcode:          i.barcode ?? null,
       brand:            i.brand ?? null,

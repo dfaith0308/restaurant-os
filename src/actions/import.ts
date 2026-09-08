@@ -10,6 +10,10 @@
 import { createServerClient } from '@/lib/supabase-server'
 import { revalidatePath } from 'next/cache'
 import { matchSku, isSimilarForGrouping, type SkuIdentity } from '@/lib/sku'
+import {
+  INGREDIENT_SKU_LAYER_ENABLED,
+  INGREDIENT_SKU_LAYER_DISABLED_REASON,
+} from '@/lib/ingredient-sku-flag'
 import type { ActionResult } from '@/types'
 
 export interface ImportIngredientRow {
@@ -61,9 +65,11 @@ export async function importIngredients(
   }[] = []
 
   // ── SKU 매칭용: 같은 식당의 active 식자재 목록 한 번에 조회 ──
+  // 운영 ingredients 에는 parsed_name/brand/barcode/manufacturer/그룹 컬럼이 없다.
+  // 실제 컬럼만 읽으므로 matchSku 는 raw_name fallback 으로 동작한다.
   const { data: existingAll } = await supabase
     .from('ingredients')
-    .select('id, name, parsed_name, brand, unit, barcode, manufacturer, possible_duplicate_group_id')
+    .select('id, name, unit')
     .eq('tenant_id', tenant_id)
     .eq('is_active', true)
 
@@ -84,16 +90,12 @@ export async function importIngredients(
     const existing = matchSku(candidate, existingList)
 
     if (existing) {
-      // SKU 필드는 COALESCE 스타일 — 신규 값이 있으면 채우고, 없으면 기존값 보존
+      // 운영 ingredients 에 있는 컬럼만 갱신한다. 파일에서 읽은 거래처/SKU 메타는
+      // ingredients 에 보관할 자리가 없어 아래 price_history 에만 남는다.
       const patch: Record<string, unknown> = {
         unit:          row.unit,
         current_price: row.current_price,
-        supplier_name: row.supplier_name,
       }
-      if (row.parsed_name  != null) patch.parsed_name  = row.parsed_name
-      if (row.brand        != null) patch.brand        = row.brand
-      if (row.barcode      != null) patch.barcode      = row.barcode
-      if (row.manufacturer != null) patch.manufacturer = row.manufacturer
 
       const { error } = await supabase
         .from('ingredients')
@@ -110,14 +112,9 @@ export async function importIngredients(
           name:          row.name.trim(),
           unit:          row.unit,
           current_price: row.current_price,
-          supplier_name: row.supplier_name,
-          parsed_name:   row.parsed_name  ?? null,
-          brand:         row.brand        ?? null,
-          barcode:       row.barcode      ?? null,
-          manufacturer:  row.manufacturer ?? null,
           is_active:     true,
         })
-        .select('id, name, parsed_name, brand, unit, barcode, manufacturer')
+        .select('id, name, unit')
         .single()
       if (error || !inserted) failed++
       else {
@@ -147,7 +144,8 @@ export async function importIngredients(
   }
 
   // ── 자동 그룹핑 패스 — 방금 건드린 항목과 유사한 다른 항목을 그룹으로 묶음 ──
-  if (touchedIds.length > 0) {
+  // 그룹 ID 를 담을 possible_duplicate_group_id 컬럼이 운영 DB 에 없어 지금은 건너뛴다.
+  if (INGREDIENT_SKU_LAYER_ENABLED && touchedIds.length > 0) {
     await applyAutoGrouping(supabase, tenant_id, touchedIds)
   }
 
@@ -165,14 +163,16 @@ export async function importIngredients(
     const existingNameSet = new Set((existingRows ?? []).map((r: any) => r.name))
     const missing = names.filter((n) => !existingNameSet.has(n))
     if (missing.length > 0) {
-      await supabase.from('suppliers').insert(
+      // 실제로 저장됐을 때만 true 로 둔다. 결과를 버리면 저장이 실패해도
+      // 화면에 "거래처도 만들었어요" 라고 표시돼 버린다.
+      const { error: seedErr } = await supabase.from('suppliers').insert(
         missing.map((name) => ({
           tenant_id,
           name,
           is_active: true,
         }))
       )
-      supplier_seeded = true
+      supplier_seeded = !seedErr
     }
   }
 
@@ -202,6 +202,12 @@ export interface RegisterSkuInput {
 export async function registerSku(
   input: RegisterSkuInput,
 ): Promise<ActionResult<{ id: string; created: boolean }>> {
+  // barcode / brand / parsed_name / manufacturer 를 담을 컬럼이 운영 DB 에 없다.
+  // 저장되지 않을 값을 받아 성공했다고 답하지 않도록 여기서 끊는다.
+  if (!INGREDIENT_SKU_LAYER_ENABLED) {
+    return { success: false, error: INGREDIENT_SKU_LAYER_DISABLED_REASON }
+  }
+
   if (!input.name.trim() || !input.barcode.trim()) {
     return { success: false, error: '제품 정보가 부족해요' }
   }
@@ -325,6 +331,10 @@ export async function mergeIngredients(
   tenant_id: string,
   ingredient_ids: string[],
 ): Promise<ActionResult<{ group_id: string; updated: number }>> {
+  // possible_duplicate_group_id 컬럼이 운영 DB 에 없어 그룹을 저장할 곳이 없다.
+  if (!INGREDIENT_SKU_LAYER_ENABLED) {
+    return { success: false, error: INGREDIENT_SKU_LAYER_DISABLED_REASON }
+  }
   if (!tenant_id || ingredient_ids.length < 2) {
     return { success: false, error: '병합할 항목이 2개 이상 필요해요' }
   }
@@ -370,6 +380,10 @@ export async function promoteGroupToExact(
   group_id:      string,
   target_barcode: string,
 ): Promise<ActionResult<{ ingredients_updated: number; history_backfilled: boolean }>> {
+  // ingredients.barcode / possible_duplicate_group_id 컬럼이 운영 DB 에 없다.
+  if (!INGREDIENT_SKU_LAYER_ENABLED) {
+    return { success: false, error: INGREDIENT_SKU_LAYER_DISABLED_REASON }
+  }
   if (!tenant_id || !group_id || !target_barcode.trim()) {
     return { success: false, error: '그룹 / 대표 바코드가 필요해요' }
   }
@@ -427,6 +441,10 @@ export async function confirmSameProduct(
   tenant_id: string,
   group_id:      string,
 ): Promise<ActionResult<{ updated: number }>> {
+  // group_confirmed_same_at / possible_duplicate_group_id 컬럼이 운영 DB 에 없다.
+  if (!INGREDIENT_SKU_LAYER_ENABLED) {
+    return { success: false, error: INGREDIENT_SKU_LAYER_DISABLED_REASON }
+  }
   if (!tenant_id || !group_id) {
     return { success: false, error: '그룹 ID 가 필요해요' }
   }
@@ -452,6 +470,10 @@ export async function splitFromGroup(
   tenant_id: string,
   ingredient_id: string,
 ): Promise<ActionResult<{ new_group_id: string }>> {
+  // possible_duplicate_group_id / group_confirmed_same_at 컬럼이 운영 DB 에 없다.
+  if (!INGREDIENT_SKU_LAYER_ENABLED) {
+    return { success: false, error: INGREDIENT_SKU_LAYER_DISABLED_REASON }
+  }
   if (!tenant_id || !ingredient_id) {
     return { success: false, error: 'ingredient ID 가 필요해요' }
   }

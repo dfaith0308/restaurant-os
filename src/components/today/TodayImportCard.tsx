@@ -18,6 +18,10 @@ import {
   type ParsedProductBack,
 } from '@/lib/mock-parser'
 import { importIngredients, registerSku, type ImportResult } from '@/actions/import'
+import {
+  INGREDIENT_SKU_LAYER_ENABLED,
+  INGREDIENT_SKU_LAYER_DISABLED_REASON,
+} from '@/lib/ingredient-sku-flag'
 import { aiEvaluatePrice, decisionTone, type Decision } from '@/lib/ai-evaluate'
 import { logTodayEvent } from '@/actions/today-events'
 import { getOrCreateSessionId, timeSinceEnter, resetEnterTs } from '@/lib/today-events'
@@ -57,6 +61,13 @@ export default function TodayImportCard({ restaurantId, emphasize = false }: Pro
     setError(null)
 
     if (mode === 'product_back') {
+      // SKU 값을 담을 ingredients 컬럼이 없어 저장이 불가능하다. 입력만 받아 놓고
+      // 마지막에 실패시키지 않도록 여기서 사유를 알린다.
+      if (!INGREDIENT_SKU_LAYER_ENABLED) {
+        setError(INGREDIENT_SKU_LAYER_DISABLED_REASON)
+        if (fileRef.current) fileRef.current.value = ''
+        return
+      }
       // 제품 뒷면 이미지 → 단일 SKU 추출
       const sku = mockParseProductBack({ name: f.name, size: f.size })
       setSkuParsed(sku)
