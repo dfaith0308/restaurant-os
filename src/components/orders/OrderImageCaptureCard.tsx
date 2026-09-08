@@ -105,7 +105,7 @@ export default function OrderImageCaptureCard() {
     startTransition(async () => {
       const res = await captureOperationalOrder({
         source: 'kakao',
-        counterparty_name: counterparty,
+        supplier_name: counterparty,
         body,
         parsed_items: parsedPreview && parsedPreview.length > 0 ? parsedPreview : null,
       })

@@ -352,7 +352,7 @@ export function formatCaptureSourceLabel(source: OrderOperationCaptureSource): s
 
 export interface OrderRecentActivityItem {
   id: string
-  counterparty_name: string
+  supplier_name: string
   source_label: string
   created_at: string
 }
@@ -385,7 +385,7 @@ export function buildRecentOrderActivities(
     const cap = o.operation_capture
     out.push({
       id: o.id,
-      counterparty_name: o.counterparty_name || '거래처 미입력',
+      supplier_name: o.supplier_name || '거래처 미입력',
       source_label: cap ? formatCaptureSourceLabel(cap.source) : '플랫폼 발주',
       created_at: o.created_at,
     })
@@ -606,7 +606,7 @@ function buildOrderLinkedSupplierCounts(
       }
       continue
     }
-    const counterparty = (o.counterparty_name ?? '').trim()
+    const counterparty = (o.supplier_name ?? '').trim()
     if (counterparty && cap) {
       incrementSupplierCount(map, counterparty)
     }
@@ -875,7 +875,7 @@ export function buildTodayMainOperationFeed(
     const cap = o.operation_capture
     if (!cap) continue
     const label = formatCaptureSourceLabel(cap.source)
-    const cp = o.counterparty_name.trim() || '거래처 미입력'
+    const cp = o.supplier_name.trim() || '거래처 미입력'
     const lineCount = cap.parsed_items?.length ?? 0
     push({
       id: `order:${o.id}`,

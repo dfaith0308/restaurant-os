@@ -163,7 +163,7 @@ export async function getTodayDashboard(
           id:            cand.id,
           name:          cand.name,
           brand:         cand.brand ?? null,
-          counterparty_name: cand.supplier_name ?? '',
+          supplier_name: cand.supplier_name ?? '',
         }
       }
     }

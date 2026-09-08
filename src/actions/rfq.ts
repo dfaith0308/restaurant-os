@@ -79,21 +79,13 @@ export async function createRfqRequest(
   }
 
   // 가격 히스토리에 "현재 구매가" 기록 — AI 개인화 판단용
+  // price_history.barcode 는 비워 둔다. ingredients 에 barcode 컬럼이 없어 SKU 값을
+  // 가져올 출처가 없기 때문이다. personalized-price 는 barcode 가 null 인 행을
+  // ingredient_name 으로 조회하므로 이 경로는 이름 기준 매칭으로 동작한다.
   if (input.current_price && input.current_price > 0) {
-    // ingredient 에 barcode 있으면 같이 넣어 SKU 기준 조회에 쓰이게
-    let barcode: string | null = null
-    if (input.ingredient_id) {
-      const { data: ing } = await supabase
-        .from('ingredients')
-        .select('barcode')
-        .eq('id', input.ingredient_id)
-        .maybeSingle()
-      barcode = ing?.barcode ?? null
-    }
     await supabase.from('price_history').insert({
       tenant_id:       ctx.tenant_id,
       ingredient_name: input.product_name,
-      barcode,
       price:           input.current_price,
       unit:            input.unit,
       supplier_name:   null,
@@ -142,13 +134,24 @@ export async function getRfqDetail(
 
   const supabase = await createServerClient()
 
-  const [{ data: rfq, error: rfqErr }, { data: bids, error: bidErr }] = await Promise.all([
-    supabase.from('rfq_requests').select('*').eq('id', rfq_id).eq('tenant_id', tenant_id).single(),
-    supabase.from('rfq_bids').select('*').eq('rfq_id', rfq_id).eq('tenant_id', tenant_id)
-      .order('price', { ascending: true }),
-  ])
+  // rfq_bids 에는 tenant 컬럼이 없다. 입찰의 소유권은 부모 RFQ 가 정한다
+  // (rfq_bids.rfq_id 는 NOT NULL + rfq_requests FK 라 입찰 1건은 RFQ 1건에만 속한다).
+  // 그래서 RFQ 소유권을 먼저 확정하고, 그 뒤 rfq_id 로만 입찰을 읽으면 스코핑이 성립한다.
+  const { data: rfq, error: rfqErr } = await supabase
+    .from('rfq_requests')
+    .select('*')
+    .eq('id', rfq_id)
+    .eq('tenant_id', tenant_id)
+    .single()
 
   if (rfqErr || !rfq) return { success: false, error: rfqErr?.message ?? '요청 없음' }
+
+  const { data: bids, error: bidErr } = await supabase
+    .from('rfq_bids')
+    .select('*')
+    .eq('rfq_id', rfq_id)
+    .order('price', { ascending: true })
+
   if (bidErr) return { success: false, error: bidErr.message }
 
   // 절약금액 계산
@@ -170,7 +173,7 @@ export async function getRfqDetail(
 export interface CreateBidInput {
   rfq_id:         string
   supplier_name:  string
-  supplier_id?:   string
+  supplier_tenant_id?: string
   price:          number
   delivery_days?: number
   note?:          string
@@ -190,14 +193,13 @@ export async function createBid(
   const { data, error } = await supabase
     .from('rfq_bids')
     .insert({
-      tenant_id,
-      rfq_id:        input.rfq_id,
-      supplier_name: input.supplier_name,
-      supplier_tenant_id: input.supplier_id ?? null,  // rfq_bids 컬럼명
-      price:         input.price,
-      delivery_days: input.delivery_days ?? null,
-      note:          input.note ?? null,
-      status:        'submitted',
+      rfq_id:             input.rfq_id,
+      supplier_name:      input.supplier_name,
+      supplier_tenant_id: input.supplier_tenant_id ?? null,
+      price:              input.price,
+      delivery_days:      input.delivery_days ?? null,
+      note:               input.note ?? null,
+      status:             'submitted',
     })
     .select('id')
     .single()
@@ -283,7 +285,7 @@ export async function acceptBidAndCreateOrder(
 export interface LinkedOrder {
   id:              string
   status:          'confirmed' | 'completed' | 'cancelled'
-  counterparty_name: string
+  supplier_name:   string | null
   product_name:    string
   quantity:        number
   unit:            string
@@ -307,7 +309,7 @@ export async function getOrderByRfqId(
 
   const { data, error } = await supabase
     .from('orders')
-    .select('id, status, counterparty_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, delivered_at, delivery_note, created_at')
+    .select('id, status, supplier_name, product_name, quantity, unit, unit_price, total_amount, saving_amount, delivered_at, delivery_note, created_at')
     .eq('rfq_id', rfq_id)
     .eq('buyer_tenant_id', tenant_id)
     .order('created_at', { ascending: false })

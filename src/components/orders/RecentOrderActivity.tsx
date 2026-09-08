@@ -70,7 +70,7 @@ export default function RecentOrderActivity({
               color: '#374151',
             }}
           >
-            <div style={{ fontWeight: 700, color: 'var(--color-text)' }}>{row.counterparty_name}</div>
+            <div style={{ fontWeight: 700, color: 'var(--color-text)' }}>{row.supplier_name}</div>
             <div style={{ color: '#6b7280', marginTop: 2 }}>
               {row.source_label} · {formatRelativeTimeShort(row.created_at)}
             </div>
