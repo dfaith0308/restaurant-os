@@ -14,6 +14,7 @@ import {
   confirmSameProduct,
   splitFromGroup,
 } from '@/actions/import'
+import { INGREDIENT_SKU_LAYER_ENABLED } from '@/lib/ingredient-sku-flag'
 import { evaluatePrice, verdictCopy } from '@/lib/market-reference'
 import { aiEvaluatePrice, toneOf, decisionLabel, decisionTone } from '@/lib/ai-evaluate'
 import {
@@ -577,6 +578,9 @@ function VerdictView({
         )
       )}
 
+      {/* 아래 SKU/중복그룹 안내는 ingredients 의 barcode/group 컬럼이 있어야 의미가 있다.
+          운영 DB 에 그 컬럼이 없어 렌더만 막는다. 코드는 복구용으로 그대로 둔다. */}
+      {INGREDIENT_SKU_LAYER_ENABLED && (<>
       {(ingredient.group_member_count ?? 0) > 0 && !ingredient.has_barcode_conflict && (
         <div style={{
           marginBottom: 10, padding: '6px 12px',
@@ -623,6 +627,7 @@ function VerdictView({
           candidate={ingredient.merge_candidate}
         />
       )}
+      </>)}
 
       {/* ── 버튼 직전 — 이유 1줄 ── */}
       {dec === 'SWITCH' && ai.base.saving_per_unit > 0 && !simple && (

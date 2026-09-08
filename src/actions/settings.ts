@@ -12,8 +12,9 @@ export interface IngredientRow {
   name:           string               // raw_name
   unit:           string
   current_price:  number | null
-  supplier_name:  string | null
-  // SKU 레이어 (선택)
+  // 아래 필드는 운영 ingredients 에 컬럼이 없어 조회하지 않는다. 항상 undefined 다.
+  // 값을 지어내지 않고 필드 자체를 비워 둔다. @see INGREDIENT_SKU_LAYER_ENABLED
+  supplier_name?: string | null
   parsed_name?:   string | null
   brand?:         string | null
   barcode?:       string | null
@@ -26,7 +27,7 @@ export async function getIngredients(
   const supabase = await createServerClient()
   const { data, error } = await supabase
     .from('ingredients')
-    .select('id, name, unit, current_price, supplier_name, parsed_name, brand, barcode, manufacturer')
+    .select('id, name, unit, current_price')
     .eq('tenant_id', tenant_id)
     .eq('is_active', true)
     .order('created_at', { ascending: false })
@@ -41,8 +42,9 @@ export interface UpsertIngredientInput {
   name:           string
   unit:           string
   current_price:  number | null
-  supplier_name:  string | null
-  // SKU 레이어 (선택) — 있을 때만 DB 에 반영 (기존 값 덮지 않음)
+  // 아래 필드는 운영 ingredients 에 컬럼이 없어 저장되지 않는다. 호출부 시그니처는
+  // 유지하되 payload 에는 싣지 않는다. @see INGREDIENT_SKU_LAYER_ENABLED
+  supplier_name?: string | null
   parsed_name?:   string | null
   brand?:         string | null
   barcode?:       string | null
@@ -54,19 +56,14 @@ export async function upsertIngredient(
 ): Promise<ActionResult<{ id: string }>> {
   const supabase = await createServerClient()
 
-  // 기본 payload — SKU 필드는 undefined 가 아닌 경우에만 포함 (기존값 보존)
+  // 운영 ingredients 에 실제로 존재하는 컬럼만 싣는다.
   const payload: Record<string, unknown> = {
     tenant_id:      input.tenant_id,
     name:           input.name,
     unit:           input.unit,
     current_price:  input.current_price,
-    supplier_name:  input.supplier_name,
     is_active:      true,
   }
-  if (input.parsed_name  !== undefined) payload.parsed_name  = input.parsed_name
-  if (input.brand        !== undefined) payload.brand        = input.brand
-  if (input.barcode      !== undefined) payload.barcode      = input.barcode
-  if (input.manufacturer !== undefined) payload.manufacturer = input.manufacturer
 
   const query = input.id
     ? supabase.from('ingredients').update(payload).eq('id', input.id).eq('tenant_id', input.tenant_id).select('id').single()

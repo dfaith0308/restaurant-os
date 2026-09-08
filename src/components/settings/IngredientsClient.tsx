@@ -32,6 +32,7 @@ import Link from 'next/link'
 import IngredientBarcodeSection from '@/components/product/IngredientBarcodeSection'
 import type { IngredientBarcodeApplyHints } from '@/components/product/IngredientBarcodeSection'
 import KakaoInputRequest from '@/components/common/KakaoInputRequest'
+import { INGREDIENT_SKU_LAYER_ENABLED } from '@/lib/ingredient-sku-flag'
 
 const BRAND_ORANGE = '#F97316'
 const BRAND_GREEN = '#1f5d3a'
@@ -80,7 +81,7 @@ function parseSupplierFromMemo(memo: string | null): string | null {
   return null
 }
 
-function inferRegistrationLabel(memo: string | null, barcode: string | null): string {
+function inferRegistrationLabel(memo: string | null, barcode?: string | null): string {
   const m = memo ?? ''
   if (m.includes('거래명세서 OCR')) return '거래명세서 등록'
   if (barcode || m.includes('제조사:') || m.includes('품목보고')) return '제품 사진 등록'
@@ -297,7 +298,8 @@ interface Ingredient {
   target_price: number | null
   category: string | null
   memo: string | null
-  barcode: string | null
+  /** 운영 ingredients 에 barcode 컬럼이 없어 서버가 채우지 않는다. 항상 undefined. */
+  barcode?: string | null
   created_at?: string
   updated_at?: string | null
 }
@@ -1274,6 +1276,9 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
             }}
           />
 
+          {/* 바코드/SKU 값을 담을 ingredients 컬럼이 없어 지금은 렌더만 막는다.
+              코드는 그대로 두었고 INGREDIENT_SKU_LAYER_ENABLED 로 되살린다. */}
+          {INGREDIENT_SKU_LAYER_ENABLED && (
           <RegisterModeCard
             icon="📦"
             iconBg="#fff8f3"
@@ -1294,6 +1299,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
               setBarcodeToolsOpen(true)
             }}
           />
+          )}
 
           <RegisterModeCard
             icon="📄"
@@ -1633,7 +1639,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
         </div>
       )}
 
-      {registerMode === 'product' && (
+      {INGREDIENT_SKU_LAYER_ENABLED && registerMode === 'product' && (
         <div className="fade-up" style={{ marginBottom: 12 }}>
           <IngredientBarcodeSection onApply={applyBarcodeHints} />
         </div>
@@ -1743,7 +1749,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
             />
           </div>
 
-          {barcode.trim() ? (
+          {INGREDIENT_SKU_LAYER_ENABLED && barcode.trim() ? (
             <p style={{ fontSize: 11, color: '#9ca3af', margin: '-8px 0 14px' }}>
               바코드 {barcode} · 스캔으로 불러온 값
             </p>

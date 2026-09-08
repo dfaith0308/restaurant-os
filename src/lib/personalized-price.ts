@@ -13,6 +13,7 @@
 // 없으면 evaluatePrice 로 폴백한다 — 인터페이스 유지.
 // ============================================================
 
+import { INGREDIENT_SKU_LAYER_ENABLED } from '@/lib/ingredient-sku-flag'
 import type { PriceEvaluation, Verdict } from '@/lib/market-reference'
 import type { PricePoint } from '@/types'
 
@@ -171,9 +172,17 @@ export async function fetchHistoriesForIngredients(
   const { createServerClient } = await import('@/lib/supabase-server')
   const supabase = await createServerClient()
 
+  // group_id 경로만 ingredients 테이블(형제 조회)에 의존한다. 그 컬럼이 운영 DB 에
+  // 없으므로 group_id 가 실린 ref 도 이름 경로로 흘려보낸다 — 이력이 통째로 비지 않게.
+  // barcode 경로는 price_history.barcode 만 보므로 그대로 살려 둔다.
+  const useGroupLayer = INGREDIENT_SKU_LAYER_ENABLED
   const withBarcode = normalized.filter(r => !!r.barcode)
-  const withGroupId = normalized.filter(r => !r.barcode && !!r.group_id)
-  const nameOnly    = normalized.filter(r => !r.barcode && !r.group_id)
+  const withGroupId = useGroupLayer
+    ? normalized.filter(r => !r.barcode && !!r.group_id)
+    : []
+  const nameOnly    = normalized.filter(
+    r => !r.barcode && (!r.group_id || !useGroupLayer),
+  )
 
   // ── group_id 가 있는 ref 는 "같은 그룹 형제들의 name/barcode" 를 먼저 수집 ──
   const groupIds = Array.from(new Set(withGroupId.map(r => r.group_id!)))
