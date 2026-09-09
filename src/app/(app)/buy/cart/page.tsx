@@ -11,16 +11,9 @@ export default async function BuyCartPage() {
   const res = await cartPromise
   const items = res.success ? res.data?.items ?? [] : []
 
+  // 인자를 넘기지 않는다 — 할인은 서버가 장바구니를 직접 읽어 계산한다.
   const [discountRes, subStatus] = await Promise.all([
-    items.length >= 2
-      ? calcCartDiscount(
-          items.map((i) => ({
-            listing_id: i.listing_id,
-            quantity: i.quantity,
-            commerce_price: i.commerce_price,
-          })),
-        )
-      : Promise.resolve(null),
+    items.length > 0 ? calcCartDiscount() : Promise.resolve(null),
     subStatusPromise,
   ])
 

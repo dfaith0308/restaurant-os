@@ -80,5 +80,7 @@ export interface CreateCommerceOrderInput {
   shipping_address: string
   delivery_memo?: string | null
     payment_method: 'card' | 'bank_transfer' | 'kakao_manual'
-  discount_amount?: number
+  // discount_amount 는 받지 않는다. 할인은 서버가 장바구니와 회원 등급으로
+  // 직접 계산한다 (actions/buy.ts createCommerceOrder). 클라이언트 값을 받으면
+  // 화면을 거치지 않고 호출해 임의 할인을 넣을 수 있다.
 }
