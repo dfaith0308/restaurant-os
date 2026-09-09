@@ -69,7 +69,6 @@ export default function BuyCheckoutClient({
       shipping_address: address,
       delivery_memo: memo || null,
       payment_method: 'card',
-      discount_amount: discountAmount,
     })
 
     if (!orderRes.success || !orderRes.data) {
@@ -133,7 +132,6 @@ export default function BuyCheckoutClient({
         shipping_address: address,
         delivery_memo: memo || null,
         payment_method: paymentMethod,
-        discount_amount: discountAmount,
       })
 
       if (!res.success || !res.data) {

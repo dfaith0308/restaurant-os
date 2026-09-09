@@ -3,6 +3,14 @@
 import { createHash } from 'crypto'
 import { revalidatePath } from 'next/cache'
 import { createServerClient, createSupabaseAdmin, getAuthCtx } from '@/lib/supabase-server'
+import {
+  BUY_DISCOUNT_SETTING_KEYS,
+  calcDiscountAmount,
+  parseBuyDiscountConfig,
+  resolveDiscountRate,
+  type BuyDiscountConfig,
+  type BuyerGrade,
+} from '@/lib/buy-discount'
 import { buildKakaoOrderSummary } from '@/lib/kakao-format'
 import type {
   BuyListingRow,
@@ -1276,7 +1284,16 @@ export async function createCommerceOrder(
   }
 
   const subtotal = lines.reduce((s, l) => s + l.line_total, 0)
-  const discount_amount = Math.max(0, Math.min(input.discount_amount ?? 0, subtotal))
+
+  // 할인액은 서버에서 다시 계산한다. 클라이언트가 보낸 값은 쓰지 않는다 —
+  // 예전에는 input.discount_amount 를 subtotal 상한으로만 자르고 그대로 받아서,
+  // 화면을 거치지 않고 호출하면 소계 전액까지 임의 할인이 통했다.
+  // 정책 적용가(unit_price)로 만든 이 subtotal 이 주문의 확정 기준이다.
+  const { grade: buyerGrade, config: discountConfig } = await loadBuyDiscountContext(
+    supabase,
+    ctx.tenant_id,
+  )
+  const discount_amount = calcDiscountAmount(buyerGrade, subtotal, discountConfig)
   const total_amount = Math.max(0, subtotal - discount_amount)
 
   const payloadJson = stableCommerceOrderIdempotencyPayload({
@@ -1468,93 +1485,105 @@ export async function getMyCommerceOrders(): Promise<ActionResult<{ orders: Comm
   }
 }
 
-export async function calcCartDiscount(
-  items: { listing_id: string; quantity: number; commerce_price: number }[],
-): Promise<ActionResult<{ discount_amount: number; eligible: boolean }>> {
-  const supabase = await createServerClient()
-  const ctx = await getAuthCtx(supabase)
-  if (!ctx) return { success: true, data: { discount_amount: 0, eligible: false } }
+/**
+ * 등급 판정 + 설정 로드. 원가를 읽지 않는다.
+ * admin_settings 는 로그인 세션으로 읽힌다(운영 확인: 식당 세션 200, anon 빈 배열).
+ */
+async function loadBuyDiscountContext(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  tenant_id: string | null,
+): Promise<{ grade: BuyerGrade; config: BuyDiscountConfig }> {
+  const { data: settingRows } = await supabase
+    .from('admin_settings')
+    .select('key, value')
+    .in('key', Object.values(BUY_DISCOUNT_SETTING_KEYS))
+
+  const config = parseBuyDiscountConfig(
+    ((settingRows ?? []) as { key: string; value: string | null }[]),
+  )
+
+  if (!tenant_id) return { grade: 'guest', config }
 
   const { data: tenant } = await supabase
     .from('tenants')
     .select('subscription_plan')
-    .eq('id', ctx.tenant_id)
-    .single()
+    .eq('id', tenant_id)
+    .maybeSingle()
 
-  const isSubscriber = tenant?.subscription_plan != null && tenant.subscription_plan !== 'free'
-  if (!isSubscriber) {
-    return { success: true, data: { discount_amount: 0, eligible: false } }
-  }
+  const plan = (tenant as { subscription_plan?: string | null } | null)?.subscription_plan ?? null
+  const grade: BuyerGrade = plan != null && plan !== 'free' ? 'subscriber' : 'member'
+  return { grade, config }
+}
 
-  const uniqueListings = new Set(items.map((i) => i.listing_id))
-  if (uniqueListings.size < 2) {
-    return { success: true, data: { discount_amount: 0, eligible: false } }
-  }
+/**
+ * 서버에서 장바구니를 직접 읽어 소계를 낸다.
+ * 호출자가 보낸 quantity / commerce_price 를 쓰지 않는 것이 요점이다 —
+ * 예전에는 그 값들을 그대로 믿어서 quantity:0 으로 특정 상품만 남기거나
+ * commerce_price 를 이분탐색하며 응답을 관찰하는 조작이 가능했다.
+ */
+async function loadCartSubtotal(
+  supabase: Awaited<ReturnType<typeof createServerClient>>,
+  tenant_id: string,
+): Promise<{ subtotal: number; listingCount: number }> {
+  const { data: cartRows } = await supabase
+    .from('cart_items')
+    .select('listing_id, quantity')
+    .eq('tenant_id', tenant_id)
 
-  const admin = await createSupabaseAdmin()
+  const rows = (cartRows ?? []) as { listing_id: string; quantity: number }[]
+  if (rows.length === 0) return { subtotal: 0, listingCount: 0 }
 
-  const { data, error } = await admin
+  const listingIds = [...new Set(rows.map((r) => r.listing_id))]
+  const { data: listingRows } = await supabase
     .from('commerce_product_listings')
-    .select('id, product_id')
-    .in('id', Array.from(uniqueListings))
+    .select('id, commerce_price')
+    .in('id', listingIds)
+    .is('deleted_at', null)
 
-  if (error) return { success: false, error: error.message }
-
-  const productIds = [
-    ...new Set(
-      (data ?? [])
-        .map((r: { product_id: string | null }) => r.product_id)
-        .filter((id): id is string => Boolean(id)),
-    ),
-  ]
-
-  const costByProduct = new Map<string, number>()
-  if (productIds.length > 0) {
-    const { data: costs, error: costErr } = await admin
-      .from('product_costs')
-      .select('product_id, cost_price')
-      .in('product_id', productIds)
-      .is('end_date', null)
-
-    if (costErr) return { success: false, error: costErr.message }
-
-    for (const row of costs ?? []) {
-      const r = row as { product_id: string; cost_price: number | null }
-      costByProduct.set(r.product_id, r.cost_price ?? 0)
-    }
-  }
-
-  const supplyMap = new Map<string, number>(
-    (data ?? []).map((r: { id: string; product_id: string | null }) => [
-      r.id,
-      r.product_id ? (costByProduct.get(r.product_id) ?? 0) : 0,
+  const priceById = new Map(
+    ((listingRows ?? []) as { id: string; commerce_price: number | null }[]).map((l) => [
+      l.id,
+      l.commerce_price ?? 0,
     ]),
   )
 
-  let totalRevenue = 0
-  let totalCost = 0
-  for (const item of items) {
-    const supply = supplyMap.get(item.listing_id) ?? 0
-    totalRevenue += item.commerce_price * item.quantity
-    totalCost += supply * item.quantity
+  let subtotal = 0
+  for (const row of rows) {
+    const qty = Number.isFinite(row.quantity) && row.quantity > 0 ? Math.floor(row.quantity) : 0
+    subtotal += (priceById.get(row.listing_id) ?? 0) * qty
   }
+  return { subtotal, listingCount: listingIds.length }
+}
 
-  if (totalRevenue === 0) return { success: true, data: { discount_amount: 0, eligible: false } }
+/**
+ * 장바구니 할인액.
+ *
+ * 인자를 받지 않는다. 세션의 tenant 로 장바구니를 서버에서 읽고, 할인은
+ * 소계와 회원 등급만으로 계산한다 (lib/buy-discount.ts). product_costs 도
+ * service role 도 이 경로에 없다.
+ *
+ * 반환값이 원가의 함수가 아니므로 어떤 입력을 넣어도 원가를 역산할 수 없다 —
+ * 응답에서 얻을 수 있는 것은 구매자가 이미 아는 소계와 자기 등급뿐이다.
+ */
+export async function calcCartDiscount(): Promise<
+  ActionResult<{ discount_amount: number; eligible: boolean }>
+> {
+  const supabase = await createServerClient()
+  const ctx = await getAuthCtx(supabase)
 
-  const PG_RATE = 0.033
-  const netRevenue = totalRevenue * (1 - PG_RATE)
-  const currentMargin = (netRevenue - totalCost) / netRevenue
+  // 비회원 — 할인 없음
+  if (!ctx) return { success: true, data: { discount_amount: 0, eligible: false } }
 
-  const MIN_MARGIN = 0.16
+  const { subtotal } = await loadCartSubtotal(supabase, ctx.tenant_id)
+  if (subtotal <= 0) return { success: true, data: { discount_amount: 0, eligible: false } }
 
-  if (currentMargin <= MIN_MARGIN) {
-    return { success: true, data: { discount_amount: 0, eligible: true } }
-  }
+  const { grade, config } = await loadBuyDiscountContext(supabase, ctx.tenant_id)
+  const discount_amount = calcDiscountAmount(grade, subtotal, config)
 
-  const maxDiscountable = netRevenue - totalCost / MIN_MARGIN / (1 - PG_RATE)
-  const discount_amount = Math.max(0, Math.floor(maxDiscountable / 100) * 100)
+  // eligible = 할인 대상 등급인가. 금액 조건을 못 채워 0원이어도 등급 자체는 유효하다.
+  const eligible = resolveDiscountRate(grade, subtotal, config) > 0 || grade === 'subscriber'
 
-  return { success: true, data: { discount_amount, eligible: true } }
+  return { success: true, data: { discount_amount, eligible } }
 }
 
 export type CommerceOrderDetailRow = {

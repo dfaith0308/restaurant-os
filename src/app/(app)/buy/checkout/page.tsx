@@ -23,15 +23,10 @@ export default async function BuyCheckoutPage() {
     redirect('/buy/cart')
   }
 
+  // 표시용 금액. 주문 확정 시 createCommerceOrder 가 같은 규칙으로 다시 계산한다.
   let discountAmount = 0
-  if (items.length >= 2) {
-    const discountRes = await calcCartDiscount(
-      items.map((i) => ({
-        listing_id: i.listing_id,
-        quantity: i.quantity,
-        commerce_price: i.commerce_price,
-      })),
-    )
+  if (items.length > 0) {
+    const discountRes = await calcCartDiscount()
     if (discountRes.success) discountAmount = discountRes.data?.discount_amount ?? 0
   }
 

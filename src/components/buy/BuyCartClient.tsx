@@ -312,14 +312,14 @@ export default function BuyCartClient({
                     🎁 구독하면 장바구니 할인 혜택!
                   </p>
                   <p style={{ fontSize: 11, color: '#6b7280', margin: 0 }}>
-                    2종류 이상 담으면 자동으로 할인이 적용됩니다
+                    구독하면 전 품목에 정률 할인이 자동 적용됩니다
                   </p>
                 </div>
                 <span style={{ fontSize: 13, color: 'var(--color-primary)', fontWeight: 700, flexShrink: 0 }}>구독하기 →</span>
               </Link>
-            ) : discountAmount === 0 && items.length >= 2 ? (
+            ) : discountAmount === 0 && items.length > 0 ? (
               <p style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 4px', textAlign: 'right' }}>
-                다른 상품을 함께 담으면 할인 혜택이 생길 수 있어요
+                금액 조건을 채우면 할인 혜택이 생길 수 있어요
               </p>
             ) : null}
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 800, color: '#1a1a1a', paddingTop: 8, borderTop: '1px solid #f3f4f6' }}>
