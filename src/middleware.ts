@@ -120,7 +120,21 @@ export async function middleware(request: NextRequest) {
   }
 
   const role = (userRow as { role?: string | null }).role ?? null
-  if (!role || !(ALLOWED_APP_ROLES as readonly string[]).includes(role)) {
+
+  // role 이 아직 없는 상태는 "권한 없음"이 아니라 "가입 미완료"로 본다.
+  // DB 트리거(handle_new_user_onboarding)가 auth 가입 시점에 '내 회사' tenant 와
+  // users 행을 먼저 만들어 두고, signup.ts 가 그것을 정리한 뒤 role='restaurant' 를
+  // 넣는다(cleanupTriggerOnboardingArtifacts). 그 사이에 끊기면 tenant_id 는 있는데
+  // role 만 비어 있는 행이 남는다. 이걸 차단 안내로 보내면 정상 가입자가 영문도
+  // 모르고 막히므로 온보딩으로 돌린다.
+  if (!role) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/onboarding'
+    url.search = ''
+    return NextResponse.redirect(url)
+  }
+
+  if (!(ALLOWED_APP_ROLES as readonly string[]).includes(role)) {
     // 로그아웃시키지 않는다 — auth 가 공급자OS 와 공유되므로 여기서 세션을 끊으면
     // 원래 쓰던 공급자OS 세션까지 함께 죽는다. 로그인 화면으로만 되돌린다.
     const url = request.nextUrl.clone()
