@@ -18,8 +18,8 @@
 | 3 | 기능 전체 목록 | 18:23 | **18:43** | `feature-map-restaurant/supplier/admin.md` |
 | 4 | 실제 작동 여부 검증 | 18:43 | **18:48** | `feature-status-report.md` |
 | 5 | 화면 간 연결 상태 | 18:48 | **18:52** | `connection-gap-report.md` |
-| 6 | 기능 조합 아이디어 | 18:52 | — | `combination-ideas.md` |
-| 7 | 부족한 기능 정리 | — | — | `missing-features-report.md` |
+| 6 | 기능 조합 아이디어 | 18:52 | **18:55** | `combination-ideas.md` |
+| 7 | 부족한 기능 정리 | 18:55 | — | `missing-features-report.md` |
 
 ---
 
