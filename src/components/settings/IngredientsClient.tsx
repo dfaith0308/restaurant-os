@@ -81,7 +81,14 @@ function parseSupplierFromMemo(memo: string | null): string | null {
   return null
 }
 
-function inferRegistrationLabel(memo: string | null, barcode?: string | null): string {
+function inferRegistrationLabel(
+  memo: string | null,
+  barcode?: string | null,
+  createdByAdminId?: string | null,
+): string {
+  // 관리자 대리 등록은 메모 내용과 무관하게 우선 표시한다.
+  // 사장님이 "내가 넣은 적 없는데?" 하고 헷갈리지 않게 하는 게 목적이다.
+  if (createdByAdminId) return '관리자 대신 등록'
   const m = memo ?? ''
   if (m.includes('거래명세서 OCR')) return '거래명세서 등록'
   if (barcode || m.includes('제조사:') || m.includes('품목보고')) return '제품 사진 등록'
@@ -300,6 +307,8 @@ interface Ingredient {
   memo: string | null
   /** 운영 ingredients 에 barcode 컬럼이 없어 서버가 채우지 않는다. 항상 undefined. */
   barcode?: string | null
+  /** 관리자가 이 식당 대신 등록했으면 그 관리자의 users.id. 직접 등록이면 null. */
+  created_by_admin_id?: string | null
   created_at?: string
   updated_at?: string | null
 }
@@ -1822,7 +1831,7 @@ export default function IngredientsClient({ ingredients: init, restaurantId: _re
                   const recentSupplier = parseSupplierFromMemo(i.memo)
                   const lastPriceChange =
                     meta?.last_price_change_date ?? history[0]?.effective_from ?? null
-                  const regLabel = inferRegistrationLabel(i.memo, i.barcode)
+                  const regLabel = inferRegistrationLabel(i.memo, i.barcode, i.created_by_admin_id)
                   const ocrRelative =
                     (i.memo ?? '').includes('거래명세서 OCR') && i.updated_at
                       ? formatRelativeDays(i.updated_at)

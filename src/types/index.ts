@@ -17,6 +17,11 @@ export interface Ingredient {
   unit:           string
   current_price:  number | null
   supplier_name:  string | null
+  /**
+   * 관리자가 이 식당 대신 등록한 경우 그 관리자의 users.id. 직접 등록이면 null.
+   * 아래 SKU 레이어 필드들과 달리 운영 ingredients 에 실제로 있는 컬럼이다.
+   */
+  created_by_admin_id: string | null
   // ── SKU 레이어 (선택) ──
   parsed_name:    string | null
   brand:          string | null

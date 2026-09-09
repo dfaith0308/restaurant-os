@@ -21,13 +21,18 @@ export interface IngredientRow {
    * @see INGREDIENT_SKU_LAYER_ENABLED
    */
   barcode?: string | null
+  /**
+   * 관리자가 이 식당 대신 등록한 경우 그 관리자의 users.id. 사장님이 직접 넣었으면 null.
+   * 목록에서 「관리자 대신 등록」 표시에 쓴다. admin_logs 를 행마다 조회하지 않기 위한 컬럼이다.
+   */
+  created_by_admin_id: string | null
   is_active: boolean
   created_at: string
   updated_at: string | null
 }
 
 const INGREDIENT_SELECT =
-  'id, tenant_id, name, unit, current_price, target_price, category, memo, is_active, created_at, updated_at'
+  'id, tenant_id, name, unit, current_price, target_price, category, memo, created_by_admin_id, is_active, created_at, updated_at'
 
 function isLikelySameIngredient(a: string, b: string): boolean {
   const left = normalizeIngredientName(a)
