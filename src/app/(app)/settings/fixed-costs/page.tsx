@@ -1,6 +1,7 @@
 import { getTenantId } from '@/lib/get-restaurant'
 import { getFixedCosts } from '@/actions/settings'
-import { getRestaurant, getMenus } from '@/actions/restaurant'
+import { getRestaurant } from '@/actions/restaurant'
+import { getMenuBasics } from '@/actions/menus'
 import FixedCostsClient from '@/components/settings/FixedCostsClient'
 
 export default async function FixedCostsPage() {
@@ -8,7 +9,7 @@ export default async function FixedCostsPage() {
   const [costsRes, restaurantRes, menusRes] = await Promise.all([
     getFixedCosts(tenantId),
     getRestaurant(tenantId),
-    getMenus(tenantId),
+    getMenuBasics(),
   ])
 
   const menus = menusRes.data ?? []

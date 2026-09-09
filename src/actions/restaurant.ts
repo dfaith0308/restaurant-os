@@ -129,52 +129,8 @@ export async function updateRestaurant(
 }
 
 // ── 메뉴 ──────────────────────────────────────────────────────
-
-export interface MenuRow {
-  id:          string
-  name:        string
-  price:       number
-  is_featured: boolean
-}
-
-export async function getMenus(
-  tenant_id: string,
-): Promise<ActionResult<MenuRow[]>> {
-  const supabase = await createServerClient()
-  const { data, error } = await supabase
-    .from('menus')
-    .select('id, name, price, is_featured')
-    .eq('tenant_id', tenant_id)
-    .order('is_featured', { ascending: false })
-    .order('created_at', { ascending: true })
-
-  if (error) return { success: false, error: error.message }
-  return { success: true, data: data ?? [] }
-}
-
-export interface CreateMenuInput {
-  tenant_id:    string
-  name:         string
-  price:        number
-  is_featured?: boolean
-}
-
-export async function createMenu(
-  input: CreateMenuInput,
-): Promise<ActionResult<{ id: string }>> {
-  const supabase = await createServerClient()
-  const { data, error } = await supabase
-    .from('menus')
-    .insert({
-      tenant_id:   input.tenant_id,
-      name:        input.name,
-      price:       input.price,
-      is_featured: input.is_featured ?? false,
-    })
-    .select('id')
-    .single()
-
-  if (error || !data) return { success: false, error: error?.message ?? '저장 실패' }
-  revalidatePath('/settings')
-  return { success: true, data: { id: data.id } }
-}
+// 메뉴 조회/생성은 전부 src/actions/menus.ts 로 일원화했다.
+// 이 파일에 있던 getMenus/createMenu 는 운영에 없는 is_featured 컬럼을 참조해
+// 항상 42703 으로 실패했고(실제 컬럼은 is_representative), 그 탓에 설정 화면이
+// 메뉴가 있어도 "메뉴 미등록"으로 표시됐다.
+// 가벼운 목록이 필요하면 menus.ts 의 getMenuBasics() 를 쓴다.
