@@ -100,12 +100,17 @@ async function insertIngredientPriceHistory(
   price: number,
   effective_from: string,
 ): Promise<void> {
-  await supabase.from('ingredient_price_history').insert({
+  // 이력 실패로 식자재 저장 자체를 되돌리지는 않는다. 다만 조용히 사라지게 두지도 않는다.
+  // (RLS 정책 누락으로 오래 무음 실패해 온 지점 — 20260909230000_ingredient_history_rls_policies.sql)
+  const { error } = await supabase.from('ingredient_price_history').insert({
     tenant_id,
     ingredient_id,
     price,
     effective_from,
   })
+  if (error) {
+    console.error('[ingredients] 가격 이력 기록 실패', { ingredient_id, code: error.code, message: error.message })
+  }
 }
 
 async function insertIngredientUnitHistory(
@@ -116,12 +121,15 @@ async function insertIngredientUnitHistory(
   effective_from: string,
 ): Promise<void> {
   const resolved = resolveIngredientUnit(unit)
-  await supabase.from('ingredient_unit_history').insert({
+  const { error } = await supabase.from('ingredient_unit_history').insert({
     tenant_id,
     ingredient_id,
     unit: resolved,
     effective_from,
   })
+  if (error) {
+    console.error('[ingredients] 단위 이력 기록 실패', { ingredient_id, code: error.code, message: error.message })
+  }
 }
 
 async function appendUnitHistoryIfChanged(
