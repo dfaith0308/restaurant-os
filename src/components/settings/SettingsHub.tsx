@@ -4,14 +4,15 @@ import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { formatKRW } from '@/lib/utils'
 import { updateRestaurant } from '@/actions/restaurant'
-import type { RestaurantInfo, MenuRow, SeatingType } from '@/actions/restaurant'
+import type { RestaurantInfo, SeatingType } from '@/actions/restaurant'
+import type { MenuBasic } from '@/actions/menus'
 import type { FixedCostRow, IngredientRow } from '@/actions/settings'
 
 interface Props {
   restaurant:  RestaurantInfo
   fixedCosts:  FixedCostRow[]
   ingredients: IngredientRow[]
-  menus:       MenuRow[]
+  menus:       MenuBasic[]
 }
 
 const BRAND_ORANGE = '#F97316'

@@ -1,5 +1,6 @@
 import { getTenantId } from '@/lib/get-restaurant'
-import { getRestaurant, getMenus } from '@/actions/restaurant'
+import { getRestaurant } from '@/actions/restaurant'
+import { getMenuBasics } from '@/actions/menus'
 import { getFixedCosts, getIngredients } from '@/actions/settings'
 import SettingsHub from '@/components/settings/SettingsHub'
 
@@ -27,7 +28,7 @@ export default async function SettingsPage() {
     getRestaurant(tenantId),
     getFixedCosts(tenantId),
     getIngredients(tenantId),
-    getMenus(tenantId),
+    getMenuBasics(),
   ])
 
   return (

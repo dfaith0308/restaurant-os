@@ -294,6 +294,43 @@ async function assertRepresentativeLimit(
   if ((count ?? 0) >= 3) throw new Error('대표메뉴는 최대 3개까지 선택할 수 있습니다.')
 }
 
+// 메뉴 이름·가격 정도만 필요한 화면용 경량 조회.
+// getMenus() 는 menu_ingredients / ingredients / 가격 리스크맵 / 과거 가격까지
+// 함께 끌어와 원가와 마진을 계산한다. 설정 허브나 고정비 화면처럼 "몇 개인지,
+// 평균 단가가 얼마인지"만 보는 곳이 그 비용을 낼 이유가 없어 분리했다(RULE-05).
+export interface MenuBasic {
+  id:                 string
+  name:               string
+  price:              number
+  is_representative:  boolean
+}
+
+export async function getMenuBasics(): Promise<ActionResult<MenuBasic[]>> {
+  const supabase = await createServerClient()
+  const tenant_id = await getTenantId().catch(() => null)
+  if (!tenant_id) return { success: false, error: '인증 필요', data: [] }
+
+  const { data, error } = await supabase
+    .from('menus')
+    .select('id, name, price, is_representative')
+    .eq('tenant_id', tenant_id)
+    .eq('is_active', true)
+    .order('is_representative', { ascending: false })
+    .order('created_at', { ascending: true })
+
+  if (error) return { success: false, error: error.message, data: [] }
+
+  return {
+    success: true,
+    data: (data ?? []).map((m) => ({
+      id:                m.id,
+      name:              m.name,
+      price:             m.price ?? 0,
+      is_representative: !!m.is_representative,
+    })),
+  }
+}
+
 export async function getMenus(): Promise<ActionResult<MenuWithCost[]>> {
   const supabase = await createServerClient()
   const tenant_id = await getTenantId().catch(() => null)
