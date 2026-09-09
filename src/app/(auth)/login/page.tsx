@@ -180,6 +180,18 @@ export default function LoginPage() {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // middleware 가 role 게이트로 되돌려보낸 경우의 안내.
+  // useSearchParams 대신 location 을 직접 읽는다 — 이 페이지에 Suspense 경계를
+  // 새로 두지 않기 위해서다.
+  const [blockedNotice, setBlockedNotice] = useState<string | null>(null)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (new URLSearchParams(window.location.search).get('blocked') === 'role') {
+      setBlockedNotice(
+        '이 계정은 식당OS를 이용할 수 없습니다. 공급자 계정은 공급자OS로 로그인해 주세요.',
+      )
+    }
+  }, [])
   const [done, setDone] = useState(false)
   const [bizNumberChecked, setBizNumberChecked] = useState(false)
   const [bizNumberStatus, setBizNumberStatus] = useState<BizNumberStatus>('idle')
@@ -901,6 +913,18 @@ export default function LoginPage() {
                 <li key={item}>{item}</li>
               ))}
             </ul>
+          </div>
+        )}
+
+        {blockedNotice && (
+          <div
+            style={{
+              marginTop: 12, padding: '10px 14px',
+              background: '#FFFBEB', border: '1px solid #FDE68A',
+              borderRadius: 8, fontSize: 13, color: '#92400E', lineHeight: 1.6,
+            }}
+          >
+            {blockedNotice}
           </div>
         )}
 
