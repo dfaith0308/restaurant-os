@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import CartAddButton from '@/components/buy/CartAddButton'
+import WishlistButton from '@/components/buy/WishlistButton'
 
 type BuyListingCardProps = {
   listingId: string
@@ -13,6 +14,8 @@ type BuyListingCardProps = {
   buyable?: boolean
   /** sold_out 등 — 품절 배지 */
   status?: string | null
+  /** 찜 여부. undefined 면 하트를 렌더하지 않는다 */
+  wished?: boolean
 }
 
 function PhotoPlaceholderIcon() {
@@ -49,6 +52,7 @@ export default function BuyListingCard({
   addLabel = '장바구니 담기',
   buyable = true,
   status = null,
+  wished,
 }: BuyListingCardProps) {
   const thumb = thumbnailUrl?.trim()
   const nameLine = [productName?.trim(), spec?.trim()].filter(Boolean).join(' · ')
@@ -191,6 +195,10 @@ export default function BuyListingCard({
           </p>
         ) : null}
       </div>
+
+      {wished === undefined ? null : (
+        <WishlistButton listingId={listingId} initialWished={wished} />
+      )}
 
       {canAdd ? (
         <div style={{ flexShrink: 0 }}>

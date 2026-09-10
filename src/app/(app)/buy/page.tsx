@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { getCart, getListings, getRecentOrderItems, getStoreCategories } from '@/actions/buy'
+import { getCart, getListings, getRecentOrderItems, getStoreCategories, getWishlistListingIds } from '@/actions/buy'
 import BuyCatalogShell from '@/components/buy/BuyCatalogShell'
 import BuyListingCard from '@/components/buy/BuyListingCard'
 import BuyRecentReorderRow from '@/components/buy/BuyRecentReorderRow'
@@ -40,11 +40,13 @@ export default async function BuyHomePage({
   const sort =
     sortRaw === 'price_asc' || sortRaw === 'price_desc' ? sortRaw : ('default' as const)
 
-  const [categoriesRes, recentRes, cartRes] = await Promise.all([
+  const [categoriesRes, recentRes, cartRes, wishedIds] = await Promise.all([
     getStoreCategories(),
     getRecentOrderItems(),
     getCart(),
+    getWishlistListingIds(),
   ])
+  const wishedSet = new Set(wishedIds)
 
   const storeCategories = categoriesRes.success ? categoriesRes.data?.categories ?? [] : []
 
@@ -236,13 +238,17 @@ export default async function BuyHomePage({
                   detailHref={`/buy/products/${p.id}`}
                   status={p.status}
                   buyable={p.status === 'visible'}
+                  wished={wishedSet.has(p.id)}
                 />
               </li>
             ))}
           </ul>
         )}
 
-        <div style={{ marginTop: 28, textAlign: 'center' }}>
+        <div style={{ marginTop: 28, textAlign: 'center', display: 'flex', justifyContent: 'center', gap: 16 }}>
+          <Link href="/buy/wishlist" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'underline' }}>
+            찜한 상품
+          </Link>
           <Link href="/buy/orders" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'underline' }}>
             구매 내역 보기
           </Link>

@@ -29,3 +29,15 @@ a {
 button, input, select, textarea {
   font-family: inherit;
 }
+
+/* 수량 입력창 — 커스텀 −/+ 버튼만 쓰므로 브라우저 기본 스피너를 숨긴다 */
+.qty-input::-webkit-outer-spin-button,
+.qty-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.qty-input {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}

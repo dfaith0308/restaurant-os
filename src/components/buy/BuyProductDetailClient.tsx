@@ -3,10 +3,13 @@
 import { useState, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import CartAddButton from '@/components/buy/CartAddButton'
+import WishlistButton from '@/components/buy/WishlistButton'
 import { BOTTOM_NAV_HEIGHT_PX, fixedStripeAboveBottomNav } from '@/lib/app-shell'
 
 interface Props {
   listingId: string
+  /** 찜 여부 (서버에서 조회해 전달) */
+  wished?: boolean
   productName: string
   price: number
   thumbnailUrl: string | null
@@ -32,6 +35,7 @@ function buildGalleryUrls(thumbnailUrl: string | null, imageUrls?: string[] | nu
 
 export default function BuyProductDetailClient({
   listingId,
+  wished = false,
   productName,
   price,
   thumbnailUrl,
@@ -379,6 +383,7 @@ export default function BuyProductDetailClient({
               +
             </button>
           </div>
+          <WishlistButton listingId={listingId} initialWished={wished} size="lg" />
           <div style={{ flex: 1, minWidth: 0 }}>
             {soldOut ? (
               <button

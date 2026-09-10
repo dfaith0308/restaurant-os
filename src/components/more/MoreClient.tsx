@@ -19,6 +19,13 @@ const ITEMS: Array<
   { href: '/suppliers', icon: '🤝', label: '거래처 관리', desc: '거래처 정보와 가격을 관리합니다' },
   { href: '/money', icon: '💰', label: '돈관리', desc: '매출·원가·지출을 확인합니다' },
   { href: '/settings', icon: '⚙️', label: '설정', desc: '계정·알림·앱 설정' },
+  {
+    href: KAKAO_CHANNEL_URL,
+    icon: '💬',
+    label: '고객센터 문의',
+    desc: '주문·배송·환불 문의를 카카오톡으로 남겨주세요',
+    external: true,
+  },
 ]
 
 const itemStyle = {

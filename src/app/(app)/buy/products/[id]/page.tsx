@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { getListing, getStoreCategories } from '@/actions/buy'
+import { getListing, getStoreCategories, getWishlistListingIds } from '@/actions/buy'
 import BuyProductDetailClient from '@/components/buy/BuyProductDetailClient'
 import ProductDetailTemplate from '@/components/buy/ProductDetailTemplate'
 
@@ -18,7 +18,11 @@ function resolveCategoryName(
 
 export default async function BuyProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const [res, categoriesRes] = await Promise.all([getListing(id), getStoreCategories()])
+  const [res, categoriesRes, wishedIds] = await Promise.all([
+    getListing(id),
+    getStoreCategories(),
+    getWishlistListingIds(),
+  ])
   if (!res.success || !res.data?.listing) notFound()
   const p = res.data.listing
 
@@ -31,6 +35,7 @@ export default async function BuyProductPage({ params }: { params: Promise<{ id:
   return (
     <BuyProductDetailClient
       listingId={p.id}
+      wished={wishedIds.includes(p.id)}
       productName={productName}
       price={price}
       thumbnailUrl={p.thumbnail_url ?? null}

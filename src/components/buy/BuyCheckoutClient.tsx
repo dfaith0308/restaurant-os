@@ -46,7 +46,7 @@ export default function BuyCheckoutClient({
   const total = subtotal - discountAmount
 
   async function handleCardPayment() {
-    const clientKey = process.env.NEXT_PUBLIC_TOSS_CLIENT_KEY
+    const clientKey = process.env.NEXT_PUBLIC_TOSS_BUY_CLIENT_KEY
     if (!clientKey) {
       setError('카드 결제가 준비 중입니다.')
       return
