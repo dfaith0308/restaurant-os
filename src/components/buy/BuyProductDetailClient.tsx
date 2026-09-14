@@ -24,6 +24,8 @@ interface Props {
   ingredients?: string | null
   categoryName?: string | null
   detailTemplate?: React.ReactNode
+  /** 상품명 아래 추가 영역 (상세페이지 템플릿의 핵심 한 줄·규격 칩). 없으면 기존과 동일 */
+  headerExtra?: React.ReactNode
 }
 
 function buildGalleryUrls(thumbnailUrl: string | null, imageUrls?: string[] | null): string[] {
@@ -50,6 +52,7 @@ export default function BuyProductDetailClient({
   ingredients,
   categoryName,
   detailTemplate,
+  headerExtra,
 }: Props) {
   const gallery = useMemo(() => buildGalleryUrls(thumbnailUrl, imageUrls), [thumbnailUrl, imageUrls])
   const [activeIdx, setActiveIdx] = useState(0)
@@ -246,6 +249,8 @@ export default function BuyProductDetailClient({
             </span>
           ) : null}
         </h1>
+
+        {headerExtra}
 
         {(origin || allergen) && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
