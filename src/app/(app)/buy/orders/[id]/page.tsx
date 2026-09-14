@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { getCommerceOrderDetail } from '@/actions/buy'
+import { getBuyOrderDeliveryTimeline } from '@/actions/buy-delivery'
+import BuyDeliveryTimeline from '@/components/buy/BuyDeliveryTimeline'
 import BuyOrderCancelSection from '@/components/buy/BuyOrderCancelSection'
 import BuyOrderTimeline from '@/components/buy/BuyOrderTimeline'
 import KakaoInquiryButton from '@/components/common/KakaoInquiryButton'
@@ -28,7 +30,11 @@ export default async function CommerceOrderDetailPage({
   params: Promise<{ id: string }>
 }) {
   const { id } = await params
-  const res = await getCommerceOrderDetail(id)
+  const [res, delivery] = await Promise.all([
+    getCommerceOrderDetail(id),
+    // 배송 추적이 시작된 주문만 값이 온다. 없으면 기존 화면 그대로
+    getBuyOrderDeliveryTimeline(id).catch(() => null),
+  ])
   if (!res.success || !res.data?.order) notFound()
   const o = res.data.order
   const status = STATUS_LABEL[o.status] ?? { label: o.status, color: '#374151', bg: '#f3f4f6' }
@@ -76,6 +82,8 @@ export default async function CommerceOrderDetailPage({
         </div>
 
         <BuyOrderTimeline status={o.status} />
+
+        {delivery ? <BuyDeliveryTimeline data={delivery} /> : null}
 
         <div style={{ background: '#fff', borderRadius: 12, padding: '16px 18px', marginBottom: 10 }}>
           <p style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', margin: '0 0 12px', letterSpacing: '.06em', textTransform: 'uppercase' as const }}>주문 품목</p>
